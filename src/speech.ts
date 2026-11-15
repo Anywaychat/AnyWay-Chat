@@ -230,8 +230,11 @@ export function listenOnce(onText: (sofar: string) => void, onDone: (finalText: 
 }
 
 /* ---------- "Hey Chat" wake word ---------- */
-// "Hey Chat". The greeting is required, so the word "chat" on its own in normal talk doesn't wake it.
-const WAKE = /\b(?:hey|hi|ok|okay|hello)[\s,]+chat\b[\s,.]*/i
+// "Hey Chat", forgiving: speech engines often hear it as "hey chad", "a chat", "hey jack", "hey check" with different accents.
+// Saying just "Chat, ..." at the start of a sentence also works.
+const GREET = '(?:hey|hay|hi|hai|high|hello|ok|okay|o\\.?k\\.?|ay|eh|he|yo)'
+const CHAT = '(?:chat|chats|chad|chap|chet|jack|jat|chaat|chart|check|chuck|shot|shat|cat|chatting)'
+const WAKE = new RegExp(`(?:\\b${GREET}[\\s,.-]*${CHAT}\\b|^\\s*(?:a|uh|ah|um)?[\\s,]*${CHAT}\\b)[\\s,.]*`, 'i')
 
 let wakeRec: Rec | null = null
 let wakeOn = false

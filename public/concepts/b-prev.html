@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnyWay Chat · Concept B</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800;900&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--k:#000;--y:#F5C451;--w:#FFFFFF;--g:#C9CFD8;--line:#2A2F38}
+*{box-sizing:border-box}
+body{margin:0;background:var(--k);color:var(--w);font-family:'Atkinson Hyperlegible',system-ui,sans-serif;font-size:19px;line-height:1.5}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--y);outline-offset:4px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 32px}
+h1,h2,h3{font-family:'Barlow Condensed',sans-serif;margin:0;}
+nav{display:flex;justify-content:space-between;align-items:center;padding:24px 0}
+.logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;text-decoration:none;display:flex;gap:12px;align-items:center}
+.cell{display:grid;grid-template-columns:repeat(2,8px);gap:4px}
+.cell i{width:8px;height:8px;border-radius:50%;background:var(--y)}
+.cell i.o{background:#333}
+.btn{display:inline-flex;align-items:center;height:58px;padding:0 26px;border-radius:999px;font-weight:700;text-decoration:none;font-size:18px}
+.btn.y{background:var(--y);color:var(--k)}
+.btn.o{border:2px solid var(--w)}
+/* hero */
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:8px 0 40px}
+.hero h1{font-size:clamp(58px,7.6vw,128px);line-height:.86;font-weight:900;letter-spacing:-.01em;margin-bottom:28px}
+/* five ways picker */
+.pick{border:2px solid var(--w);border-radius:28px;overflow:hidden}
+.pick-head{padding:20px 24px 16px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:2px solid var(--w)}
+.pick-head h2{font-size:34px;font-weight:900;line-height:1}
+.pick-head span{color:var(--g);font-size:15px}
+.way{display:grid;grid-template-columns:56px 1fr auto;gap:16px;align-items:center;padding:12px 24px;text-decoration:none;border-bottom:1px solid var(--line);transition:background .12s}
+.way:last-child{border-bottom:0}
+.way:hover,.way:focus-visible{background:var(--y);color:var(--k);outline:none}
+.way:hover .say,.way:focus-visible .say{color:#3A3A3A}
+.way:hover .ico,.way:focus-visible .ico{background:var(--k);color:var(--y)}
+.way:hover .key,.way:focus-visible .key{border-color:var(--k)}
+.ico{width:56px;height:56px;border-radius:16px;background:#1A1F28;color:var(--y);display:grid;place-items:center}
+.way strong{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:30px;line-height:1}
+.say{display:block;color:var(--g);font-size:16px;margin-top:4px}
+.key{width:34px;height:34px;border-radius:9px;border:2px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:15px}
+.hero h1 .y{color:var(--y)}
+.hero p{font-size:22px;color:var(--g);max-width:34ch;margin:0 0 30px}
+.ctas{display:flex;gap:12px;flex-wrap:wrap}
+/* first screen: nav + hero + band fit one laptop screen */
+.first{min-height:100vh;min-height:100svh;display:flex;flex-direction:column}
+.first > .wrap{flex:1;display:flex;flex-direction:column;width:100%}
+.first .hero{flex:1}
+/* braille band: signature */
+.band{background:var(--y);color:var(--k);padding:26px 0;overflow:hidden}
+.band-row{display:flex;justify-content:space-between;gap:32px;align-items:center;white-space:nowrap;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:44px}
+.dots{display:inline-grid;grid-template-columns:repeat(2,12px);gap:6px;vertical-align:middle}
+.dots i{width:12px;height:12px;border-radius:50%;background:var(--k)}
+.dots i.o{background:transparent;box-shadow:inset 0 0 0 2px rgba(0,0,0,.25)}
+section{padding:96px 0;border-bottom:1px solid var(--line)}
+.split{display:grid;grid-template-columns:.9fr 1.1fr;gap:56px}
+.big{font-size:clamp(44px,5.6vw,84px);line-height:.92;font-weight:900}
+.lede{color:var(--g);font-size:20px;max-width:46ch;margin:22px 0 0}
+.numbers{display:flex;flex-direction:column}
+.n{display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:baseline;border-top:2px solid var(--line);padding:20px 0}
+.n b{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:68px;line-height:1;color:var(--y)}
+.n span{color:var(--g)}
+/* interpreter phone */
+.phone{width:300px;border-radius:40px;border:3px solid var(--y);overflow:hidden;justify-self:end}
+.ph-top{background:var(--w);color:var(--k);padding:22px;transform:rotate(180deg);min-height:200px}
+.ph-top small{font-size:14px;color:#46536B}
+.ph-top div{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:30px;line-height:1}
+.ph-mid{background:var(--y);color:var(--k);font-weight:700;font-size:13px;padding:10px;text-align:center}
+.ph-bot{background:#111621;padding:22px;min-height:200px}
+.ph-bot small{font-size:14px;color:var(--g)}
+.ph-bot div{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:30px;line-height:1;margin-top:6px}
+/* who */
+.who{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:2px solid var(--w);margin-top:48px}
+.who > div{padding:24px 20px 8px 0;border-right:1px solid var(--line)}
+.who > div:last-child{border-right:0}
+.who h3{font-size:34px;font-weight:900}
+.who p{color:var(--g);font-size:16px;margin:12px 0 0}
+.who .way{display:inline-block;margin-top:16px;background:var(--y);color:var(--k);font-weight:700;font-size:14px;padding:5px 10px;border-radius:6px}
+/* features */
+.feats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px;margin-top:48px;background:var(--line)}
+.feat{background:var(--k);padding:36px 32px 36px 0}
+.feat:nth-child(even){padding-left:32px}
+.feat h3{font-size:46px;font-weight:900;line-height:1}
+.feat p{color:var(--g);max-width:36ch;margin:14px 0 0}
+.end{padding:120px 0;text-align:left}
+.end h2{font-size:clamp(72px,12vw,200px);line-height:.84;font-weight:900;color:var(--y)}
+.end .ctas{margin-top:36px}
+footer{padding:28px 0 48px;color:var(--g);font-size:14px}
+@media (min-width:901px) and (max-height:780px){
+  nav{padding:14px 0}
+  .hero h1{font-size:clamp(52px,6.4vw,96px);margin-bottom:18px}
+  .hero p{font-size:19px;margin-bottom:20px}
+  .way{padding:8px 20px}
+  .ico{width:46px;height:46px}
+  .way strong{font-size:26px}
+  .pick-head{padding:14px 20px 12px}
+  .pick-head h2{font-size:28px}
+  .band{padding:18px 0}
+  .band-row{font-size:36px}
+}
+@media (max-width:900px){
+  .way{padding:14px 16px;grid-template-columns:48px 1fr}
+  .key,.pick-head span{display:none}
+  .ico{width:48px;height:48px}
+  .wrap{padding:0 16px}
+  .hero,.split{grid-template-columns:1fr}
+  .phone{justify-self:start}
+  .who{grid-template-columns:1fr 1fr}
+  .feats{grid-template-columns:1fr}
+  .feat,.feat:nth-child(even){padding:28px 0}
+  .n{grid-template-columns:1fr}
+  .band-row{font-size:30px}
+}
+.band{padding:16px 0}.band-row{font-size:34px}.dots{grid-template-columns:repeat(2,9px);gap:4px}.dots i{width:9px;height:9px}
+
+/* talk-your-way flow */
+.flow-sec .big{max-width:22ch}
+.flow{margin-top:56px;display:grid;grid-template-columns:1fr 180px 1fr;column-gap:0;row-gap:14px;align-items:stretch}
+.flow-h{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:26px;color:var(--g);padding-bottom:6px}
+.flow-h.r{text-align:right}
+.flow-in,.flow-out{display:flex;align-items:center;gap:16px;border:2px solid var(--line);border-radius:22px;padding:18px 20px;min-height:92px}
+.flow-out{justify-content:flex-end;text-align:right;border-color:var(--y)}
+.flow-in strong,.flow-out strong{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:32px;line-height:1}
+.flow-in small,.flow-out small{display:block;color:var(--g);font-size:15px;margin-top:4px}
+.f-ico{width:52px;height:52px;flex-shrink:0;border-radius:15px;background:#1A1F28;color:var(--y);display:grid;place-items:center}
+.flow-out .f-ico{background:var(--y);color:var(--k)}
+.rail{position:relative;display:flex;align-items:center;justify-content:center}
+.rail::before{content:'';position:absolute;left:0;right:0;top:50%;height:2px;background:repeating-linear-gradient(90deg,var(--y) 0 10px,transparent 10px 18px)}
+.rail span{position:relative;width:12px;height:12px;border-radius:50%;background:var(--y)}
+.core{grid-column:2;grid-row:2 / span 4;align-self:center;justify-self:center;width:150px;height:150px;border-radius:50%;background:var(--y);color:var(--k);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:1;box-shadow:0 0 0 10px var(--k),0 0 0 12px var(--y)}
+.core b{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:30px;line-height:.9}
+.core small{font-size:13px;font-weight:700;margin-top:6px}
+.flow-note{margin-top:28px;color:var(--g);font-size:17px;max-width:60ch}
+@media (max-width:900px){
+  .flow{grid-template-columns:1fr}
+  .rail,.core{display:none}
+  .flow-h.r{text-align:left;margin-top:24px}
+  .flow-out{justify-content:flex-start;text-align:left;flex-direction:row-reverse}
+  .flow > *{grid-column:1 !important;grid-row:auto !important}
+}
+</style>
+</head>
+<body>
+<div class="first">
+<div class="wrap">
+  <nav aria-label="Main">
+    <a class="logo" href="#"><span class="cell" aria-hidden="true"><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i></span>AnyWay Chat</a>
+    <a class="btn y" href="/">Open the app</a>
+  </nav>
+  <header class="hero">
+    <div>
+      <h1>No one should need <span class="y">help</span> to say hello.</h1>
+      <p>AnyWay Chat is chat, voice and video calling for blind, deaf, deaf-blind and non-speaking people. They talk their way. Everyone else talks normally. AnyWay translates live.</p>
+      <div class="ctas"><a class="btn o" href="#how">See how it works</a></div>
+    </div>
+    <div class="pick" role="group" aria-label="Start by choosing how you talk">
+      <div class="pick-head"><h2>How do you talk?</h2><span>Press 1 to 5, or tap</span></div>
+      <a class="way" href="/?mode=blind" data-key="1"><span class="ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7c2 0 3.8.7 5.3 1.7M22 12s-4 7-10 7c-2 0-3.8-.7-5.3-1.7"/><path d="M3 3l18 18"/></svg></span><span><strong>I’m blind</strong><span class="say">Speak to send. Hear every reply.</span></span><span class="key" aria-hidden="true">1</span></a>
+      <a class="way" href="/?mode=deaf" data-key="2"><span class="ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V3.5a1.5 1.5 0 0 1 3 0V11M14 11V5a1.5 1.5 0 0 1 3 0v7c0 4-2.5 8-7 8-3 0-4.5-2-6-5l-1-2a1.5 1.5 0 0 1 2.6-1.5L8 14"/></svg></span><span><strong>I’m deaf</strong><span class="say">Sign to the camera. See text and signs.</span></span><span class="key" aria-hidden="true">2</span></a>
+      <a class="way" href="/?mode=speech" data-key="3"><span class="ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span><strong>I can’t speak</strong><span class="say">Tap a phrase. The app says it for you.</span></span><span class="key" aria-hidden="true">3</span></a>
+      <a class="way" href="/?mode=deafblind" data-key="4"><span class="ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="3"/><path d="M2 8v8M22 8v8"/></svg></span><span><strong>I’m deaf-blind</strong><span class="say">Type in braille. Feel every reply.</span></span><span class="key" aria-hidden="true">4</span></a>
+      <a class="way" href="/?mode=standard" data-key="5"><span class="ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span><span><strong>I talk and type</strong><span class="say">Chat as you always do. We translate.</span></span><span class="key" aria-hidden="true">5</span></a>
+    </div>
+  </header>
+</div>
+
+<div class="band" aria-hidden="true">
+  <div class="wrap band-row">
+    <span>Sign</span><span class="dots"><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i></span>
+    <span>Speak</span><span class="dots"><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i></span>
+    <span>Tap</span><span class="dots"><i class="o"></i><i></i><i></i><i></i><i class="o"></i><i></i></span>
+    <span>Type</span><span class="dots"><i></i><i class="o"></i><i class="o"></i><i></i><i></i><i></i></span>
+    <span>Feel</span>
+  </div>
+</div>
+</div>
+
+<div class="wrap">
+  <section class="flow-sec" id="flow">
+    <h2 class="big" style="max-width:22ch">Four people. Four ways to understand.</h2>
+    <p class="lede">No names, no setup. Just pick how you are, and AnyWay does the rest.</p>
+    <div class="flow" role="group" aria-label="Four people. Four ways to understand.">
+      <div class="flow-h" style="grid-column:1;grid-row:1">If you are</div>
+      <div class="flow-h r" style="grid-column:3;grid-row:1">You understand by</div>
+      <div class="core" style="grid-row:2 / span 4" aria-hidden="true"><b>AnyWay</b><small>translates live</small></div>
+      <div class="flow-in" style="grid-column:1;grid-row:2"><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7c2 0 3.8.7 5.3 1.7M22 12s-4 7-10 7c-2 0-3.8-.7-5.3-1.7"/><path d="M3 3l18 18"/></svg></span><span><strong>Blind</strong><small>you speak to send</small></span></div>
+      <div class="rail" style="grid-column:2;grid-row:2" aria-hidden="true"><span></span></div>
+      <div class="flow-out" style="grid-column:3;grid-row:2"><span><strong>Hearing every reply</strong><small>read aloud in a natural voice</small></span><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></svg></span></div>
+      <div class="flow-in" style="grid-column:1;grid-row:3"><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V3.5a1.5 1.5 0 0 1 3 0V11M14 11V5a1.5 1.5 0 0 1 3 0v7c0 4-2.5 8-7 8-3 0-4.5-2-6-5l-1-2a1.5 1.5 0 0 1 2.6-1.5L8 14"/></svg></span><span><strong>Deaf</strong><small>you sign to the camera</small></span></div>
+      <div class="rail" style="grid-column:2;grid-row:3" aria-hidden="true"><span></span></div>
+      <div class="flow-out" style="grid-column:3;grid-row:3"><span><strong>Seeing text and signs</strong><small>captions plus sign animations</small></span><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V3.5a1.5 1.5 0 0 1 3 0V11M14 11V5a1.5 1.5 0 0 1 3 0v7c0 4-2.5 8-7 8-3 0-4.5-2-6-5l-1-2a1.5 1.5 0 0 1 2.6-1.5L8 14"/></svg></span></div>
+      <div class="flow-in" style="grid-column:1;grid-row:4"><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span><strong>Non-speaking</strong><small>you tap phrases</small></span></div>
+      <div class="rail" style="grid-column:2;grid-row:4" aria-hidden="true"><span></span></div>
+      <div class="flow-out" style="grid-column:3;grid-row:4"><span><strong>Reading or listening</strong><small>whichever you prefer</small></span><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg></span></div>
+      <div class="flow-in" style="grid-column:1;grid-row:5"><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M3 9v6M21 9v6"/></svg></span><span><strong>Deaf-blind</strong><small>you type in braille</small></span></div>
+      <div class="rail" style="grid-column:2;grid-row:5" aria-hidden="true"><span></span></div>
+      <div class="flow-out" style="grid-column:3;grid-row:5"><span><strong>Feeling every reply</strong><small>vibration and braille display</small></span><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M3 9v6M21 9v6"/></svg></span></div>
+    </div>
+  </section>
+
+  <section class="split" id="why">
+    <div>
+      <h2 class="big">Hundreds of millions are left out of every chat app.</h2>
+      <p class="lede">Today a blind teenager waits for a parent to type his messages. A deaf customer writes on paper at the counter. AnyWay ends both.</p>
+    </div>
+    <div class="numbers">
+      <div class="n"><b>430M</b><span>people live with disabling hearing loss</span></div>
+      <div class="n"><b>70M+</b><span>deaf people use a sign language</span></div>
+      <div class="n"><b>97M</b><span>people can’t rely on speech to be understood</span></div>
+      <div class="n"><b>&lt;500</b><span>certified sign interpreters for India’s ~18M deaf people</span></div>
+    </div>
+  </section>
+
+  <section class="split" id="how">
+    <div>
+      <h2 class="big">Your phone becomes the interpreter.</h2>
+      <p class="lede">A deaf customer signs to the phone, and the shopkeeper hears it. The shopkeeper answers out loud, and the customer reads it and sees it signed. The shopkeeper never installs anything.</p>
+    </div>
+    <div class="phone" aria-label="Go mode: the phone sits between two people, one half faces each">
+      <div class="ph-top"><small>Customer signed</small><div>How much is this rice bag?</div></div>
+      <div class="ph-mid">Put the phone between you</div>
+      <div class="ph-bot"><small>Shopkeeper said</small><div>₹450 for the 5 kilo bag.</div></div>
+    </div>
+  </section>
+
+    <section id="features">
+    <h2 class="big">Everywhere you talk.</h2>
+    <div class="feats">
+      <div class="feat"><h3>Chat</h3><p>Messages and family groups, each delivered in the form you can use.</p></div>
+      <div class="feat"><h3>Voice calls</h3><p>Signs and taps become a natural voice. Speech becomes live captions.</p></div>
+      <div class="feat"><h3>Video calls</h3><p>Sign on camera and be heard. Watch their words appear as captions and signs.</p></div>
+      <div class="feat"><h3>Go mode</h3><p>Out in the world, one phone on the counter translates both ways.</p></div>
+    </div>
+  </section>
+
+  <div class="end">
+    <h2>Talk your way.</h2>
+    <div class="ctas"><a class="btn y" href="/">Open AnyWay Chat</a></div>
+  </div>
+  <footer>Built with the Nexconn Chat SDK for the Nexconn Build Challenge 2026.</footer>
+</div>
+<script>
+document.addEventListener('keydown',function(e){
+  if(e.metaKey||e.ctrlKey||e.altKey||/input|textarea/i.test(e.target.tagName))return;
+  var a=document.querySelector('.way[data-key="'+e.key+'"]');
+  if(a)a.click();
+});
+</script>
+</body>
+</html>

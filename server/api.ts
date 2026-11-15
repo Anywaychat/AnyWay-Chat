@@ -61,11 +61,31 @@ export interface PublicUser {
 
 const DB_PATH = resolve(process.cwd(), 'data/db.json')
 
-function load(): Db {
+/**
+ * Storage: Upstash Redis when its keys are set (on Vercel), otherwise a local JSON file (on your computer).
+ */
+let redis: { url: string; token: string } | null = null
+export function useRedis(env: Record<string, string | undefined>) {
+  const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL
+  const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN
+  redis = url && token ? { url, token } : null
+}
+const KEY = 'anyway:db'
+
+async function load(): Promise<Db> {
+  if (redis) {
+    const r = await fetch(`${redis.url}/get/${KEY}`, { headers: { Authorization: `Bearer ${redis.token}` } })
+    const j = (await r.json()) as { result: string | null }
+    return j.result ? (JSON.parse(j.result) as Db) : { users: {}, sessions: {} }
+  }
   if (!existsSync(DB_PATH)) return { users: {}, sessions: {} }
   return JSON.parse(readFileSync(DB_PATH, 'utf8')) as Db
 }
-function save(db: Db) {
+async function save(db: Db) {
+  if (redis) {
+    await fetch(`${redis.url}/set/${KEY}`, { method: 'POST', headers: { Authorization: `Bearer ${redis.token}` }, body: JSON.stringify(db) })
+    return
+  }
   mkdirSync(dirname(DB_PATH), { recursive: true })
   writeFileSync(DB_PATH, JSON.stringify(db, null, 2))
 }
@@ -80,6 +100,16 @@ function send(res: ServerResponse, status: number, body: unknown) {
 }
 
 async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  // Vercel may have parsed the body already.
+  const pre = (req as IncomingMessage & { body?: unknown }).body
+  if (pre && typeof pre === 'object') return pre as Record<string, unknown>
+  if (typeof pre === 'string') {
+    try {
+      return JSON.parse(pre) as Record<string, unknown>
+    } catch {
+      return {}
+    }
+  }
   let raw = ''
   for await (const chunk of req) raw += chunk
   if (raw.length > 150_000) return {}
@@ -91,7 +121,7 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
 }
 
 /** Signed call to the Nexconn Platform Chat API (Singapore, with backup domain). */
-async function nexconnPost<T>(env: Record<string, string>, path: string, body: unknown): Promise<(T & { code: number }) | null> {
+async function nexconnPost<T>(env: Record<string, string | undefined>, path: string, body: unknown): Promise<(T & { code: number }) | null> {
   const appKey = env.VITE_NEXCONN_APP_KEY
   const secret = env.NEXCONN_APP_SECRET
   if (!appKey || !secret) return null
@@ -114,19 +144,20 @@ async function nexconnPost<T>(env: Record<string, string>, path: string, body: u
   return null
 }
 
-async function issueNexconnToken(env: Record<string, string>, user: PublicUser): Promise<string | null> {
+async function issueNexconnToken(env: Record<string, string | undefined>, user: PublicUser): Promise<string | null> {
   const j = await nexconnPost<{ result?: { accessToken: string } }>(env, '/v4/auth/access-token/issue', { userId: user.id, name: user.name })
   return j && j.code === 0 && j.result ? j.result.accessToken : null
 }
 
 const cleanId = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 32)
 
-export function createApi(env: Record<string, string>) {
+export function createApi(env: Record<string, string | undefined>) {
+  useRedis(env)
   return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const url = new URL(req.url ?? '', 'http://localhost')
     if (!url.pathname.startsWith('/api/')) return next()
     const path = url.pathname.slice(4)
-    const db = load()
+    const db = await load()
     const session = (req.headers.authorization ?? '').replace(/^Bearer /, '')
     const me = db.sessions[session] ? db.users[db.sessions[session]] : undefined
 
@@ -145,7 +176,7 @@ export function createApi(env: Record<string, string>) {
         db.users[id] = { id, name, mode, salt, hash: hashPw(password, salt), contacts: [], createdAt: Date.now() }
         const token = randomBytes(24).toString('hex')
         db.sessions[token] = id
-        save(db)
+        await save(db)
         return send(res, 200, { session: token, user: pub(db.users[id]) })
       }
 
@@ -156,7 +187,7 @@ export function createApi(env: Record<string, string>) {
         if (!u || !ok) return send(res, 401, { error: 'Wrong username or password.' })
         const token = randomBytes(24).toString('hex')
         db.sessions[token] = u.id
-        save(db)
+        await save(db)
         return send(res, 200, { session: token, user: pub(u) })
       }
 
@@ -164,7 +195,7 @@ export function createApi(env: Record<string, string>) {
 
       if (path === '/logout' && req.method === 'POST') {
         delete db.sessions[session]
-        save(db)
+        await save(db)
         return send(res, 200, { ok: true })
       }
 
@@ -183,7 +214,7 @@ export function createApi(env: Record<string, string>) {
         if (block) list.add(other)
         else list.delete(other)
         me.blocked = [...list]
-        save(db)
+        await save(db)
         return send(res, 200, { blocked: me.blocked })
       }
 
@@ -193,7 +224,7 @@ export function createApi(env: Record<string, string>) {
         if (!db.users[about]) return send(res, 404, { error: 'No one with that username.' })
         db.reports = db.reports ?? []
         db.reports.push({ from: me.id, about, reason: String(b.reason ?? '').slice(0, 500), time: Date.now() })
-        save(db)
+        await save(db)
         return send(res, 200, { ok: true })
       }
 
@@ -203,7 +234,7 @@ export function createApi(env: Record<string, string>) {
         if (typeof b.name === 'string' && b.name.trim()) me.name = b.name.trim().slice(0, 40)
         if (b.avatar === null) delete me.avatar
         else if (typeof b.avatar === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(b.avatar) && b.avatar.length < 120_000) me.avatar = b.avatar
-        save(db)
+        await save(db)
         return send(res, 200, { user: pub(me) })
       }
 
@@ -233,7 +264,7 @@ export function createApi(env: Record<string, string>) {
         if (!me.contacts.includes(other.id)) me.contacts.push(other.id)
         // Adding someone makes the contact mutual, so they can reply straight away.
         if (!other.contacts.includes(me.id)) other.contacts.push(me.id)
-        save(db)
+        await save(db)
         return send(res, 200, { contact: pub(other) })
       }
 
@@ -260,7 +291,7 @@ export function createApi(env: Record<string, string>) {
         const i = list.findIndex((c) => c.callId === callId)
         if (i >= 0) list[i] = log
         else list.push(log)
-        save(db)
+        await save(db)
         return send(res, 200, { ok: true })
       }
 
@@ -276,7 +307,7 @@ export function createApi(env: Record<string, string>) {
           g.members = g.members.filter((id) => id !== me.id)
           if (g.owner === me.id && g.members.length) g.owner = g.members[0]
           if (!g.members.length) delete db.groups![g.id]
-          save(db)
+          await save(db)
           return send(res, 200, { ok: true })
         }
         if (g.owner !== me.id) return send(res, 403, { error: 'Only the group admin can change members.' })
@@ -292,7 +323,7 @@ export function createApi(env: Record<string, string>) {
           if (!r || r.code !== 0) return send(res, 502, { error: 'Could not remove people right now.' })
           g.members = g.members.filter((id) => !remove.includes(id))
         }
-        save(db)
+        await save(db)
         return send(res, 200, { group: groupOut() })
       }
 
@@ -314,7 +345,7 @@ export function createApi(env: Record<string, string>) {
         if (!r || r.code !== 0) return send(res, 502, { error: `Could not create the group on the chat service${r ? ` (code ${r.code})` : ''}.` })
         db.groups = db.groups ?? {}
         db.groups[id] = { id, name, owner: me.id, members: [me.id, ...members], createdAt: Date.now() }
-        save(db)
+        await save(db)
         return send(res, 200, { group: { id, name, owner: me.id, members: db.groups[id].members.map((m) => pub(db.users[m])) } })
       }
 

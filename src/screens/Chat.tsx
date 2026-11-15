@@ -1,17 +1,21 @@
-import { createContext, useContext, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Camera, Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, MoreVertical, Paperclip, Phone, Send, Smile, Video, Volume2 } from 'lucide-react'
+import { Camera, Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, Trash2, Video, Volume2, X } from 'lucide-react'
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import { startCall } from '../calls'
-import type { Origin as MsgOrigin } from '../nexconn'
+import type { ChatMessage, Origin as MsgOrigin } from '../nexconn'
 
 type SendFn = (text: string, origin: MsgOrigin) => void
 interface Actions {
   sendFile: (f: File) => void
+  sendVoice: (b: Blob) => void
   notifyTyping: () => void
+  draft: string
 }
-const ActionsCtx = createContext<Actions>({ sendFile: () => {}, notifyTyping: () => {} })
+const ActionsCtx = createContext<Actions>({ sendFile: () => {}, sendVoice: () => {}, notifyTyping: () => {}, draft: '' })
+const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 const kb = (n = 0) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 const fmt = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 import { Avatar, BackButton } from '../components/ui'
@@ -24,7 +28,27 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   const c = isGroup ? { ...contactById(id), name: group?.name ?? 'Group', initial: (group?.name ?? 'G').charAt(0).toUpperCase(), hue: 'slate' as const } : contactById(id)
   const { mode } = useProfile()
   const online = usePresence()
-  const { messages, send, sendFile, notifyTyping, status, loading, me, typing } = useThread({ kind, id })
+  const { messages, send, sendFile, sendVoice, reply, edit, remove, react, notifyTyping, status, loading, me, typing } = useThread({ kind, id })
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
+  const [editing, setEditing] = useState<ChatMessage | null>(null)
+  const [menu, setMenu] = useState<string | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [query, setQuery] = useState('')
+  const shown = searching && query.trim() ? messages.filter((m) => m.text.toLowerCase().includes(query.trim().toLowerCase())) : messages
+  const bottomRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!searching) bottomRef.current?.scrollIntoView({ block: 'end' })
+  }, [messages.length, searching])
+  const submit: SendFn = (text, origin) => {
+    if (editing) {
+      void edit(editing.id, text)
+      setEditing(null)
+    } else if (replyTo) {
+      void reply(text, origin, replyTo)
+      setReplyTo(null)
+    } else void send(text, origin)
+  }
+  const preview = (m: ChatMessage) => (m.type === 'text' ? m.text : m.type === 'image' ? 'Photo' : m.type === 'voice' ? 'Voice message' : m.fileName ?? 'File')
   const lastIn = [...messages].reverse().find((m) => m.from !== me)
   const subtitle =
     status === 'error'
@@ -52,8 +76,16 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         </div>
         {!isGroup && <button className="icon-btn" aria-label={`Voice call ${c.name}`} onClick={() => startCall(c.id, false)}><Phone size={19} aria-hidden="true" /></button>}
         {!isGroup && <button className="icon-btn" aria-label={`Video call ${c.name}`} onClick={() => startCall(c.id, true)}><Video size={20} aria-hidden="true" /></button>}
-        <button className="icon-btn" aria-label="More options"><MoreVertical size={19} aria-hidden="true" /></button>
+        <button className="icon-btn" aria-label="Search in this chat" aria-pressed={searching} onClick={() => { setSearching(!searching); setQuery('') }}><Search size={19} aria-hidden="true" /></button>
       </header>
+      {searching && (
+        <div className="chat-search">
+          <Search size={16} aria-hidden="true" />
+          <input autoFocus placeholder="Search messages" aria-label="Search messages" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <span className="muted">{query.trim() ? `${shown.length} found` : ''}</span>
+          <button className="icon-btn" aria-label="Close search" onClick={() => { setSearching(false); setQuery('') }}><X size={18} aria-hidden="true" /></button>
+        </div>
+      )}
 
       {mode === 'blind' && lastIn && (
         <div className="readout" role="status">
@@ -67,13 +99,22 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
           <span className="e2e">Messages are translated on your device into the way each person understands them.</span>
           {loading && status === 'connected' && <span className="day">Loading messages…</span>}
           {!loading && messages.length === 0 && <span className="day">No messages yet. Say hello{isGroup ? ' to the group' : ` to ${c.name}`}.</span>}
-          {messages.map((m, i) => {
+          {searching && query.trim() && shown.length === 0 && <span className="day">No messages match “{query}”.</span>}
+          {shown.map((m, i) => {
             const mine = m.from === me
             const playing = mode === 'blind' && m === lastIn
             return (
-              <div key={m.id + i} className={`msg ${mine ? 'me' : 'them'}${playing ? ' playing' : ''}`}>
+              <div key={m.id + i} className={`msg ${mine ? 'me' : 'them'}${playing ? ' playing' : ''}${menu === m.id ? ' menu-open' : ''}`}>
+                <div className="bubble-wrap">
                 <div className="bubble">
                   {isGroup && !mine && <div className="sender">{contactById(m.from).name}</div>}
+                  {m.replyTo && (
+                    <div className="quote">
+                      <strong>{m.replyTo.from === me ? 'You' : contactById(m.replyTo.from).name}</strong>
+                      <span>{m.replyTo.text}</span>
+                    </div>
+                  )}
+                  {m.type === 'voice' && <audio className="voice" controls preload="metadata" src={m.url} />}
                   {m.type === 'image' && (
                     <a href={m.url} target="_blank" rel="noreferrer" className="photo">
                       <img src={m.url || m.thumb} alt="Photo" />
@@ -87,47 +128,132 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                   )}
                   {m.type === 'text' && m.text}
                   <span className="stamp">
+                    {m.edited && <span className="edited">edited</span>}
                     {fmt(m.sentTime)}
                     {mine && !isGroup && (m.read ? <CheckCheck size={14} className="read" aria-label="Read" /> : <Check size={14} aria-label="Sent" />)}
                   </span>
                 </div>
+                <button className="msg-more" aria-label="Message options" onClick={() => setMenu(menu === m.id ? null : m.id)}><SmilePlus size={16} aria-hidden="true" /></button>
+                {menu === m.id && (
+                  <div className="msg-menu" role="menu">
+                    <div className="emoji-row">
+                      {EMOJIS.map((e) => (
+                        <button key={e} role="menuitem" aria-label={`React ${e}`} onClick={() => { void react(m.id, e); setMenu(null) }}>{e}</button>
+                      ))}
+                    </div>
+                    <button role="menuitem" onClick={() => { setReplyTo(m); setEditing(null); setMenu(null) }}><Reply size={15} aria-hidden="true" />Reply</button>
+                    {mine && m.type === 'text' && <button role="menuitem" onClick={() => { setEditing(m); setReplyTo(null); setMenu(null) }}><Pencil size={15} aria-hidden="true" />Edit</button>}
+                    {mine && <button role="menuitem" className="danger" onClick={() => { if (confirm('Delete this message for everyone?')) void remove(m.id); setMenu(null) }}><Trash2 size={15} aria-hidden="true" />Delete for everyone</button>}
+                  </div>
+                )}
+                </div>
+                {m.reactions && (
+                  <div className="reactions">
+                    {Object.entries(m.reactions).map(([e, ids]) => (
+                      <button key={e} className={`reaction${ids.includes(me) ? ' mine' : ''}`} onClick={() => void react(m.id, e)} title={ids.map((u) => (u === me ? 'You' : contactById(u).name)).join(', ')}>
+                        {e} {ids.length > 1 ? ids.length : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
+          <div ref={bottomRef} />
         </div>
       </div>
 
       {typing.length > 0 && <div className="typing-row" aria-live="polite"><span className="dots"><i /><i /><i /></span>{isGroup ? `${contactById(typing[0]).name} is typing` : `${c.name} is typing`}</div>}
-      <ActionsCtx.Provider value={{ sendFile, notifyTyping }}>
-      {mode === 'blind' && <BlindComposer name={c.name} onSend={send} />}
-      {mode === 'deaf' && <DeafComposer onSend={send} />}
-      {mode === 'speech' && <SpeechComposer onSend={send} />}
-      {mode === 'standard' && <TextComposer onSend={send} />}
+      {(replyTo || editing) && (
+        <div className="reply-bar">
+          {editing ? <Pencil size={16} aria-hidden="true" /> : <Reply size={16} aria-hidden="true" />}
+          <div>
+            <strong>{editing ? 'Editing message' : `Replying to ${replyTo!.from === me ? 'yourself' : contactById(replyTo!.from).name}`}</strong>
+            <span>{preview((editing ?? replyTo)!)}</span>
+          </div>
+          <button className="icon-btn" aria-label="Cancel" onClick={() => { setReplyTo(null); setEditing(null) }}><X size={18} aria-hidden="true" /></button>
+        </div>
+      )}
+      <ActionsCtx.Provider value={{ sendFile, sendVoice, notifyTyping, draft: editing?.text ?? '' }}>
+      {mode === 'blind' && <BlindComposer key={editing?.id} name={c.name} onSend={submit} />}
+      {mode === 'deaf' && <DeafComposer key={editing?.id} onSend={submit} />}
+      {mode === 'speech' && <SpeechComposer key={editing?.id} onSend={submit} />}
+      {mode === 'standard' && <TextComposer key={editing?.id} onSend={submit} />}
       </ActionsCtx.Provider>
     </div>
   )
 }
 
 function TextField({ placeholder = 'Message', onSend, mode }: { placeholder?: string; onSend: SendFn; mode: Mode }) {
-  const [text, setText] = useState('')
-  const { sendFile, notifyTyping } = useContext(ActionsCtx)
+  const { sendFile, sendVoice, notifyTyping, draft } = useContext(ActionsCtx)
+  const [text, setText] = useState(draft)
   const fileRef = useRef<HTMLInputElement>(null)
+  const rec = useRecorder(sendVoice)
   const submit = () => {
     if (!text.trim()) return
     onSend(text, { mode: mode === 'speech' ? 'speech' : mode === 'deafblind' ? 'deafblind' : 'standard' })
     setText('')
   }
+  if (rec.recording)
+    return (
+      <div className="text-compose">
+        <div className="field recording" role="status">
+          <span className="rec-dot" aria-hidden="true" />Recording {mmss(rec.seconds)}
+        </div>
+        <button type="button" className="icon-btn" aria-label="Cancel recording" onClick={rec.cancel}><Trash2 size={19} aria-hidden="true" /></button>
+        <button type="button" className="send" aria-label="Send voice message" onClick={rec.stop}><Send size={18} aria-hidden="true" /></button>
+      </div>
+    )
   return (
     <form className="text-compose" onSubmit={(e) => { e.preventDefault(); submit() }}>
       <div className="field">
-        <button type="button" className="icon-btn" aria-label="Emoji"><Smile size={19} aria-hidden="true" /></button>
-        <input placeholder={placeholder} aria-label="Message" value={text} onChange={(e) => { setText(e.target.value); notifyTyping() }} />
+        <input autoFocus={!!draft} placeholder={placeholder} aria-label="Message" value={text} onChange={(e) => { setText(e.target.value); notifyTyping() }} />
         <button type="button" className="icon-btn" aria-label="Send a photo or file" onClick={() => fileRef.current?.click()}><Paperclip size={19} aria-hidden="true" /></button>
         <input ref={fileRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) sendFile(f); e.target.value = '' }} />
       </div>
-      <button type="submit" className="send" aria-label="Send"><Send size={18} aria-hidden="true" /></button>
+      {text.trim() || draft ? (
+        <button type="submit" className="send" aria-label={draft ? 'Save edit' : 'Send'}>{draft ? <Check size={18} aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}</button>
+      ) : (
+        <button type="button" className="send" aria-label="Record a voice message" onClick={rec.start}><Mic size={18} aria-hidden="true" /></button>
+      )}
+      {rec.error && <p className="form-error" style={{ position: 'absolute', marginTop: 52 }}>{rec.error}</p>}
     </form>
   )
+}
+
+/** Records a voice note with the browser's microphone. */
+function useRecorder(onDone: (b: Blob) => void) {
+  const [recording, setRecording] = useState(false)
+  const [seconds, setSeconds] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const ref = useRef<{ mr: MediaRecorder; chunks: Blob[]; cancelled: boolean; timer: ReturnType<typeof setInterval> } | null>(null)
+  const start = async () => {
+    setError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream)
+      const r = { mr, chunks: [] as Blob[], cancelled: false, timer: setInterval(() => setSeconds((s) => s + 1), 1000) }
+      ref.current = r
+      mr.ondataavailable = (e) => e.data.size && r.chunks.push(e.data)
+      mr.onstop = () => {
+        clearInterval(r.timer)
+        stream.getTracks().forEach((t) => t.stop())
+        setRecording(false)
+        setSeconds(0)
+        if (!r.cancelled && r.chunks.length) onDone(new Blob(r.chunks, { type: mr.mimeType }))
+      }
+      mr.start()
+      setRecording(true)
+    } catch {
+      setError('Allow the microphone for this site to record voice messages.')
+    }
+  }
+  const stop = () => ref.current?.mr.stop()
+  const cancel = () => {
+    if (ref.current) ref.current.cancelled = true
+    ref.current?.mr.stop()
+  }
+  return { recording, seconds, error, start, stop, cancel }
 }
 
 function TextComposer({ onSend }: { onSend: SendFn }) {

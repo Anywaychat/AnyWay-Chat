@@ -8,6 +8,7 @@ import {
   Helper,
   MessageHandler,
   NCEngine,
+  SendReferenceMessageParams,
   SendTextMessageParams,
   SubscribeType,
   UserHandler,
@@ -37,7 +38,11 @@ export interface ChatMessage {
   key: string
   from: string
   text: string
-  type: 'text' | 'image' | 'file'
+  type: 'text' | 'image' | 'file' | 'voice'
+  replyTo?: { id: string; from: string; text: string }
+  edited?: boolean
+  reactions?: Record<string, string[]>
+  duration?: number
   url?: string
   thumb?: string
   fileName?: string
@@ -61,6 +66,9 @@ const typingListeners = new Set<(key: string, userIds: string[]) => void>()
 const receiptListeners = new Set<(key: string, messageIds: string[]) => void>()
 const presenceListeners = new Set<() => void>()
 const sentListeners = new Set<() => void>()
+/** Edits, deletions and reaction changes to messages already on screen. */
+export type Change = { kind: 'update'; message: ChatMessage } | { kind: 'delete'; key: string; id: string } | { kind: 'react'; key: string; id: string; reactions?: Record<string, string[]> }
+const changeListeners = new Set<(c: Change) => void>()
 
 const channelFor = (t: Target) => (t.kind === 'group' ? new GroupChannel(t.id) : new DirectChannel(t.id))
 
@@ -68,13 +76,42 @@ function keyFromIdentifier(type: number, id: string) {
   return `${type === ChannelType.GROUP ? 'group' : 'direct'}:${id}`
 }
 
+/** The SDK's own message objects, kept so we can edit, delete and react to them later. */
+const raw = new Map<string, Message>()
+
+function reactionsOf(m: Message): Record<string, string[]> | undefined {
+  const out: Record<string, string[]> = {}
+  m.metadata?.forEach((v, k) => {
+    if (!k.startsWith('r_')) return
+    try {
+      const ids = JSON.parse(v) as string[]
+      if (ids.length) out[decodeURIComponent(k.slice(2).replace(/_/g, '%'))] = ids
+    } catch {
+      /* ignore bad data */
+    }
+  })
+  return Object.keys(out).length ? out : undefined
+}
+
 function toChat(m: Message): ChatMessage | null {
+  if (m.messageId) raw.set(m.messageId, m)
   const c = m.content as Record<string, unknown>
   const base = {
     id: m.messageId || `${m.sentTime}-${m.senderUserId}`,
     key: keyFromIdentifier(m.channelIdentifier.channelType, m.channelIdentifier.channelId),
     from: m.senderUserId,
     sentTime: m.sentTime,
+    edited: m.hasChanged || undefined,
+    reactions: reactionsOf(m),
+  }
+  if (m.messageType === 'RC:ReferenceMsg') {
+    const refText = String((c.referMsg as { content?: string; text?: string } | undefined)?.content ?? (c.referMsg as { text?: string } | undefined)?.text ?? '')
+    const refId = String(c.referMsgId ?? c.referMsgUid ?? '')
+    const refFrom = String(c.referMsgSenderId ?? c.referMsgUserId ?? '')
+    return { ...base, type: 'text', text: String(c.text ?? c.content ?? ''), replyTo: { id: refId, from: refFrom, text: refText || raw.get(refId)?.content?.text || 'Message' } }
+  }
+  if (m.messageType === 'RC:HQVCMsg') {
+    return { ...base, type: 'voice', text: 'Voice message', url: String(c.remoteUrl ?? ''), duration: Number(c.duration ?? 0) }
   }
   if (m.messageType === 'RC:TxtMsg') {
     let origin: Origin | undefined
@@ -112,6 +149,8 @@ export const onReceipt = (l: (key: string, messageIds: string[]) => void) => sub
 export const onPresence = (l: () => void) => sub(presenceListeners, l)
 /** Fires after this device sends a message, so the chat list can refresh. */
 export const onSent = (l: () => void) => sub(sentListeners, l)
+export const onChange = (l: (c: Change) => void) => sub(changeListeners, l)
+const emitChange = (c: Change) => changeListeners.forEach((l) => l(c))
 
 export function currentUser() {
   return connectedAs
@@ -127,6 +166,25 @@ function setupHandlers() {
           const cm = toChat(m)
           if (cm) listeners.forEach((l) => l(cm))
         })
+      },
+      onMessagesUpdated({ messages }) {
+        messages.forEach((m) => {
+          const cm = toChat(m)
+          if (cm) emitChange({ kind: 'update', message: cm })
+        })
+      },
+      onMessageDeleted({ messages }) {
+        messages.forEach((d) => emitChange({ kind: 'delete', key: keyFromIdentifier(d.channelIdentifier.channelType, d.channelIdentifier.channelId), id: d.messageId }))
+      },
+      onMessageMetadataUpdated({ messageId, channelIdentifier, metadata }) {
+        const m = raw.get(messageId)
+        if (m) Object.entries(metadata).forEach(([k, v]) => m.metadata.set(k, v))
+        emitChange({ kind: 'react', key: keyFromIdentifier(channelIdentifier.channelType, channelIdentifier.channelId), id: messageId, reactions: m ? reactionsOf(m) : undefined })
+      },
+      onMessageMetadataDeleted({ messageId, channelIdentifier, keys }) {
+        const m = raw.get(messageId)
+        if (m) keys.forEach((k) => m.metadata.delete(k))
+        emitChange({ kind: 'react', key: keyFromIdentifier(channelIdentifier.channelType, channelIdentifier.channelId), id: messageId, reactions: m ? reactionsOf(m) : undefined })
       },
       onMessageReceiptResponse({ responses }) {
         const byKey = new Map<string, string[]>()
@@ -282,7 +340,7 @@ export async function loadChannels(): Promise<ChannelSummary[]> {
       const cm = m ? toChat(m) : null
       return {
         key: keyFromIdentifier(c.channelType, c.channelId),
-        lastText: cm ? (cm.type === 'image' ? 'Photo' : cm.type === 'file' ? `File: ${cm.fileName}` : cm.text) : m ? 'Message' : '',
+        lastText: cm ? (cm.type === 'image' ? 'Photo' : cm.type === 'file' ? `File: ${cm.fileName}` : cm.type === 'voice' ? 'Voice message' : cm.text) : m ? 'Message' : '',
         lastFrom: m?.senderUserId ?? '',
         lastTime: m?.sentTime ?? c.operationTime,
         unread: c.unreadCount,
@@ -305,4 +363,68 @@ export async function watchPresence(userIds: string[]): Promise<Set<string>> {
 export async function createGroup(groupId: string, groupName: string, memberIds: string[]) {
   const r = await GroupChannel.createGroup({ groupId, groupName, inviteeUserIds: memberIds })
   return r.code
+}
+
+/** Reply to a message, quoting it. */
+export async function sendReply(t: Target, text: string, origin: Origin, to: ChatMessage): Promise<ChatMessage | null> {
+  const ref = raw.get(to.id)
+  const params = new SendReferenceMessageParams({
+    text,
+    referMsgId: to.id,
+    referMsgType: ref?.messageType ?? 'RC:TxtMsg',
+    referMsgSenderId: to.from,
+    referMsg: { content: to.text },
+    extra: JSON.stringify(origin),
+  } as never)
+  const { code, data } = await channelFor(t).sendMessage(params)
+  if (code !== 0 || !data) return null
+  sentListeners.forEach((l) => l())
+  const cm = toChat(data)
+  if (cm && !cm.replyTo) cm.replyTo = { id: to.id, from: to.from, text: to.text }
+  return cm
+}
+
+/** Change the text of one of my messages, for everyone. */
+export async function editMessage(id: string, text: string): Promise<boolean> {
+  const m = raw.get(id)
+  if (!m) return false
+  const old = m.content as Record<string, unknown>
+  const { code } = await BaseChannel.updateMessage({ messageId: id, channelIdentifier: m.channelIdentifier, content: { ...old, text } })
+  return code === 0
+}
+
+/** Unsend one of my messages for everyone in the chat. */
+export async function deleteForEveryone(t: Target, id: string): Promise<boolean> {
+  const m = raw.get(id)
+  if (!m) return false
+  const { code } = await channelFor(t).deleteMessageForAll(m)
+  return code === 0
+}
+
+/** Add or remove my emoji reaction on a message. */
+export async function toggleReaction(id: string, emoji: string): Promise<Record<string, string[]> | undefined> {
+  const m = raw.get(id)
+  if (!m || !connectedAs) return undefined
+  const key = `r_${encodeURIComponent(emoji)}`.replace(/%/g, '_')
+  const current = reactionsOf(m)?.[emoji] ?? []
+  const next = current.includes(connectedAs) ? current.filter((u) => u !== connectedAs) : [...current, connectedAs]
+  if (next.length) {
+    await m.setMetadata({ [key]: JSON.stringify(next) })
+    m.metadata.set(key, JSON.stringify(next))
+  } else {
+    await m.deleteMetadata([key])
+    m.metadata.delete(key)
+  }
+  return reactionsOf(m)
+}
+
+/** Send a recorded voice note. */
+export async function sendVoice(t: Target, blob: Blob): Promise<ChatMessage | null> {
+  const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || 'audio/webm' })
+  const made = await Helper.createSendHDVoiceMessageParams(file)
+  if (made.code !== 0 || !made.data) return null
+  const { code, data } = await channelFor(t).sendMediaMessage(made.data as never)
+  if (code !== 0 || !data) return null
+  sentListeners.forEach((l) => l())
+  return toChat(data as Message)
 }

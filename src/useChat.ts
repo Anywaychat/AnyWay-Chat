@@ -5,6 +5,12 @@ import {
   loadChannels,
   loadHistory,
   markRead,
+  onChange,
+  sendReply,
+  editMessage,
+  deleteForEveryone,
+  toggleReaction,
+  sendVoice,
   onMessage,
   onPresence,
   onReceipt,
@@ -73,8 +79,18 @@ export function useThread(target: Target) {
       if (k !== key) return
       setMessages((list) => list.map((m) => (ids.includes(m.id) ? { ...m, read: true } : m)))
     })
+    const offChange = onChange((c) => {
+      if (c.kind === 'update') {
+        if (c.message.key !== key) return
+        setMessages((list) => list.map((m) => (m.id === c.message.id ? { ...c.message, read: m.read } : m)))
+      } else if (c.key === key) {
+        if (c.kind === 'delete') setMessages((list) => list.filter((m) => m.id !== c.id))
+        else setMessages((list) => list.map((m) => (m.id === c.id ? { ...m, reactions: c.reactions } : m)))
+      }
+    })
     return () => {
       alive = false
+      offChange()
       offMsg()
       offTyping()
       offReceipt()
@@ -96,6 +112,20 @@ export function useThread(target: Target) {
       if (text.trim()) add(await sendText(target, text.trim(), origin))
     },
     sendFile: async (file: File) => add(await sendFile(target, file)),
+    sendVoice: async (blob: Blob) => add(await sendVoice(target, blob)),
+    reply: async (text: string, origin: Origin, to: ChatMessage) => {
+      if (text.trim()) add(await sendReply(target, text.trim(), origin, to))
+    },
+    edit: async (id: string, text: string) => {
+      if (await editMessage(id, text.trim())) setMessages((list) => list.map((m) => (m.id === id ? { ...m, text: text.trim(), edited: true } : m)))
+    },
+    remove: async (id: string) => {
+      if (await deleteForEveryone(target, id)) setMessages((list) => list.filter((m) => m.id !== id))
+    },
+    react: async (id: string, emoji: string) => {
+      const r = await toggleReaction(id, emoji)
+      setMessages((list) => list.map((m) => (m.id === id ? { ...m, reactions: r } : m)))
+    },
     notifyTyping: () => sendTyping(target),
   }
 }

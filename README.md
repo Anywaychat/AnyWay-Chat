@@ -96,7 +96,6 @@ src/
   useChat.ts          React hooks for the connection and live threads
   state.tsx           Profiles, demo people
 vite.config.ts        Dev server, including the /api/token service that signs Nexconn requests
-.claude/skills/       Official Nexconn agent skill used while building
 ```
 
 ## Accessibility principles

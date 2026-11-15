@@ -31,3 +31,6 @@ dist-ssr
 # Cached docs downloaded by the Nexconn skill
 .claude/skills/nexconn-chat/references/cache/
 .claude/skills/nexconn-chat/references/llms.txt
+
+# Local agent tooling
+.claude/

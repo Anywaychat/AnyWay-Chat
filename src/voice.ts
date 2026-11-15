@@ -8,6 +8,8 @@ export function registerChatVoice(fn: (text: string) => void) {
   }
 }
 
+export const hasChat = () => !!chatHandler
+
 export function routeVoice(text: string, fallback: (text: string) => void) {
   if (chatHandler) chatHandler(text)
   else fallback(text)
@@ -73,6 +75,19 @@ export type Intent =
   | { kind: 'help' }
   | { kind: 'say'; text: string }
   | { kind: 'unclear'; who?: Person }
+  | { kind: 'nav'; to: 'home' | 'calls' | 'profile' | 'go' }
+  | { kind: 'callAction'; action: 'answer' | 'decline' | 'end' | 'mute' | 'unmute' | 'camOff' | 'camOn' }
+  | { kind: 'unread' }
+  | { kind: 'online' }
+  | { kind: 'addContact'; username: string }
+  | { kind: 'createGroup'; name: string; members: Person[] }
+  | { kind: 'block'; who: Person; block: boolean }
+  | { kind: 'react'; emoji: string }
+  | { kind: 'deleteLast' }
+  | { kind: 'editLast'; text: string }
+  | { kind: 'speed'; faster: boolean }
+  | { kind: 'logout' }
+  | { kind: 'whoami' }
 
 const POLITE = /^(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|go ahead and|just)\s+)+/
 
@@ -88,6 +103,50 @@ export function understand(spoken: string, people: Person[], inChat: boolean): I
   const short = t.split(/\s+/).length <= 6
 
   if (/^(help|what can i say|what can you do)\b/.test(t)) return { kind: 'help' }
+
+  // Calls
+  if (short && /\b(answer|accept|pick up|take)\b( (it|the call|call))?$/.test(t)) return { kind: 'callAction', action: 'answer' }
+  if (short && /\b(decline|reject|ignore)\b( (it|the call|call))?$/.test(t)) return { kind: 'callAction', action: 'decline' }
+  if (short && /\b(hang up|end (the )?call|cut (the )?call|stop (the )?call|cancel (the )?call)\b/.test(t)) return { kind: 'callAction', action: 'end' }
+  if (short && /^(unmute|turn on (my )?(mic|microphone))\b/.test(t)) return { kind: 'callAction', action: 'unmute' }
+  if (short && /^(mute|turn off (my )?(mic|microphone))\b/.test(t)) return { kind: 'callAction', action: 'mute' }
+  if (short && /\b(camera|video) off\b|turn off (my )?(camera|video)/.test(t)) return { kind: 'callAction', action: 'camOff' }
+  if (short && /\b(camera|video) on\b|turn on (my )?(camera|video)/.test(t)) return { kind: 'callAction', action: 'camOn' }
+
+  // Screens
+  if (short && /^(go|open|take me|show|switch)\b.*\b(call history|calls|recent calls)\b/.test(t)) return { kind: 'nav', to: 'calls' }
+  if (short && /^(go|open|take me|show)\b.*\b(profile|settings|my account)\b/.test(t)) return { kind: 'nav', to: 'profile' }
+  if (short && /^(go|open|take me|start)\b.*\b(go mode|interpreter|face to face)\b/.test(t)) return { kind: 'nav', to: 'go' }
+  if (short && /^(go|take me|back)\b.*\b(home|chats|chat list|main)\b|^go back$/.test(t)) return { kind: 'nav', to: 'home' }
+
+  // Account and status
+  if (short && /\b(log ?out|sign out)\b/.test(t)) return { kind: 'logout' }
+  if (short && /\b(who am i|what'?s my (name|username))\b/.test(t)) return { kind: 'whoami' }
+  if (short && /\b(who'?s|who is|anyone) online\b/.test(t)) return { kind: 'online' }
+  if (short && /\b(any (new|unread) messages|what did i miss|unread|new messages|anything new)\b/.test(t)) return { kind: 'unread' }
+  if (short && /\b(speak|talk|read)\b.*\b(faster|quicker)\b|^faster$/.test(t)) return { kind: 'speed', faster: true }
+  if (short && /\b(speak|talk|read)\b.*\b(slower|slowly)\b|^slower$/.test(t)) return { kind: 'speed', faster: false }
+
+  // Contacts and groups
+  const add = t.match(/^(?:add|save)\s+(?:a\s+)?(?:new\s+)?(?:contact|friend|person|user(?:name)?)\s+(.+)$/)
+  if (add && !/\bto\b.*\bgroup\b/.test(t)) return { kind: 'addContact', username: add[1].split(/\s+/).map((x) => NUMBERS[x] ?? x).join('').replace(/[^a-z0-9]/g, '') }
+  const group = raw.match(/\b(?:create|make|start|new)\s+(?:a\s+)?group\s+(?:called|named)?\s*(.+?)\s+with\s+(.+)$/i)
+  if (group) {
+    const members = group[2].split(/\s*(?:,|\band\b)\s*/i).map((part) => findMentioned(part, people)?.who).filter((p): p is Person => !!p)
+    return { kind: 'createGroup', name: group[1].trim(), members }
+  }
+  const blk = t.match(/^(un)?block\s+(.+)$/)
+  if (blk) {
+    const who = findMentioned(blk[2], people)?.who
+    if (who) return { kind: 'block', who, block: !blk[1] }
+  }
+
+  // Acting on the last message in the open chat
+  if (inChat && short && /^(like|love|heart|thumbs up|laugh at|react to)\b( (it|that|this|the last (one|message)))?$/.test(t))
+    return { kind: 'react', emoji: /love|heart/.test(t) ? '❤️' : /laugh/.test(t) ? '😂' : '👍' }
+  if (inChat && /^(delete|unsend|remove) (my )?(last|that|previous) message$|^unsend( that)?$/.test(t)) return { kind: 'deleteLast' }
+  const edit = raw.match(/^(?:edit|change|correct) (?:my )?(?:last|that|previous) message to (.+)$/i)
+  if (inChat && edit) return { kind: 'editLast', text: edit[1] }
   if (short && /^(repeat|say (it|that) again|again|what did (he|she|they) say)\b/.test(t)) return { kind: 'repeat' }
   if (short && /\b(list|who are|read)\b.*\b(chats|contacts|people)\b/.test(t)) return { kind: 'list' }
   if (short && /^(next|next chat|next one|go next)$/.test(t)) return { kind: 'next' }

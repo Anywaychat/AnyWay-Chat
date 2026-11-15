@@ -82,6 +82,22 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         return void startCall(it.who.id, it.video)
       case 'open':
         return it.who.id === id ? speak(lastIn ? say(lastIn) : `You're already in ${it.who.name}'s chat.`, true) : nav(`/chat/${it.who.id}`)
+      case 'react':
+        if (!lastIn) return speak('There is no message to react to yet.', true)
+        void react(lastIn.id, it.emoji)
+        return speak(`Reacted to ${contactById(lastIn.from).name}'s message.`, true)
+      case 'deleteLast': {
+        const mineLast = [...messages].reverse().find((m) => m.from === me)
+        if (!mineLast) return speak("You haven't sent anything here yet.", true)
+        void remove(mineLast.id)
+        return speak('Deleted your last message.', true)
+      }
+      case 'editLast': {
+        const mineLast = [...messages].reverse().find((m) => m.from === me && m.type === 'text')
+        if (!mineLast) return speak("You haven't sent a message here yet.", true)
+        void edit(mineLast.id, it.text)
+        return speak('Edited.', true)
+      }
       case 'send':
         if (!isGroup && it.who.id === id) submit(it.text, { mode: 'blind' })
         else void sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind' })

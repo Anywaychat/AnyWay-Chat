@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Mic } from 'lucide-react'
-import { onMessage, sendText, type ChatMessage } from '../nexconn'
-import { canListen, onVoiceState, preloadNaturalVoice, setWakeWord, speak, type VoiceState } from '../speech'
-import { routeVoice, understand } from '../voice'
-import { startCall } from '../calls'
+import { loadChannels, onMessage, sendText, type ChatMessage } from '../nexconn'
+import { canListen, onVoiceState, preloadNaturalVoice, setRate, setWakeWord, speak, type VoiceState } from '../speech'
+import { hasChat, routeVoice, understand } from '../voice'
+import { acceptCall, endCall, getCall, startCall, toggleCam, toggleMic } from '../calls'
 import { contactById, useAuth } from '../state'
+import { usePresence } from '../useChat'
 
 /**
  * For blind users: "Hey Chat" works on every screen, and every new message is read aloud.
  */
 export default function VoiceAssistant() {
-  const { user, contacts, groups } = useAuth()
+  const auth = useAuth()
+  const { user, contacts, groups } = auth
+  const online = usePresence()
   const nav = useNavigate()
   const { pathname } = useLocation()
   const [state, setState] = useState<'off' | 'waiting' | 'awake'>('off')
@@ -20,8 +23,26 @@ export default function VoiceAssistant() {
     preloadNaturalVoice()
     return onVoiceState(setVoice)
   }, [])
-  const ctx = useRef({ contacts, groups, pathname })
-  ctx.current = { contacts, groups, pathname }
+  const ctx = useRef({ contacts, groups, pathname, auth, online })
+  ctx.current = { contacts, groups, pathname, auth, online }
+  const speed = useRef(1)
+
+  // Greet the person by name once, with what they've missed.
+  const greeted = useRef(false)
+  useEffect(() => {
+    if (!user || greeted.current) return
+    greeted.current = true
+    const h = new Date().getHours()
+    const hello = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+    const first = user.name.split(' ')[0]
+    setTimeout(async () => {
+      const ch = await loadChannels().catch(() => [])
+      const unread = ch.filter((c) => c.unread > 0)
+      const total = unread.reduce((n, c) => n + c.unread, 0)
+      const from = unread.slice(0, 3).map((c) => (c.key.startsWith('group:') ? ctx.current.groups.find((g) => `group:${g.id}` === c.key)?.name : contactById(c.key.slice(7)).name)).filter(Boolean)
+      speak(`${hello}, ${first}. ${total ? `You have ${total} unread message${total > 1 ? 's' : ''}${from.length ? ` from ${from.join(' and ')}` : ''}.` : 'No new messages.'} Say, Hey Chat, whenever you need me.`)
+    }, 2500)
+  }, [user])
 
   // Read every incoming message aloud, wherever you are in the app.
   useEffect(() => {
@@ -39,29 +60,95 @@ export default function VoiceAssistant() {
   // "Hey Chat" everywhere.
   useEffect(() => {
     if (!user || !canListen) return
-    const outsideChat = (raw: string) => {
-      const it = understand(raw, ctx.current.contacts, false)
-      const people = ctx.current.contacts
+    const first = user.name.split(' ')[0]
+    // Commands that only make sense inside an open chat are passed to that chat.
+    const CHAT_ONLY = new Set(['say', 'read', 'repeat', 'react', 'deleteLast', 'editLast', 'next'])
+    const handle = async (raw: string) => {
+      const { contacts: people, auth: a, online: on } = ctx.current
+      const it = understand(raw, people, hasChat())
+      if (CHAT_ONLY.has(it.kind) || (it.kind === 'open' && hasChat()) || (it.kind === 'send' && hasChat())) {
+        if (hasChat()) return routeVoice(raw, () => {})
+        if (it.kind === 'read') return speak(people.length ? `Your chats are ${people.map((c) => c.name).join(', ')}. Say open and a name.` : 'You have no contacts yet.', true)
+      }
       switch (it.kind) {
-        case 'send':
-          return void sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind' }).then((m) => speak(m ? `Sent to ${it.who.name}.` : `Couldn't send to ${it.who.name}.`, true))
+        case 'send': {
+          const m = await sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind' })
+          return speak(m ? `Sent to ${it.who.name}.` : `Sorry ${first}, I couldn't send that to ${it.who.name}.`, true)
+        }
         case 'call':
           speak(`Calling ${it.who.name}`, true)
           return void startCall(it.who.id, it.video)
         case 'open':
           return nav(`/chat/${it.who.id}`)
+        case 'nav':
+          speak(it.to === 'home' ? 'Your chats.' : it.to === 'calls' ? 'Your calls.' : it.to === 'profile' ? 'Your profile.' : 'Go mode.', true)
+          return nav(it.to === 'home' ? '/home' : `/${it.to}`)
+        case 'callAction': {
+          const c = getCall()
+          // "mute the TV" in a chat with no call is just a message.
+          if (c.phase === 'idle' && hasChat()) return routeVoice(raw, () => {})
+          if (c.phase === 'idle') return speak(`There's no call right now, ${first}.`, true)
+          if (it.action === 'answer') return c.phase === 'incoming' ? void acceptCall() : speak("You're already on the call.", true)
+          if (it.action === 'decline' || it.action === 'end') return void endCall()
+          if (it.action === 'mute' || it.action === 'unmute') {
+            if ((it.action === 'mute') === c.micOn) void toggleMic()
+            return speak(it.action === 'mute' ? 'Muted.' : 'Unmuted.', true)
+          }
+          if ((it.action === 'camOff') === c.camOn) void toggleCam()
+          return speak(it.action === 'camOff' ? 'Camera off.' : 'Camera on.', true)
+        }
+        case 'unread': {
+          const ch = (await loadChannels().catch(() => [])).filter((c) => c.unread > 0)
+          if (!ch.length) return speak(`No new messages, ${first}.`, true)
+          return speak(ch.map((c) => `${c.unread} from ${c.key.startsWith('group:') ? ctx.current.groups.find((g) => `group:${g.id}` === c.key)?.name ?? 'a group' : contactById(c.key.slice(7)).name}`).join(', ') + '. Say open and a name to hear them.', true)
+        }
+        case 'online': {
+          const names = people.filter((p) => on.has(p.id)).map((p) => p.name)
+          return speak(names.length ? `Online now: ${names.join(', ')}.` : 'Nobody is online right now.', true)
+        }
         case 'list':
-        case 'read':
-          return speak(people.length ? `Your chats: ${people.map((c) => c.name).join(', ')}. Say open and a name to hear their messages.` : 'You have no contacts yet.', true)
+          return speak(people.length ? `Your chats are ${people.map((c) => c.name).join(', ')}.` : 'You have no contacts yet.', true)
+        case 'addContact': {
+          const err = await a.addContact(it.username)
+          return speak(err ? `Sorry ${first}, I couldn't find ${it.username}.` : `Added ${contactById(it.username).name}. You can message them now.`, true)
+        }
+        case 'createGroup': {
+          if (!it.members.length) return speak("I didn't catch who to add. Say, for example: create a group called Family with Priya and Meera.", true)
+          try {
+            const id = await a.createGroup(it.name, it.members.map((m) => m.id))
+            speak(`Group ${it.name} created with ${it.members.map((m) => m.name).join(' and ')}.`, true)
+            if (id) nav(`/group/${id}`)
+          } catch {
+            speak(`Sorry ${first}, I couldn't create that group.`, true)
+          }
+          return
+        }
+        case 'block': {
+          const err = await a.setBlocked(it.who.id, it.block)
+          return speak(err ? `Sorry ${first}, that didn't work.` : it.block ? `${it.who.name} is blocked.` : `${it.who.name} is unblocked.`, true)
+        }
+        case 'speed':
+          speed.current = Math.min(1.6, Math.max(0.7, speed.current + (it.faster ? 0.15 : -0.15)))
+          setRate(speed.current)
+          return speak(it.faster ? 'Okay, I will speak faster.' : 'Okay, I will speak slower.', true)
+        case 'whoami':
+          return speak(`You are ${user.name}. Your username is ${user.id.split('').join(' ')}.`, true)
+        case 'logout':
+          speak(`Logging you out. Bye ${first}.`, true)
+          await a.logout()
+          return nav('/login')
+        case 'help':
+          return speak(`${first}, just talk normally. For example: tell Priya I'm on my way. Call Meera. Any new messages. Open my calls. Create a group called Family with Priya and Meera. Answer, or hang up, during a call.`, true)
         case 'unclear':
-          return speak(it.who ? `Do you want to message or call ${it.who.name}? Say, for example: tell ${it.who.name} hello.` : "Sorry, I didn't get that. You can say: tell Priya I'm on my way, or call Meera.", true)
+          return speak(it.who ? `Do you want to message or call ${it.who.name}?` : `Sorry ${first}, I didn't get that. Say help to hear what I can do.`, true)
         default:
-          return speak("Open a chat, or say: tell a name your message.", true)
+          return speak(`Open a chat first, ${first}. Or say: tell a name your message.`, true)
       }
     }
-    setWakeWord(true, (text) => routeVoice(text, outsideChat), setState)
+    setWakeWord(true, (text) => void handle(text), setState)
     return () => setWakeWord(false)
   }, [user, nav])
+
 
   if (!canListen) return <div className="wake-pill off" role="status">Voice needs Chrome or Edge</div>
   return (

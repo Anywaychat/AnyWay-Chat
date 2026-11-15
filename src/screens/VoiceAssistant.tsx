@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Mic } from 'lucide-react'
-import { onMessage, type ChatMessage } from '../nexconn'
+import { onMessage, sendText, type ChatMessage } from '../nexconn'
 import { canListen, setWakeWord, speak } from '../speech'
-import { routeVoice } from '../voice'
+import { parseSendTo, routeVoice } from '../voice'
 import { startCall } from '../calls'
 import { contactById, useAuth } from '../state'
 
@@ -40,6 +40,11 @@ export default function VoiceAssistant() {
     }
     const outsideChat = (raw: string) => {
       const t = raw.trim().toLowerCase().replace(/[.!?]$/, '')
+      const sendTo = parseSendTo(raw, ctx.current.contacts)
+      if (sendTo) {
+        void sendText({ kind: 'direct', id: sendTo.who.id }, sendTo.text, { mode: 'blind' }).then((m) => speak(m ? `Sent to ${sendTo.who.name}.` : `Couldn't send to ${sendTo.who.name}.`, true))
+        return
+      }
       const open = t.match(/^(?:open|go to|chat with|message)\s+(.+)$/)
       const call = t.match(/^(video )?call\s+(.+)$/)
       if (open) {
@@ -55,7 +60,7 @@ export default function VoiceAssistant() {
         const names = ctx.current.contacts.map((c) => c.name)
         speak(names.length ? `Your chats: ${names.join(', ')}.` : 'You have no contacts yet.', true)
       } else {
-        speak('Open a chat first. Say: Hey AnyWay, open, and a name. Or say: Hey AnyWay, list my chats.', true)
+        speak('Say: Hey AnyWay, send, a name, and your message. Or: Hey AnyWay, open, and a name.', true)
       }
     }
     setWakeWord(true, (text) => routeVoice(text, outsideChat), setState)

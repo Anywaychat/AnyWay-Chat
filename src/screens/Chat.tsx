@@ -5,7 +5,8 @@ import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import { startCall } from '../calls'
 import { canListen, listenOnce, speak, type Listening } from '../speech'
-import { registerChatVoice } from '../voice'
+import { parseSendTo, registerChatVoice } from '../voice'
+import { sendText } from '../nexconn'
 import { useNavigate } from 'react-router-dom'
 import ChatInfo from './ChatInfo'
 import type { ChatMessage, Origin as MsgOrigin } from '../nexconn'
@@ -83,6 +84,13 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
       if (!who) return speak(`I couldn't find ${call[2] ?? 'that person'} in your contacts.`, true)
       speak(`Calling ${who.name}`, true)
       void startCall(who.id, !!call[1])
+      return
+    }
+    const sendTo = parseSendTo(raw, contacts)
+    if (sendTo) {
+      if (!isGroup && sendTo.who.id === id) submit(sendTo.text, { mode: 'blind' })
+      else void sendText({ kind: 'direct', id: sendTo.who.id }, sendTo.text, { mode: 'blind' })
+      speak(`Sent to ${sendTo.who.name}.`, true)
       return
     }
     const open = t.match(/^(?:open|go to|chat with|message)\s+(.+)$/)

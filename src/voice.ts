@@ -88,6 +88,8 @@ export type Intent =
   | { kind: 'speed'; faster: boolean }
   | { kind: 'logout' }
   | { kind: 'whoami' }
+  | { kind: 'compose'; who?: Person }
+  | { kind: 'callWho'; video: boolean }
 
 const POLITE = /^(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|go ahead and|just)\s+)+/
 
@@ -103,6 +105,13 @@ export function understand(spoken: string, people: Person[], inChat: boolean): I
   const short = t.split(/\s+/).length <= 6
 
   if (/^(help|what can i say|what can you do)\b/.test(t)) return { kind: 'help' }
+
+  // Starting something without saying who or what: the assistant will ask.
+  if (/\b(new message|send (a |an )?(message|text)|write (a |an )?(message|text)?|type (a |an )?(new )?(message|text)?|compose|text someone|message someone|send something|write to someone)\b/.test(t) && !/\bsaying\b|\bthat\b/.test(t)) {
+    const who = findMentioned(raw, people)?.who
+    return { kind: 'compose', who }
+  }
+  if (short && /^(make|place|start|do)( a| an)? (video )?call$|^(video )?call( someone)?$/.test(t)) return { kind: 'callWho', video: /video/.test(t) }
 
   // Calls
   if (short && /\b(answer|accept|pick up|take)\b( (it|the call|call))?$/.test(t)) return { kind: 'callAction', action: 'answer' }

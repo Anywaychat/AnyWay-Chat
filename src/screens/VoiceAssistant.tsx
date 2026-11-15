@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Mic } from 'lucide-react'
 import { loadChannels, onMessage, sendText, type ChatMessage } from '../nexconn'
-import { canListen, onVoiceState, preloadNaturalVoice, setRate, setWakeWord, speak, type VoiceState } from '../speech'
-import { hasChat, routeVoice, understand } from '../voice'
+import { ask, canListen, onVoiceState, preloadNaturalVoice, setRate, setWakeWord, speak, type VoiceState } from '../speech'
+import { findMentioned, hasChat, routeVoice, understand, type Person } from '../voice'
 import { acceptCall, endCall, getCall, startCall, toggleCam, toggleMic } from '../calls'
 import { contactById, useAuth } from '../state'
 import { usePresence } from '../useChat'
@@ -63,6 +63,29 @@ export default function VoiceAssistant() {
     const first = user.name.split(' ')[0]
     // Commands that only make sense inside an open chat are passed to that chat.
     const CHAT_ONLY = new Set(['say', 'read', 'repeat', 'react', 'deleteLast', 'editLast', 'next'])
+    const cancelled = (t: string) => /^(cancel|stop|never ?mind|forget it|no)\b/i.test(t.trim())
+    // Ask who, retrying once if the name isn't recognised.
+    const askWho = async (question: string): Promise<Person | null> => {
+      for (let tries = 0; tries < 2; tries++) {
+        const answer = await ask(tries ? `Sorry, I didn't find that name. ${question}` : question)
+        if (!answer || cancelled(answer)) {
+          speak('Okay, cancelled.', true)
+          return null
+        }
+        const who = findMentioned(answer, ctx.current.contacts)?.who
+        if (who) return who
+      }
+      speak("I still couldn't find that person. Say, list my chats, to hear their names.", true)
+      return null
+    }
+    const composeTo = async (who: Person) => {
+      const text = await ask(`What should I say to ${who.name}?`)
+      if (!text || cancelled(text)) return speak('Okay, not sent.', true)
+      const openId = ctx.current.pathname.startsWith('/chat/') ? ctx.current.pathname.slice(6) : null
+      if (openId === who.id && hasChat()) return routeVoice(text, () => {})
+      const m = await sendText({ kind: 'direct', id: who.id }, text, { mode: 'blind' })
+      speak(m ? `Sent to ${who.name}.` : `Sorry ${first}, I couldn't send that.`, true)
+    }
     const handle = async (raw: string) => {
       const { contacts: people, auth: a, online: on } = ctx.current
       const it = understand(raw, people, hasChat())
@@ -71,6 +94,20 @@ export default function VoiceAssistant() {
         if (it.kind === 'read') return speak(people.length ? `Your chats are ${people.map((c) => c.name).join(', ')}. Say open and a name.` : 'You have no contacts yet.', true)
       }
       switch (it.kind) {
+        case 'compose': {
+          const openId = ctx.current.pathname.startsWith('/chat/') ? ctx.current.pathname.slice(6) : null
+          const who = it.who ?? (openId ? contactById(openId) : await askWho('Who should I send it to?'))
+          if (who) await composeTo(who)
+          return
+        }
+        case 'callWho': {
+          const who = await askWho(it.video ? 'Who should I video call?' : 'Who should I call?')
+          if (who) {
+            speak(`Calling ${who.name}`, true)
+            void startCall(who.id, it.video)
+          }
+          return
+        }
         case 'send': {
           const m = await sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind' })
           return speak(m ? `Sent to ${it.who.name}.` : `Sorry ${first}, I couldn't send that to ${it.who.name}.`, true)
@@ -138,9 +175,18 @@ export default function VoiceAssistant() {
           await a.logout()
           return nav('/login')
         case 'help':
-          return speak(`${first}, just talk normally. For example: tell Priya I'm on my way. Call Meera. Any new messages. Open my calls. Create a group called Family with Priya and Meera. Answer, or hang up, during a call.`, true)
-        case 'unclear':
-          return speak(it.who ? `Do you want to message or call ${it.who.name}?` : `Sorry ${first}, I didn't get that. Say help to hear what I can do.`, true)
+          return speak(`${first}, just talk normally. For example: new message. Tell Priya I'm on my way. Call Meera. Any new messages. Open my calls. Create a group called Family with Priya and Meera. Answer, or hang up, during a call.`, true)
+        case 'unclear': {
+          if (!it.who) return speak(`Sorry ${first}, I didn't get that. Say help to hear what I can do.`, true)
+          const answer = (await ask(`Do you want to message or call ${it.who.name}?`)).toLowerCase()
+          if (/video/.test(answer)) return void startCall(it.who.id, true)
+          if (/call|ring|phone/.test(answer)) {
+            speak(`Calling ${it.who.name}`, true)
+            return void startCall(it.who.id, false)
+          }
+          if (/message|text|send|write|tell/.test(answer)) return composeTo(it.who)
+          return speak('Okay, cancelled.', true)
+        }
         default:
           return speak(`Open a chat first, ${first}. Or say: tell a name your message.`, true)
       }

@@ -325,3 +325,28 @@ export function setWakeWord(on: boolean, onCommand?: (text: string) => void, onS
     onWakeState?.('off')
   }
 }
+
+/** Resolves once AnyWay has finished talking. */
+export function whenQuiet(): Promise<void> {
+  return new Promise((done) => {
+    const check = () => (isSpeaking() ? setTimeout(check, 150) : done())
+    setTimeout(check, 150)
+  })
+}
+
+/**
+ * Asks a question out loud, then listens for the answer without needing the wake word.
+ * Resolves with what was said, or '' if nothing was heard.
+ */
+export async function ask(question: string): Promise<string> {
+  speak(question, true)
+  await whenQuiet()
+  return new Promise((done) => {
+    const l = listenOnce(
+      () => {},
+      (text) => done(text),
+      () => done(''),
+    )
+    if (!l) done('')
+  })
+}

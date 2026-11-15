@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom'
 import { Phone, Video } from 'lucide-react'
 import { useAuth } from '../state'
+import { startCall } from '../calls'
 import { Avatar, ModeTag, TabBar } from '../components/ui'
 
 export default function Calls() {
@@ -20,8 +20,8 @@ export default function Calls() {
               <span className="name" style={{ fontWeight: 700 }}>{c.name}</span>
               <span><ModeTag mode={c.mode} /></span>
             </div>
-            <Link to={`/call/voice/${c.id}`} className="icon-btn" aria-label={`Voice call ${c.name}`}><Phone size={19} aria-hidden="true" /></Link>
-            <Link to={`/call/video/${c.id}`} className="icon-btn" aria-label={`Video call ${c.name}`}><Video size={20} aria-hidden="true" /></Link>
+            <button className="icon-btn" aria-label={`Voice call ${c.name}`} onClick={() => startCall(c.id, false)}><Phone size={19} aria-hidden="true" /></button>
+            <button className="icon-btn" aria-label={`Video call ${c.name}`} onClick={() => startCall(c.id, true)}><Video size={20} aria-hidden="true" /></button>
           </div>
         ))}
       </div>

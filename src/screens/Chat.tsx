@@ -1,8 +1,9 @@
 import { createContext, useContext, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { Camera, Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, MoreVertical, Paperclip, Phone, Send, Smile, Video, Volume2 } from 'lucide-react'
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
+import { startCall } from '../calls'
 import type { Origin as MsgOrigin } from '../nexconn'
 
 type SendFn = (text: string, origin: MsgOrigin) => void
@@ -76,8 +77,8 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
           <strong>{c.name}</strong>
           <span className={typing.length || (!isGroup && online.has(c.id)) ? 'online' : ''}>{subtitle}</span>
         </div>
-        {!isGroup && <Link to={`/call/voice/${c.id}`} className="icon-btn" aria-label={`Voice call ${c.name}`}><Phone size={19} aria-hidden="true" /></Link>}
-        {!isGroup && <Link to={`/call/video/${c.id}`} className="icon-btn" aria-label={`Video call ${c.name}`}><Video size={20} aria-hidden="true" /></Link>}
+        {!isGroup && <button className="icon-btn" aria-label={`Voice call ${c.name}`} onClick={() => startCall(c.id, false)}><Phone size={19} aria-hidden="true" /></button>}
+        {!isGroup && <button className="icon-btn" aria-label={`Video call ${c.name}`} onClick={() => startCall(c.id, true)}><Video size={20} aria-hidden="true" /></button>}
         <button className="icon-btn" aria-label="More options"><MoreVertical size={19} aria-hidden="true" /></button>
       </header>
 

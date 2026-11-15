@@ -1,0 +1,161 @@
+import { NCCallEngine, NCCallEndReason, NCCallMediaType, NCCallType, NCCallUserState, type NCCallSession } from '@nexconn/call'
+
+/**
+ * One-to-one voice and video calls on the Nexconn Call SDK.
+ * The call engine rides on the same Nexconn connection as chat.
+ */
+
+export type Phase = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'connected' | 'ended'
+
+export interface CallState {
+  phase: Phase
+  callId: string | null
+  peer: string | null
+  video: boolean
+  startTime: number | null
+  micOn: boolean
+  camOn: boolean
+  endedReason: string | null
+}
+
+const IDLE: CallState = { phase: 'idle', callId: null, peer: null, video: false, startTime: null, micOn: true, camOn: true, endedReason: null }
+
+let state: CallState = IDLE
+let engine: NCCallEngine | null = null
+let me: string | null = null
+const listeners = new Set<(s: CallState) => void>()
+
+export const LOCAL_VIDEO_ID = 'aw-local-video'
+export const REMOTE_VIDEO_ID = 'aw-remote-video'
+
+function set(patch: Partial<CallState>) {
+  state = { ...state, ...patch }
+  listeners.forEach((l) => l(state))
+}
+
+export function getCall() {
+  return state
+}
+
+export function onCall(l: (s: CallState) => void) {
+  listeners.add(l)
+  return () => {
+    listeners.delete(l)
+  }
+}
+
+/** Must run before NCEngine.initialize. */
+export function installCalls() {
+  NCCallEngine.install()
+}
+
+const REASONS: Partial<Record<NCCallEndReason, string>> = {
+  [NCCallEndReason.NO_ANSWER]: 'No answer',
+  [NCCallEndReason.MISSED]: 'Missed call',
+  [NCCallEndReason.CANCELED]: 'Call cancelled',
+  [NCCallEndReason.DECLINED]: 'Call declined',
+}
+
+function peerOf(session: NCCallSession) {
+  const caller = session.getCallerUserId()
+  if (caller && caller !== me) return caller
+  return session.getRemoteParticipants().map((p) => p.userId).find((id) => id !== me) ?? null
+}
+
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)))
+
+function bindViews(peer: string | null) {
+  if (!engine) return
+  const local = document.getElementById(LOCAL_VIDEO_ID) as HTMLVideoElement | null
+  const remote = document.getElementById(REMOTE_VIDEO_ID) as HTMLVideoElement | null
+  if (local) engine.setLocalVideoView({ videoElement: local })
+  if (remote && peer) engine.setRemoteVideoView([{ userId: peer, videoElement: remote }])
+}
+
+/** Called once the user is connected to Nexconn. */
+export function startCallEngine(userId: string) {
+  me = userId
+  if (engine) return
+  engine = NCCallEngine.initialize({})
+  engine.setCallEventHandler({
+    onCallReceived({ session }) {
+      if (state.phase !== 'idle' && state.phase !== 'ended') return
+      set({
+        ...IDLE,
+        phase: 'incoming',
+        callId: session.getCallId(),
+        peer: peerOf(session),
+        video: session.getMediaType() === NCCallMediaType.AUDIO_VIDEO,
+      })
+    },
+    onRemoteUserStateChanged({ userId, userState }) {
+      if (userState === NCCallUserState.ONCALL) bindViews(userId)
+    },
+    onCallConnected({ session }) {
+      set({ phase: 'connected', callId: session.getCallId(), startTime: state.startTime ?? Date.now() })
+      bindViews(state.peer)
+    },
+    onStartTimeReceived({ startTime }) {
+      set({ startTime })
+    },
+    onCallEnded({ reason }) {
+      set({ phase: 'ended', endedReason: REASONS[reason] ?? 'Call ended' })
+      setTimeout(() => state.phase === 'ended' && set(IDLE), 1800)
+    },
+  })
+}
+
+export async function startCall(peer: string, video: boolean): Promise<string | null> {
+  if (!engine) return 'Calls are still connecting. Try again in a moment.'
+  if (state.phase !== 'idle' && state.phase !== 'ended') return 'You are already in a call.'
+  set({ ...IDLE, phase: 'outgoing', peer, video })
+  await nextFrame()
+  bindViews(peer)
+  const { code, callId } = await engine.startCall({
+    calleeIds: [peer],
+    callType: NCCallType.SINGLE,
+    mediaType: video ? NCCallMediaType.AUDIO_VIDEO : NCCallMediaType.AUDIO,
+  })
+  if (code !== 0 || !callId) {
+    set({ phase: 'ended', endedReason: `Couldn't start the call (code ${code}). Check calling is enabled in the Nexconn console.` })
+    setTimeout(() => set(IDLE), 3500)
+    return `code ${code}`
+  }
+  set({ callId })
+  return null
+}
+
+export async function acceptCall() {
+  if (!engine || !state.callId) return
+  set({ phase: 'connecting' })
+  await nextFrame()
+  bindViews(state.peer)
+  const { code } = await engine.acceptCall({ callId: state.callId })
+  if (code !== 0) {
+    set({ phase: 'ended', endedReason: `Couldn't answer (code ${code})` })
+    setTimeout(() => set(IDLE), 2500)
+  }
+}
+
+export async function endCall() {
+  if (!engine) return set(IDLE)
+  await engine.endCall(state.callId ? { callId: state.callId } : undefined).catch(() => {})
+  if (state.phase !== 'ended') {
+    set({ phase: 'ended', endedReason: 'Call ended' })
+    setTimeout(() => state.phase === 'ended' && set(IDLE), 1200)
+  }
+}
+
+export async function toggleMic() {
+  if (!engine) return
+  const next = !state.micOn
+  await engine.enableMicrophone(next)
+  set({ micOn: next })
+}
+
+export async function toggleCam() {
+  if (!engine) return
+  const next = !state.camOn
+  await engine.enableCamera(next)
+  set({ camOn: next })
+}

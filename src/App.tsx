@@ -4,8 +4,7 @@ import { useAuth, type Mode } from './state'
 import { Login, Signup } from './screens/Auth'
 import Home from './screens/Home'
 import Chat from './screens/Chat'
-import VoiceCall from './screens/VoiceCall'
-import VideoCall from './screens/VideoCall'
+import CallOverlay from './screens/CallOverlay'
 import Go from './screens/Go'
 import Calls from './screens/Calls'
 import Profile from './screens/Profile'
@@ -62,14 +61,13 @@ export default function App() {
           />
           <Route path="/chat/:id" element={<Chat key={pathname} />} />
           <Route path="/group/:id" element={<Chat key={pathname} kind="group" />} />
-          <Route path="/call/voice/:id" element={<VoiceCall />} />
-          <Route path="/call/video/:id" element={<VideoCall />} />
           <Route path="/go" element={<Go />} />
           <Route path="/calls" element={<Calls />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      <CallOverlay />
     </div>
   )
 }

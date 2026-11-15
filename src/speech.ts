@@ -143,8 +143,9 @@ export function listenOnce(onText: (sofar: string) => void, onDone: (finalText: 
   return { stop: () => rec.stop(), cancel: () => { cancelled = true; rec.abort() } }
 }
 
-/* ---------- "Hey AnyWay" wake word ---------- */
-const WAKE = /\b(?:hey|hi|ok|okay|hello)?[\s,]*any\s?way\b[\s,.]*/i
+/* ---------- "Hey Chat" wake word ---------- */
+// "Hey Chat". The greeting is required, so the word "chat" on its own in normal talk doesn't wake it.
+const WAKE = /\b(?:hey|hi|ok|okay|hello)[\s,]+chat\b[\s,.]*/i
 
 let wakeRec: Rec | null = null
 let wakeOn = false
@@ -226,7 +227,7 @@ function runWake() {
   }
 }
 
-/** Turns the always-on "Hey AnyWay" listener on or off. */
+/** Turns the always-on "Hey Chat" listener on or off. */
 export function setWakeWord(on: boolean, onCommand?: (text: string) => void, onState?: (s: 'off' | 'waiting' | 'awake') => void) {
   if (onCommand) onWakeCommand = onCommand
   if (onState) onWakeState = onState

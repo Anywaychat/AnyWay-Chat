@@ -128,7 +128,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   useEffect(() => {
     if (mode !== 'blind' || loading || announced.current) return
     announced.current = true
-    speak(`Chat with ${c.name}. ${lastIn ? `Last message, ${say(lastIn)}` : 'No messages yet.'} Say Hey AnyWay, or press Space, to talk.`, true)
+    speak(`Chat with ${c.name}. ${lastIn ? `Last message, ${say(lastIn)}` : 'No messages yet.'} Say Hey Chat, or press Space, to talk.`, true)
   })
   const lastIn = [...messages].reverse().find((m) => m.from !== me)
   const subtitle =
@@ -423,7 +423,7 @@ function BlindComposer({ name, talk }: { name: string; talk: Talk }) {
         {talk.listening ? (talk.sofar || 'Listening…') : 'Tap to speak'}
       </button>
       <p className="hint" style={{ margin: 0 }} aria-live="polite">
-        {talk.error ?? 'Or just say “Hey AnyWay” and then your message. It sends when you pause.'}
+        {talk.error ?? 'Or just say “Hey Chat” and then your message. It sends when you pause.'}
       </p>
     </div>
   )

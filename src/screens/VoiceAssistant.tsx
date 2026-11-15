@@ -8,7 +8,7 @@ import { startCall } from '../calls'
 import { contactById, useAuth } from '../state'
 
 /**
- * For blind users: "Hey AnyWay" works on every screen, and every new message is read aloud.
+ * For blind users: "Hey Chat" works on every screen, and every new message is read aloud.
  */
 export default function VoiceAssistant() {
   const { user, contacts, groups } = useAuth()
@@ -31,7 +31,7 @@ export default function VoiceAssistant() {
     })
   }, [user])
 
-  // "Hey AnyWay" everywhere.
+  // "Hey Chat" everywhere.
   useEffect(() => {
     if (!user || !canListen) return
     const find = (spoken: string) => {
@@ -60,7 +60,7 @@ export default function VoiceAssistant() {
         const names = ctx.current.contacts.map((c) => c.name)
         speak(names.length ? `Your chats: ${names.join(', ')}.` : 'You have no contacts yet.', true)
       } else {
-        speak('Say: Hey AnyWay, send, a name, and your message. Or: Hey AnyWay, open, and a name.', true)
+        speak('Say: Hey Chat, send, a name, and your message. Or: Hey Chat, open, and a name.', true)
       }
     }
     setWakeWord(true, (text) => routeVoice(text, outsideChat), setState)
@@ -71,7 +71,7 @@ export default function VoiceAssistant() {
   return (
     <div className={`wake-pill ${state}`} role="status" aria-live="polite">
       <Mic size={14} aria-hidden="true" />
-      {state === 'awake' ? 'Listening…' : state === 'waiting' ? 'Say “Hey AnyWay”' : 'Voice off: allow the microphone'}
+      {state === 'awake' ? 'Listening…' : state === 'waiting' ? 'Say “Hey Chat”' : 'Voice off: allow the microphone'}
     </div>
   )
 }

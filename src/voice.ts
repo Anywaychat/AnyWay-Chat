@@ -1,4 +1,4 @@
-/** Where "Hey AnyWay" commands go: the open chat if there is one, otherwise the app-wide handler. */
+/** Where "Hey Chat" commands go: the open chat if there is one, otherwise the app-wide handler. */
 let chatHandler: ((text: string) => void) | null = null
 
 export function registerChatVoice(fn: (text: string) => void) {

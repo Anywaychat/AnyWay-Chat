@@ -1,120 +1,199 @@
-# AnyWay Chat
+# AnyWay — Communication Without Barriers
 
-**No one should need help to say hello.**
+**What if anyone could communicate with anyone, regardless of how they see, hear, or speak?**
 
-AnyWay Chat lets blind, deaf, deaf-blind and non-speaking people chat, call and meet anyone, each in their own way. Everyone else just talks normally. AnyWay translates in between.
+AnyWay is an accessibility-first communication platform designed to bridge communication gaps between people with different abilities.
 
-Built with the [Nexconn Chat SDK](https://docs.nexconn.ai) for the **Nexconn Build Challenge 2026** (Humanitarian & Social Good track).
+A blind person should be able to have a conversation without needing someone to read their screen. A deaf person should be able to communicate with someone who has never learned sign language. A non-speaking person should be able to express themselves without depending on another person.
+
+**AnyWay makes different communication methods work together in a single conversation.**
+
+Built for the **Nexconn Build Challenge 2026 — Humanitarian & Social Good Track.**
 
 ---
 
-## Why this exists
+## The Vision
 
-Most chat apps assume you can see the screen, hear a voice and type on a keyboard. Hundreds of millions of people can't do all three.
+Communication platforms are built around assumptions: people can see screens, hear voices, speak, or type.
 
-| | |
-|---|---|
-| **430 million** | people live with disabling hearing loss (WHO) |
-| **70 million+** | deaf people use a sign language (World Federation of the Deaf) |
-| **~97 million** | people can't rely on speech to be understood (Beukelman & Light, 2020) |
-| **< 500** | certified sign language interpreters for India's ~18 million deaf people |
+Millions of people do not interact with technology in these ways.
 
-Today a blind teenager waits for a parent to type his messages. A deaf customer writes on paper at a shop counter. Human interpreters will never scale to meet this need. Technology can.
+Existing accessibility solutions often work independently, leaving people to depend on intermediaries or switch between specialized tools to communicate.
 
-## How it works
+We believe communication should adapt to people, not the other way around.
 
-Every person picks, once, how they send and how they receive. Every message travels as text through Nexconn, and is turned into the form each receiver can use on their own device.
+AnyWay aims to build a unified communication layer that translates between different ways of interacting with the world.
 
-| If you are | You send by | You understand by |
+## How It Works
+
+Every participant chooses how they want to communicate. AnyWay handles the communication layer between them.
+
+| User | Input | Output |
 |---|---|---|
-| **Blind** | speaking | hearing every reply, read aloud in a natural voice |
-| **Deaf** | signing to the camera | seeing text and sign animations |
-| **Non-speaking** | tapping ready phrases or typing | reading, or hearing it spoken |
-| **Deaf-blind** | typing in braille | feeling vibration patterns and braille |
-| **Anyone else** | typing or talking normally | reading or listening normally |
+| Blind | Voice | Audio responses |
+| Deaf | Sign language | Text and visual responses |
+| Non-speaking | Text / Quick phrases | Text or audio |
+| Deaf-blind | Braille / Tactile input | Braille and haptic feedback |
+| Standard | Text / Voice | Text / Voice |
 
-The hearing, sighted person never has to learn sign language or braille. They just talk.
+The central idea: **Two people should never need the same communication abilities to have a conversation.**
 
-```mermaid
-flowchart LR
-  A["Sender<br/>sign · speech · tap · braille"] -->|"converted on their device"| T["Text + how it was made"]
-  T -->|"Nexconn Chat SDK"| R["Receiver's device"]
-  R --> B["speech · captions · signs · vibration<br/>in the receiver's own way"]
-```
+## Current Implementation
 
-## Nexconn SDK usage
+The current prototype establishes the foundation for this vision.
 
-| Nexconn feature | Used for |
+- **Adaptive chat interfaces:** Different experiences based on communication profiles.
+- **Real-time messaging:** Direct conversations powered by Nexconn.
+- **Multiple user profiles:** Blind, deaf, non-speaking, deaf-blind and standard users.
+- **Message metadata:** Communication mode information travels alongside messages.
+- **Chat history:** Previous conversations can be retrieved.
+- **Accessibility-first UI:** High contrast, readable typography, keyboard accessibility and larger touch targets.
+
+### Demo Profiles
+
+| Profile | Communication mode |
 |---|---|
-| `NCEngine.initialize` / `connect` | Signing each demo user in to the Singapore data centre |
-| `DirectChannel.sendMessage` + `SendTextMessageParams` | Sending messages, with the original mode stored in `extra` |
-| `MessageHandler.onMessageReceived` | Receiving messages live |
-| `BaseChannel.createMessagesQuery` | Loading chat history |
-| Platform Chat API `/v4/auth/access-token/issue` | Issuing user tokens from the server, signed with the App Secret |
+| Arjun | Blind |
+| Priya | Deaf |
+| Meera | Non-speaking |
+| Kavin | Deaf-blind |
+| Amma | Standard |
 
-The App Secret is only ever used on the server. The browser receives short-lived user tokens, never the secret.
+## Architecture
 
-## Tech stack
-
-- **React 19 + TypeScript + Vite** web app, works on phones and laptops
-- **Nexconn Chat SDK** (`@nexconn/chat`, `@nexconn/engine`) for messaging
-- **Atkinson Hyperlegible** typeface, designed for low-vision readers
-- Planned: browser Speech Recognition and Speech Synthesis, MediaPipe hand tracking for signs, the Vibration API, and the Nexconn Call SDK
-
-## Run it locally
-
-You need Node.js 20+ and a free [Nexconn account](https://console.nexconn.ai).
-
-```bash
-git clone https://github.com/sakthilildih/AnyWay-Chat.git
-cd AnyWay-Chat
-npm install
-cp .env.example .env.local   # then add your App Key and App Secret
-npm run dev
+```text
+             PARTICIPANTS
+                  |
+       +----------+----------+
+       |          |          |
+     Voice      Text       Sign
+       |          |          |
+       +----------+----------+
+                  |
+          ANYWAY INTERFACE
+                  |
+          COMMUNICATION LAYER
+                  |
+             NEXCONN SDK
+                  |
+          REAL-TIME DELIVERY
+                  |
+          RECEIVER ADAPTATION
+                  |
+       +----------+----------+
+       |          |          |
+     Audio      Text      Tactile
+       |          |          |
+       +----------+----------+
+                  |
+          OTHER PARTICIPANT
 ```
 
-Open http://localhost:5173.
+The architecture separates message transport from user interaction, allowing new accessibility interfaces to be introduced without rebuilding the messaging infrastructure.
 
-### Try a real conversation
+## Technology Stack
 
-Open two browser windows side by side:
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Vite |
+| Communication | Nexconn Chat SDK |
+| Real-time engine | Nexconn Engine SDK |
+| Backend | Node.js |
+| UI | Custom accessible components |
+| Typography | Atkinson Hyperlegible |
 
-1. **Window 1:** http://localhost:5173/chat/priya?mode=standard — you are **Amma**, who talks and types normally.
-2. **Window 2:** http://localhost:5173/chat/amma?mode=deaf — you are **Priya**, who is deaf and signs.
+### Nexconn Integration
 
-Send a message from Amma. Priya sees it with a *Watch in ISL* option. Press **Send** on Priya's sign panel, and Amma sees the reply labelled *Signed in ISL*.
+Nexconn powers the real-time communication infrastructure.
 
-Demo people: Arjun (blind), Priya (deaf), Meera (non-speaking), Kavin (deaf-blind), Amma (talks and types).
+- `NCEngine.initialize()` — Initialize the communication engine.
+- `NCEngine.connect()` — Connect participants.
+- `DirectChannel.sendMessage()` — Send messages.
+- `MessageHandler.onMessageReceived()` — Receive messages in real time.
+- `BaseChannel.createMessagesQuery()` — Retrieve conversation history.
+- Platform Chat API — Issue user access tokens securely.
 
-## Project structure
-
-```
-src/
-  landing.html        Landing page
-  screens/            Welcome, Home (chat list), Chat, calls, Go mode, Profile
-  nexconn.ts          Nexconn Chat SDK connection, send, receive, history
-  useChat.ts          React hooks for the connection and live threads
-  state.tsx           Profiles, demo people
-vite.config.ts        Dev server, including the /api/token service that signs Nexconn requests
-```
-
-## Accessibility principles
-
-- Every screen adapts to the person using it, not the other way round.
-- Large touch targets, real buttons and labels, visible keyboard focus.
-- High-contrast, larger text for blind and deaf-blind profiles.
-- Motion is minimal and respects *reduce motion* settings.
-- Sign recognition always shows what it understood and asks before sending.
+The App Secret remains server-side. The browser receives user access tokens instead.
 
 ## Roadmap
 
-1. Voice input and read-aloud for blind users
-2. Indian Sign Language recognition (fingerspelling + ~30 common signs) and sign clips
-3. Voice and video calls with live translation
-4. Go mode for face-to-face conversations
-5. Deaf-blind vibration and braille
-6. More sign languages as plug-in packs, built with deaf communities
+Our long-term goal is to make AnyWay a unified communication platform across sensory and interaction modalities.
 
----
+- [ ] Speech-to-text and natural text-to-speech.
+- [ ] Indian Sign Language recognition.
+- [ ] Sign language responses and animations.
+- [ ] Voice and video calls with accessibility support.
+- [ ] Braille-based communication.
+- [ ] Haptic communication for deaf-blind users.
+- [ ] Face-to-face communication through Go Mode.
+- [ ] Support for additional sign languages.
 
-Made in India for everyone who has ever had to ask for help to say hello.
+## Run Locally
+
+### Prerequisites
+
+- Node.js 20+
+- Nexconn developer account
+
+### Installation
+
+```bash
+git clone https://github.com/sakthilildih/AnyWay-Chat.git
+
+cd AnyWay-Chat
+
+npm install
+
+cp .env.example .env.local
+```
+
+Configure your Nexconn credentials in `.env.local`.
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+### Try the Prototype
+
+Open two browser windows.
+
+**Standard user (Amma), chatting with Priya:**
+
+```text
+http://localhost:5173/chat/priya?mode=standard
+```
+
+**Deaf user (Priya), chatting with Amma:**
+
+```text
+http://localhost:5173/chat/amma?mode=deaf
+```
+
+Send messages between the two sessions to explore the adaptive communication experience.
+
+## Project Structure
+
+```text
+src/
+├── screens/
+├── nexconn.ts
+├── useChat.ts
+├── state.tsx
+└── landing.html
+
+public/
+.env.example
+vite.config.ts
+```
+
+## Our Belief
+
+We don't believe accessibility should be an additional feature in communication software.
+
+It should be part of the infrastructure itself.
+
+**AnyWay is building towards a world where the way you communicate never determines who you can communicate with.**
+
+Made in India. Built for everyone.

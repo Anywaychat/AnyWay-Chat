@@ -120,7 +120,7 @@ function toChat(m: Message): ChatMessage | null {
     } catch {
       origin = undefined
     }
-    return { ...base, type: 'text', text: String(c.text ?? ''), origin }
+    return { ...base, type: 'text', text: String(c.text || c.content || ''), origin }
   }
   if (m.messageType === 'RC:ImgMsg') {
     const thumb = c.thumbnailBase64 ? `data:image/jpeg;base64,${String(c.thumbnailBase64)}` : undefined
@@ -389,16 +389,19 @@ export async function editMessage(id: string, text: string): Promise<boolean> {
   const m = raw.get(id)
   if (!m) return false
   const old = m.content as Record<string, unknown>
-  const { code } = await BaseChannel.updateMessage({ messageId: id, channelIdentifier: m.channelIdentifier, content: { ...old, text } })
-  return code === 0
+  // Edited messages come back with the text under `content`, so send both fields.
+  const r = await BaseChannel.updateMessage({ messageId: id, channelIdentifier: m.channelIdentifier, content: { ...old, text, content: text } })
+  return r.code === 0
 }
 
 /** Unsend one of my messages for everyone in the chat. */
 export async function deleteForEveryone(t: Target, id: string): Promise<boolean> {
   const m = raw.get(id)
   if (!m) return false
-  const { code } = await channelFor(t).deleteMessageForAll(m)
-  return code === 0
+  // Messages loaded from history carry an empty "directed users" list, which the recall call rejects (34215).
+  if (Array.isArray(m.directedUserIds) && m.directedUserIds.length === 0) (m as { directedUserIds?: string[] }).directedUserIds = undefined
+  const r = await channelFor(t).deleteMessageForAll(m)
+  return r.code === 0
 }
 
 /** Add or remove my emoji reaction on a message. */

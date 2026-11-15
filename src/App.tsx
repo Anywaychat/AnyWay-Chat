@@ -5,6 +5,7 @@ import { Login, Signup } from './screens/Auth'
 import Home from './screens/Home'
 import Chat from './screens/Chat'
 import CallOverlay from './screens/CallOverlay'
+import VoiceAssistant from './screens/VoiceAssistant'
 import Go from './screens/Go'
 import Calls from './screens/Calls'
 import Profile from './screens/Profile'
@@ -68,6 +69,7 @@ export default function App() {
         </Routes>
       </main>
       <CallOverlay />
+      {user?.mode === 'blind' && <VoiceAssistant />}
     </div>
   )
 }

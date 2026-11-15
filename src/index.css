@@ -414,3 +414,8 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; font: inher
 .add-people { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
 .blocked-bar { padding: 14px max(16px, calc((100% - 820px) / 2)); background: var(--panel); border-top: 1px solid var(--line); color: var(--ink-2); font-size: 14px; text-align: center; }
 .send-failed { padding: 8px max(16px, calc((100% - 820px) / 2)); background: var(--accent-soft); color: var(--danger); font-size: 13px; border-top: 1px solid #F3C3BF; }
+.wake-pill { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 70; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--ink-2); font-size: 13px; font-weight: 700; box-shadow: 0 6px 18px rgba(0,0,0,.18); pointer-events: none; }
+.wake-pill.awake { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wake-pill.off { color: var(--danger); }
+.talk-btn.live { background: var(--danger); }
+@media (min-width: 901px) { .wake-pill { left: auto; right: 18px; transform: none; bottom: 18px; } }

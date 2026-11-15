@@ -4,6 +4,9 @@ import { Camera, Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid,
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import { startCall } from '../calls'
+import { canListen, listenOnce, speak, type Listening } from '../speech'
+import { registerChatVoice } from '../voice'
+import { useNavigate } from 'react-router-dom'
 import ChatInfo from './ChatInfo'
 import type { ChatMessage, Origin as MsgOrigin } from '../nexconn'
 
@@ -23,7 +26,8 @@ import { Avatar, BackButton } from '../components/ui'
 
 export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' }) {
   const { id = '' } = useParams()
-  const { groups, blocked } = useAuth()
+  const { groups, blocked, contacts } = useAuth()
+  const nav = useNavigate()
   const [info, setInfo] = useState(false)
   const isGroup = kind === 'group'
   const group = isGroup ? groups.find((g) => g.id === id) : undefined
@@ -51,6 +55,73 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
     } else void send(text, origin)
   }
   const preview = (m: ChatMessage) => (m.type === 'text' ? m.text : m.type === 'image' ? 'Photo' : m.type === 'voice' ? 'Voice message' : m.fileName ?? 'File')
+
+  /* ---------- Blind: voice commands, read-back, Space to talk ---------- */
+  const say = (m: ChatMessage) => `${m.from === me ? 'You' : contactById(m.from).name} ${m.from === me ? 'said' : 'says'}: ${preview(m)}`
+  const findPerson = (spoken: string) => {
+    const q = spoken.trim().toLowerCase()
+    return contacts.find((p) => p.name.toLowerCase() === q || p.id === q.replace(/\s+/g, '')) ?? contacts.find((p) => p.name.toLowerCase().split(' ')[0] === q.split(' ')[0])
+  }
+  const runVoice = (raw: string) => {
+    const t = raw.trim().toLowerCase().replace(/[.!?]$/, '')
+    if (/^(help|what can i say)$/.test(t)) {
+      speak('You can say: read my messages, repeat, call a name, video call a name, open a name, or next chat. Anything else is sent as a message.', true)
+      return
+    }
+    if (/^read( my)?( new)? messages?$/.test(t) || t === 'read') {
+      const last = messages.slice(-5)
+      speak(last.length ? last.map(say).join('. ') : 'There are no messages here yet.', true)
+      return
+    }
+    if (/^(repeat|say (that )?again)$/.test(t)) {
+      speak(lastIn ? say(lastIn) : 'No message to repeat yet.', true)
+      return
+    }
+    const call = t.match(/^(video )?call(?: (.+))?$/)
+    if (call) {
+      const who = call[2] ? findPerson(call[2]) : !isGroup ? c : undefined
+      if (!who) return speak(`I couldn't find ${call[2] ?? 'that person'} in your contacts.`, true)
+      speak(`Calling ${who.name}`, true)
+      void startCall(who.id, !!call[1])
+      return
+    }
+    const open = t.match(/^(?:open|go to|chat with|message)\s+(.+)$/)
+    if (open) {
+      const who = findPerson(open[1])
+      if (!who) return speak(`I couldn't find ${open[1]} in your contacts.`, true)
+      nav(`/chat/${who.id}`)
+      return
+    }
+    if (/^next( chat)?$/.test(t)) {
+      if (!contacts.length) return speak('You have no other chats yet.', true)
+      const i = contacts.findIndex((p) => p.id === id)
+      nav(`/chat/${contacts[(i + 1) % contacts.length].id}`)
+      return
+    }
+    submit(raw.trim(), { mode: 'blind' })
+    speak('Sent.', false)
+  }
+  const talk = useTapToTalk(runVoice)
+  const runRef = useRef(runVoice)
+  runRef.current = runVoice
+  useEffect(() => (mode === 'blind' ? registerChatVoice((t) => runRef.current(t)) : undefined), [mode])
+  useEffect(() => {
+    if (mode !== 'blind') return
+    const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
+    const down = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat && !typing(e)) { e.preventDefault(); talk.start() }
+      if (e.code === 'Escape') talk.stop()
+      if (e.key.toLowerCase() === 'r' && e.altKey) { e.preventDefault(); speak(lastIn ? say(lastIn) : 'No message yet.', true) }
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  })
+  const announced = useRef(false)
+  useEffect(() => {
+    if (mode !== 'blind' || loading || announced.current) return
+    announced.current = true
+    speak(`Chat with ${c.name}. ${lastIn ? `Last message, ${say(lastIn)}` : 'No messages yet.'} Say Hey AnyWay, or press Space, to talk.`, true)
+  })
   const lastIn = [...messages].reverse().find((m) => m.from !== me)
   const subtitle =
     status === 'error'
@@ -183,7 +254,12 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         </div>
       )}
       <ActionsCtx.Provider value={{ sendFile, sendVoice, notifyTyping, draft: editing?.text ?? '' }}>
-      {mode === 'blind' && <BlindComposer key={editing?.id} name={c.name} onSend={submit} />}
+      {mode === 'blind' && (
+        <>
+          <BlindComposer name={c.name} talk={talk} />
+          <div className="composer" style={{ paddingTop: 0, borderTop: 0 }}><TextField onSend={(t) => submit(t, { mode: 'blind' })} mode="blind" placeholder="Or type a message" /></div>
+        </>
+      )}
       {mode === 'deaf' && <DeafComposer key={editing?.id} onSend={submit} />}
       {mode === 'speech' && <SpeechComposer key={editing?.id} onSend={submit} />}
       {mode === 'standard' && <TextComposer key={editing?.id} onSend={submit} />}
@@ -273,16 +349,74 @@ function TextComposer({ onSend }: { onSend: SendFn }) {
   )
 }
 
-function BlindComposer({ name, onSend }: { name: string; onSend: SendFn }) {
+interface Talk {
+  listening: boolean
+  sofar: string
+  error: string | null
+  start: () => void
+  stop: () => void
+}
+
+/** Tap to talk: speech in, final words out when you pause. Shared by the button and the Space key. */
+function useTapToTalk(onDone: (text: string) => void): Talk {
+  const [listening, setListening] = useState(false)
+  const [sofar, setSofar] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const ref = useRef<Listening | null>(null)
+  const doneRef = useRef(onDone)
+  doneRef.current = onDone
+  const start = () => {
+    if (ref.current) {
+      ref.current.stop()
+      return
+    }
+    setError(null)
+    setSofar('')
+    if (!canListen) {
+      setError('This browser cannot listen. Use Chrome or Edge, or type below.')
+      speak('This browser cannot listen. Please use Chrome.', true)
+      return
+    }
+    ref.current = listenOnce(
+      setSofar,
+      (text) => {
+        ref.current = null
+        setListening(false)
+        setSofar('')
+        if (text) doneRef.current(text)
+        else speak("I didn't catch that. Tap and try again.", true)
+      },
+      (msg) => {
+        ref.current = null
+        setListening(false)
+        setError(msg)
+        speak(msg, true)
+      },
+    )
+    setListening(!!ref.current)
+  }
+  const stop = () => ref.current?.stop()
+  return { listening, sofar, error, start, stop }
+}
+
+function BlindComposer({ name, talk }: { name: string; talk: Talk }) {
   return (
     <div className="composer">
       <div className="mode-bar" aria-label="Things you can say">
-        <span className="label">Say</span>
-        <span className="pill">Repeat</span><span className="pill">Reply</span><span className="pill">Call {name}</span><span className="pill">Next chat</span>
+        <span className="label">You can say</span>
+        <span className="pill">Read my messages</span><span className="pill">Repeat</span><span className="pill">Call {name}</span><span className="pill">Next chat</span><span className="pill">Help</span>
       </div>
-      <button className="talk-btn"><Mic size={22} aria-hidden="true" />Hold to speak</button>
-      <p className="hint" style={{ margin: 0 }}>Let go to send. Double-tap to hear the last message again.</p>
-      <TextField onSend={(t) => onSend(t, { mode: 'blind' })} mode="blind" placeholder="Or type a message" />
+      <button
+        className={`talk-btn${talk.listening ? ' live' : ''}`}
+        aria-label={talk.listening ? 'Listening. Pause to send.' : 'Tap to speak'}
+        onClick={talk.start}
+      >
+        <Mic size={22} aria-hidden="true" />
+        {talk.listening ? (talk.sofar || 'Listening…') : 'Tap to speak'}
+      </button>
+      <p className="hint" style={{ margin: 0 }} aria-live="polite">
+        {talk.error ?? 'Or just say “Hey AnyWay” and then your message. It sends when you pause.'}
+      </p>
     </div>
   )
 }

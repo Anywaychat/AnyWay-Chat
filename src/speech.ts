@@ -110,3 +110,131 @@ export function listen(onText: (sofar: string) => void, onDone: (finalText: stri
     },
   }
 }
+
+/* ---------- One-shot: tap, speak, it stops by itself when you pause ---------- */
+export function listenOnce(onText: (sofar: string) => void, onDone: (finalText: string) => void, onError: (msg: string) => void): Listening | null {
+  if (!RecCtor) return null
+  pauseWake()
+  stopSpeaking()
+  const rec = new RecCtor()
+  rec.lang = LANG
+  rec.interimResults = true
+  rec.continuous = false
+  let text = ''
+  let cancelled = false
+  rec.onresult = (e) => {
+    text = Array.from({ length: e.results.length }, (_, i) => e.results[i][0].transcript).join('')
+    onText(text.trim())
+  }
+  rec.onerror = (e) => {
+    if (e.error === 'aborted' || e.error === 'no-speech') return
+    cancelled = true
+    beep('error')
+    onError(e.error === 'not-allowed' ? 'Allow the microphone for this site to talk to AnyWay.' : `Couldn't hear you (${e.error}). Try again.`)
+  }
+  rec.onend = () => {
+    resumeWake()
+    if (cancelled) return
+    beep('stop')
+    onDone(text.trim())
+  }
+  beep('start')
+  rec.start()
+  return { stop: () => rec.stop(), cancel: () => { cancelled = true; rec.abort() } }
+}
+
+/* ---------- "Hey AnyWay" wake word ---------- */
+const WAKE = /\b(?:hey|hi|ok|okay|hello)?[\s,]*any\s?way\b[\s,.]*/i
+
+let wakeRec: Rec | null = null
+let wakeOn = false
+let wakePaused = false
+let onWakeCommand: ((text: string) => void) | null = null
+let onWakeState: ((s: 'off' | 'waiting' | 'awake') => void) | null = null
+
+function pauseWake() {
+  wakePaused = true
+  try {
+    wakeRec?.abort()
+  } catch {
+    /* already stopped */
+  }
+}
+function resumeWake() {
+  wakePaused = false
+  if (wakeOn) setTimeout(runWake, 300)
+}
+
+function runWake() {
+  if (!RecCtor || !wakeOn || wakePaused || wakeRec) return
+  const rec = new RecCtor()
+  wakeRec = rec
+  rec.lang = LANG
+  rec.interimResults = true
+  rec.continuous = true
+  let awake = false
+  let command = ''
+  let silence: ReturnType<typeof setTimeout> | undefined
+  const finish = () => {
+    clearTimeout(silence)
+    const text = command.trim()
+    awake = false
+    command = ''
+    onWakeState?.('waiting')
+    if (text) {
+      beep('stop')
+      onWakeCommand?.(text)
+    }
+  }
+  rec.onresult = (e) => {
+    // Ignore our own voice while a message is being read aloud.
+    if (canSpeak && window.speechSynthesis.speaking) return
+    let heard = ''
+    for (let i = e.resultIndex; i < e.results.length; i++) heard += e.results[i][0].transcript
+    const isFinal = e.results[e.results.length - 1].isFinal
+    if (!awake) {
+      const m = heard.match(WAKE)
+      if (!m) return
+      awake = true
+      beep('start')
+      onWakeState?.('awake')
+      command = heard.slice((m.index ?? 0) + m[0].length)
+    } else {
+      command = heard.replace(WAKE, '')
+    }
+    clearTimeout(silence)
+    // Send after a short pause, or straight away when the browser marks the phrase as finished.
+    if (isFinal && command.trim()) finish()
+    else silence = setTimeout(finish, command.trim() ? 1600 : 6000)
+  }
+  rec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      wakeOn = false
+      onWakeState?.('off')
+    }
+  }
+  rec.onend = () => {
+    wakeRec = null
+    // Browsers stop continuous listening every so often; quietly start again.
+    if (wakeOn && !wakePaused) setTimeout(runWake, 400)
+  }
+  try {
+    rec.start()
+    onWakeState?.('waiting')
+  } catch {
+    wakeRec = null
+  }
+}
+
+/** Turns the always-on "Hey AnyWay" listener on or off. */
+export function setWakeWord(on: boolean, onCommand?: (text: string) => void, onState?: (s: 'off' | 'waiting' | 'awake') => void) {
+  if (onCommand) onWakeCommand = onCommand
+  if (onState) onWakeState = onState
+  wakeOn = on && !!RecCtor
+  if (wakeOn) runWake()
+  else {
+    pauseWake()
+    wakePaused = false
+    onWakeState?.('off')
+  }
+}

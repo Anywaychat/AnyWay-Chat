@@ -419,3 +419,4 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; font: inher
 .wake-pill.off { color: var(--danger); }
 .talk-btn.live { background: var(--danger); }
 @media (min-width: 901px) { .wake-pill { left: auto; right: 18px; transform: none; bottom: 18px; } }
+.voice-loading { font-weight: 400; opacity: .8; }

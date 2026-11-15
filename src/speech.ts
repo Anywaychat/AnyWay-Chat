@@ -40,25 +40,111 @@ export function beep(kind: 'start' | 'stop' | 'error') {
   }
 }
 
-/* ---------- Speaking ---------- */
+/* ---------- Speaking: Kokoro (natural voice, runs in the browser) with the built-in voice as a fallback ---------- */
 let rate = 1
 export function setRate(r: number) {
   rate = r
 }
 
+type Kokoro = { generate: (text: string, o: { voice: string; speed: number }) => Promise<{ toBlob: () => Blob }> }
+let kokoro: Kokoro | null = null
+let kokoroLoading: Promise<void> | null = null
+export type VoiceState = 'basic' | 'loading' | 'natural'
+let voiceState: VoiceState = 'basic'
+const voiceListeners = new Set<(s: VoiceState) => void>()
+export const onVoiceState = (l: (s: VoiceState) => void) => {
+  voiceListeners.add(l)
+  l(voiceState)
+  return () => {
+    voiceListeners.delete(l)
+  }
+}
+const setVoiceState = (v: VoiceState) => {
+  voiceState = v
+  voiceListeners.forEach((l) => l(v))
+}
+
+/** Downloads the Kokoro voice once (cached by the browser afterwards). Until it's ready, the built-in voice is used. */
+export function preloadNaturalVoice() {
+  if (kokoro || kokoroLoading) return
+  setVoiceState('loading')
+  kokoroLoading = (async () => {
+    try {
+      const { KokoroTTS } = await import('kokoro-js')
+      const gpu = 'gpu' in navigator
+      kokoro = (await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: gpu ? 'fp32' : 'q8', device: gpu ? 'webgpu' : 'wasm' })) as unknown as Kokoro
+      setVoiceState('natural')
+    } catch {
+      kokoro = null
+      setVoiceState('basic')
+    }
+  })()
+}
+
+// One line at a time, so messages don't talk over each other.
+const queue: string[] = []
+let playing: HTMLAudioElement | null = null
+let busy = false
+let generation = 0
+
+async function pump() {
+  if (busy) return
+  busy = true
+  const myGen = generation
+  while (queue.length && myGen === generation) {
+    const text = queue.shift()!
+    if (kokoro) {
+      try {
+        const audio = await kokoro.generate(text, { voice: 'af_heart', speed: rate })
+        if (myGen !== generation) break
+        const url = URL.createObjectURL(audio.toBlob())
+        await new Promise<void>((done) => {
+          const el = new Audio(url)
+          playing = el
+          el.onended = el.onerror = () => {
+            URL.revokeObjectURL(url)
+            playing = null
+            done()
+          }
+          void el.play().catch(() => done())
+        })
+        continue
+      } catch {
+        /* fall back to the built-in voice for this line */
+      }
+    }
+    if (canSpeak) {
+      await new Promise<void>((done) => {
+        const u = new SpeechSynthesisUtterance(text)
+        u.lang = LANG
+        u.rate = rate
+        u.onend = u.onerror = () => done()
+        window.speechSynthesis.speak(u)
+      })
+    }
+  }
+  busy = false
+}
+
 /** Speaks text. `interrupt` stops whatever is being read first. */
 export function speak(text: string, interrupt = false) {
-  if (!canSpeak || !text.trim()) return
-  if (interrupt) window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = LANG
-  u.rate = rate
-  window.speechSynthesis.speak(u)
+  if (!text.trim()) return
+  if (interrupt) stopSpeaking()
+  queue.push(text)
+  void pump()
 }
 
 export function stopSpeaking() {
+  generation++
+  queue.length = 0
+  busy = false
+  playing?.pause()
+  playing = null
   if (canSpeak) window.speechSynthesis.cancel()
 }
+
+/** True while AnyWay is talking, so the wake word ignores its own voice. */
+export const isSpeaking = () => busy || !!playing || (canSpeak && window.speechSynthesis.speaking)
 
 /* ---------- Listening ---------- */
 export interface Listening {
@@ -189,7 +275,7 @@ function runWake() {
   }
   rec.onresult = (e) => {
     // Ignore our own voice while a message is being read aloud.
-    if (canSpeak && window.speechSynthesis.speaking) return
+    if (isSpeaking()) return
     let heard = ''
     for (let i = e.resultIndex; i < e.results.length; i++) heard += e.results[i][0].transcript
     const isFinal = e.results[e.results.length - 1].isFinal

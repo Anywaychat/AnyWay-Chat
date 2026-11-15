@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Mic } from 'lucide-react'
 import { onMessage, sendText, type ChatMessage } from '../nexconn'
-import { canListen, setWakeWord, speak } from '../speech'
+import { canListen, onVoiceState, preloadNaturalVoice, setWakeWord, speak, type VoiceState } from '../speech'
 import { routeVoice, understand } from '../voice'
 import { startCall } from '../calls'
 import { contactById, useAuth } from '../state'
@@ -15,6 +15,11 @@ export default function VoiceAssistant() {
   const nav = useNavigate()
   const { pathname } = useLocation()
   const [state, setState] = useState<'off' | 'waiting' | 'awake'>('off')
+  const [voice, setVoice] = useState<VoiceState>('basic')
+  useEffect(() => {
+    preloadNaturalVoice()
+    return onVoiceState(setVoice)
+  }, [])
   const ctx = useRef({ contacts, groups, pathname })
   ctx.current = { contacts, groups, pathname }
 
@@ -63,6 +68,7 @@ export default function VoiceAssistant() {
     <div className={`wake-pill ${state}`} role="status" aria-live="polite">
       <Mic size={14} aria-hidden="true" />
       {state === 'awake' ? 'Listening…' : state === 'waiting' ? 'Say “Hey Chat”' : 'Voice off: allow the microphone'}
+      {voice === 'loading' && <span className="voice-loading"> · loading natural voice</span>}
     </div>
   )
 }

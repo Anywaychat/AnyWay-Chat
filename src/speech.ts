@@ -353,3 +353,52 @@ export async function ask(question: string): Promise<string> {
     if (!l) done('')
   })
 }
+
+/**
+ * Records a voice note: starts on the beep and stops by itself when you stop talking (or after a minute).
+ * Resolves with the audio, or null if nothing was recorded.
+ */
+export async function recordVoiceNote(): Promise<Blob | null> {
+  pauseWake()
+  stopSpeaking()
+  let stream: MediaStream
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  } catch {
+    resumeWake()
+    return null
+  }
+  const mr = new MediaRecorder(stream)
+  const chunks: Blob[] = []
+  mr.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+  const done = new Promise<Blob | null>((resolve) => {
+    mr.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop())
+      resumeWake()
+      resolve(chunks.length ? new Blob(chunks, { type: mr.mimeType }) : null)
+    }
+  })
+  beep('start')
+  mr.start()
+  // Use speech detection only to notice when the person stops talking.
+  const stop = () => mr.state === 'recording' && mr.stop()
+  const limit = setTimeout(stop, 60000)
+  if (RecCtor) {
+    const rec = new RecCtor()
+    rec.lang = LANG
+    rec.continuous = false
+    rec.interimResults = false
+    rec.onresult = null
+    rec.onerror = () => {}
+    rec.onend = () => setTimeout(stop, 600)
+    try {
+      rec.start()
+    } catch {
+      /* fall back to the time limit */
+    }
+  }
+  const blob = await done
+  clearTimeout(limit)
+  beep('stop')
+  return blob
+}

@@ -82,6 +82,18 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         return void startCall(it.who.id, it.video)
       case 'open':
         return it.who.id === id ? speak(lastIn ? say(lastIn) : `You're already in ${it.who.name}'s chat.`, true) : nav(`/chat/${it.who.id}`)
+      case 'previous': {
+        if (!contacts.length) return speak('You have no other chats yet.', true)
+        const i = contacts.findIndex((p) => p.id === id)
+        return nav(`/chat/${contacts[(i - 1 + contacts.length) % contacts.length].id}`)
+      }
+      case 'search': {
+        const q = it.query.toLowerCase()
+        const found = messages.filter((m) => m.text.toLowerCase().includes(q))
+        setSearching(true)
+        setQuery(it.query)
+        return speak(found.length ? `Found ${found.length}. ${found.slice(-3).map(say).join('. ')}` : `Nothing here mentions ${it.query}.`, true)
+      }
       case 'react':
         if (!lastIn) return speak('There is no message to react to yet.', true)
         void react(lastIn.id, it.emoji)

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Mic } from 'lucide-react'
-import { loadChannels, onMessage, sendText, type ChatMessage } from '../nexconn'
-import { ask, canListen, onVoiceState, preloadNaturalVoice, setRate, setWakeWord, speak, type VoiceState } from '../speech'
+import { loadChannels, onMessage, sendText, sendVoice, type ChatMessage } from '../nexconn'
+import { ask, canListen, onVoiceState, preloadNaturalVoice, recordVoiceNote, setRate, setWakeWord, speak, stopSpeaking, whenQuiet, type VoiceState } from '../speech'
 import { findMentioned, hasChat, routeVoice, understand, type Person } from '../voice'
 import { acceptCall, endCall, getCall, startCall, toggleCam, toggleMic } from '../calls'
 import { contactById, useAuth } from '../state'
@@ -62,7 +62,7 @@ export default function VoiceAssistant() {
     if (!user || !canListen) return
     const first = user.name.split(' ')[0]
     // Commands that only make sense inside an open chat are passed to that chat.
-    const CHAT_ONLY = new Set(['say', 'read', 'repeat', 'react', 'deleteLast', 'editLast', 'next'])
+    const CHAT_ONLY = new Set(['say', 'read', 'repeat', 'react', 'deleteLast', 'editLast', 'next', 'previous', 'search'])
     const cancelled = (t: string) => /^(cancel|stop|never ?mind|forget it|no)\b/i.test(t.trim())
     // Ask who, retrying once if the name isn't recognised.
     const askWho = async (question: string): Promise<Person | null> => {
@@ -100,6 +100,64 @@ export default function VoiceAssistant() {
           if (who) await composeTo(who)
           return
         }
+        case 'voiceNote': {
+          const openId = ctx.current.pathname.startsWith('/chat/') ? ctx.current.pathname.slice(6) : null
+          const who = it.who ?? (openId ? contactById(openId) : await askWho('Who should I send the voice message to?'))
+          if (!who) return
+          speak(`Recording your voice message for ${who.name}. Start after the beep, and just stop talking when you're done.`, true)
+          await whenQuiet()
+          const blob = await recordVoiceNote()
+          if (!blob) return speak(`Sorry ${first}, I couldn't record. Check the microphone is allowed.`, true)
+          const m = await sendVoice({ kind: 'direct', id: who.id }, blob)
+          return speak(m ? `Voice message sent to ${who.name}.` : `Sorry ${first}, the voice message didn't send.`, true)
+        }
+        case 'isOnline':
+          return speak(on.has(it.who.id) ? `Yes, ${it.who.name} is online.` : `${it.who.name} is offline right now.`, true)
+        case 'addWho': {
+          const name = await ask("What's their username?")
+          if (!name || cancelled(name)) return speak('Okay, cancelled.', true)
+          const username = name.toLowerCase().replace(/\bto\b|\btoo\b/g, '2').replace(/[^a-z0-9]/g, '')
+          const err = await a.addContact(username)
+          return speak(err ? `Sorry ${first}, I couldn't find ${name}.` : `Added ${contactById(username).name}.`, true)
+        }
+        case 'groupAsk': {
+          const name = await ask('What should the group be called?')
+          if (!name || cancelled(name)) return speak('Okay, cancelled.', true)
+          const who = await ask(`Who should be in ${name}? Say their names.`)
+          const members = who.split(/\s*(?:,|\band\b)\s*/i).map((part) => findMentioned(part, people)?.who).filter((p): p is Person => !!p)
+          if (!members.length) return speak("I didn't recognise those names, so I didn't make the group.", true)
+          try {
+            const id = await a.createGroup(name, members.map((m) => m.id))
+            speak(`Group ${name} created with ${members.map((m) => m.name).join(' and ')}.`, true)
+            if (id) nav(`/group/${id}`)
+          } catch {
+            speak(`Sorry ${first}, I couldn't create that group.`, true)
+          }
+          return
+        }
+        case 'leaveGroup': {
+          const gid = ctx.current.pathname.startsWith('/group/') ? ctx.current.pathname.slice(7) : null
+          if (!gid) return speak('Open the group first, then say leave this group.', true)
+          const yes = await ask('Are you sure you want to leave this group?')
+          if (!/\b(yes|yeah|sure|ok|okay|leave)\b/i.test(yes)) return speak('Okay, staying in the group.', true)
+          await a.api(`/groups/${gid}/leave`, { method: 'POST' }).catch(() => null)
+          await a.refreshContacts()
+          speak('You left the group.', true)
+          return nav('/home')
+        }
+        case 'report': {
+          const openId = ctx.current.pathname.startsWith('/chat/') ? ctx.current.pathname.slice(6) : null
+          const who = it.who ?? (openId ? contactById(openId) : await askWho('Who do you want to report?'))
+          if (!who) return
+          const why = await ask(`What happened with ${who.name}?`)
+          if (!why || cancelled(why)) return speak('Okay, not reported.', true)
+          const err = await a.report(who.id, why)
+          return speak(err ? `Sorry ${first}, the report didn't send.` : 'Thanks. Your report was sent.', true)
+        }
+        case 'stopTalking':
+          return stopSpeaking()
+        case 'time':
+          return speak(`It's ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`, true)
         case 'callWho': {
           const who = await askWho(it.video ? 'Who should I video call?' : 'Who should I call?')
           if (who) {
@@ -175,7 +233,7 @@ export default function VoiceAssistant() {
           await a.logout()
           return nav('/login')
         case 'help':
-          return speak(`${first}, just talk normally. For example: new message. Tell Priya I'm on my way. Call Meera. Any new messages. Open my calls. Create a group called Family with Priya and Meera. Answer, or hang up, during a call.`, true)
+          return speak(`${first}, just talk normally. For example: any new messages? Send a voice message to Priya. New message. Tell Priya I'm on my way. Call Meera. Any new messages. Open my calls. Create a group called Family with Priya and Meera. Answer, or hang up, during a call.`, true)
         case 'unclear': {
           if (!it.who) return speak(`Sorry ${first}, I didn't get that. Say help to hear what I can do.`, true)
           const answer = (await ask(`Do you want to message or call ${it.who.name}?`)).toLowerCase()

@@ -15,6 +15,8 @@ export function routeVoice(text: string, fallback: (text: string) => void) {
   else fallback(text)
 }
 
+import { classify } from './voiceIntents'
+
 export interface Person {
   id: string
   name: string
@@ -89,6 +91,16 @@ export type Intent =
   | { kind: 'logout' }
   | { kind: 'whoami' }
   | { kind: 'compose'; who?: Person }
+  | { kind: 'voiceNote'; who?: Person }
+  | { kind: 'previous' }
+  | { kind: 'isOnline'; who: Person }
+  | { kind: 'addWho' }
+  | { kind: 'groupAsk' }
+  | { kind: 'leaveGroup' }
+  | { kind: 'report'; who?: Person }
+  | { kind: 'search'; query: string }
+  | { kind: 'stopTalking' }
+  | { kind: 'time' }
   | { kind: 'callWho'; video: boolean }
 
 const POLITE = /^(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|go ahead and|just)\s+)+/
@@ -170,6 +182,7 @@ export function understand(spoken: string, people: Person[], inChat: boolean): I
       const text = after
         .replace(/^[\s,:]*(?:know|that|saying|to say|and say|say|a message|the message|message)?[\s,:]*(?:that|saying)?[\s,:]*/i, '')
         .trim()
+      if (/^(?:a |an )?(?:voice|audio)\s*(?:message|note|msg)?$/i.test(text)) return { kind: 'voiceNote', who: mention.who }
       if (text) return { kind: 'send', who: mention.who, text }
       return { kind: 'open', who: mention.who }
     }
@@ -177,7 +190,65 @@ export function understand(spoken: string, people: Person[], inChat: boolean): I
     if (/\b(what did|did|any|read|messages? from|new from)\b/.test(t) && short) return { kind: 'open', who: mention.who }
   }
 
-  if (short && /\b(read|any new|new messages|what'?s new|my messages|unread)\b/.test(t)) return { kind: 'read' }
+  if (short && /\b(any new|new (messages|texts)|what'?s new|unread)\b/.test(t)) return { kind: 'unread' }
+  if (short && /\b(read|my messages)\b/.test(t)) return inChat ? { kind: 'read' } : { kind: 'unread' }
+
+  // Nothing matched exactly: find the closest action from the phrase library.
+  const fuzzy = fromLibrary(raw, people, inChat)
+  if (fuzzy) return fuzzy
   if (inChat) return { kind: 'say', text: raw }
   return { kind: 'unclear', who: mention?.who }
+}
+
+const cleanText = (s: string) => s.replace(/^(?:that|to|saying|say|about|is)\s+/i, '').trim()
+
+function fromLibrary(raw: string, people: Person[], inChat: boolean): Intent | null {
+  const mention = findMentioned(raw, people)
+  const w = raw.split(/\s+/)
+  const masked = mention ? [...w.slice(0, mention.start), '{name}', ...w.slice(mention.end)].join(' ') : raw
+  const m = classify(masked)
+  // Inside a chat, be stricter so normal messages aren't mistaken for commands.
+  if (!m || m.score < (inChat ? 0.9 : 0.7)) return null
+  const who = mention?.who
+  const text = cleanText(m.rest)
+  switch (m.intent) {
+    case 'send': return who && text ? { kind: 'send', who, text } : { kind: 'compose', who }
+    case 'compose': return { kind: 'compose', who }
+    case 'voiceNote': return { kind: 'voiceNote', who }
+    case 'read': return { kind: 'read' }
+    case 'unread': return { kind: 'unread' }
+    case 'repeat': return { kind: 'repeat' }
+    case 'call': return who ? { kind: 'call', who, video: false } : { kind: 'callWho', video: false }
+    case 'videoCall': return who ? { kind: 'call', who, video: true } : { kind: 'callWho', video: true }
+    case 'callWho': return { kind: 'callWho', video: false }
+    case 'videoWho': return { kind: 'callWho', video: true }
+    case 'answer': case 'decline': case 'end': case 'mute': case 'unmute': case 'camOff': case 'camOn':
+      return { kind: 'callAction', action: m.intent }
+    case 'open': return who ? { kind: 'open', who } : null
+    case 'next': return { kind: 'next' }
+    case 'previous': return { kind: 'previous' }
+    case 'list': return { kind: 'list' }
+    case 'online': return { kind: 'online' }
+    case 'isOnline': return who ? { kind: 'isOnline', who } : { kind: 'online' }
+    case 'home': case 'calls': case 'profile': case 'go': return { kind: 'nav', to: m.intent }
+    case 'addContact': return who ? { kind: 'addContact', username: who.id } : text ? { kind: 'addContact', username: text.toLowerCase().split(/\s+/).map((x) => NUMBERS[x] ?? x).join('').replace(/[^a-z0-9]/g, '') } : { kind: 'addWho' }
+    case 'addWho': return { kind: 'addWho' }
+    case 'createGroup': return { kind: 'groupAsk' }
+    case 'leaveGroup': return { kind: 'leaveGroup' }
+    case 'block': return who ? { kind: 'block', who, block: true } : null
+    case 'unblock': return who ? { kind: 'block', who, block: false } : null
+    case 'report': return { kind: 'report', who }
+    case 'react': return { kind: 'react', emoji: /love|heart/i.test(raw) ? '❤️' : /laugh|funny/i.test(raw) ? '😂' : '👍' }
+    case 'deleteLast': return { kind: 'deleteLast' }
+    case 'editLast': return text ? { kind: 'editLast', text } : null
+    case 'search': return text ? { kind: 'search', query: text } : null
+    case 'faster': return { kind: 'speed', faster: true }
+    case 'slower': return { kind: 'speed', faster: false }
+    case 'stopTalking': return { kind: 'stopTalking' }
+    case 'time': return { kind: 'time' }
+    case 'whoami': return { kind: 'whoami' }
+    case 'logout': return { kind: 'logout' }
+    case 'help': return { kind: 'help' }
+    default: return null
+  }
 }

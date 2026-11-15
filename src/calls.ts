@@ -62,6 +62,17 @@ function peerOf(session: NCCallSession) {
   return session.getRemoteParticipants().map((p) => p.userId).find((id) => id !== me) ?? null
 }
 
+/** Asks for mic (and camera) first, so a blocked device gives a clear message instead of a silent failure. */
+async function checkDevices(video: boolean): Promise<string | null> {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video })
+    stream.getTracks().forEach((t) => t.stop())
+    return null
+  } catch {
+    return video ? 'Allow camera and microphone for this site in your browser, then try again.' : 'Allow microphone for this site in your browser, then try again.'
+  }
+}
+
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)))
 
 function bindViews(peer: string | null) {
@@ -109,6 +120,12 @@ export async function startCall(peer: string, video: boolean): Promise<string | 
   if (!engine) return 'Calls are still connecting. Try again in a moment.'
   if (state.phase !== 'idle' && state.phase !== 'ended') return 'You are already in a call.'
   set({ ...IDLE, phase: 'outgoing', peer, video })
+  const blocked = await checkDevices(video)
+  if (blocked) {
+    set({ phase: 'ended', endedReason: blocked })
+    setTimeout(() => set(IDLE), 4000)
+    return blocked
+  }
   await nextFrame()
   bindViews(peer)
   const { code, callId } = await engine.startCall({
@@ -127,6 +144,14 @@ export async function startCall(peer: string, video: boolean): Promise<string | 
 
 export async function acceptCall() {
   if (!engine || !state.callId) return
+  const blocked = await checkDevices(state.video)
+  if (blocked) {
+    set({ endedReason: blocked })
+    await engine.endCall({ callId: state.callId }).catch(() => {})
+    set({ phase: 'ended' })
+    setTimeout(() => set(IDLE), 4000)
+    return
+  }
   set({ phase: 'connecting' })
   await nextFrame()
   bindViews(state.peer)

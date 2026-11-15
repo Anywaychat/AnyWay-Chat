@@ -5,7 +5,7 @@ import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import { startCall } from '../calls'
 import { canListen, listenOnce, speak, type Listening } from '../speech'
-import { parseSendTo, registerChatVoice } from '../voice'
+import { registerChatVoice, understand } from '../voice'
 import { sendText } from '../nexconn'
 import { useNavigate } from 'react-router-dom'
 import ChatInfo from './ChatInfo'
@@ -59,55 +59,37 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
 
   /* ---------- Blind: voice commands, read-back, Space to talk ---------- */
   const say = (m: ChatMessage) => `${m.from === me ? 'You' : contactById(m.from).name} ${m.from === me ? 'said' : 'says'}: ${preview(m)}`
-  const findPerson = (spoken: string) => {
-    const q = spoken.trim().toLowerCase()
-    return contacts.find((p) => p.name.toLowerCase() === q || p.id === q.replace(/\s+/g, '')) ?? contacts.find((p) => p.name.toLowerCase().split(' ')[0] === q.split(' ')[0])
-  }
   const runVoice = (raw: string) => {
-    const t = raw.trim().toLowerCase().replace(/[.!?]$/, '')
-    if (/^(help|what can i say)$/.test(t)) {
-      speak('You can say: read my messages, repeat, call a name, video call a name, open a name, or next chat. Anything else is sent as a message.', true)
-      return
+    const it = understand(raw, contacts, true)
+    switch (it.kind) {
+      case 'help':
+        return speak('Just talk normally. For example: send Priya I am on my way. Call Meera. Read my messages. Or say your message and it goes to this chat.', true)
+      case 'read': {
+        const last = messages.slice(-5)
+        return speak(last.length ? last.map(say).join('. ') : 'There are no messages here yet.', true)
+      }
+      case 'repeat':
+        return speak(lastIn ? say(lastIn) : 'No message to repeat yet.', true)
+      case 'list':
+        return speak(contacts.length ? `Your chats: ${contacts.map((p) => p.name).join(', ')}.` : 'You have no contacts yet.', true)
+      case 'next': {
+        if (!contacts.length) return speak('You have no other chats yet.', true)
+        const i = contacts.findIndex((p) => p.id === id)
+        return nav(`/chat/${contacts[(i + 1) % contacts.length].id}`)
+      }
+      case 'call':
+        speak(`Calling ${it.who.name}`, true)
+        return void startCall(it.who.id, it.video)
+      case 'open':
+        return it.who.id === id ? speak(lastIn ? say(lastIn) : `You're already in ${it.who.name}'s chat.`, true) : nav(`/chat/${it.who.id}`)
+      case 'send':
+        if (!isGroup && it.who.id === id) submit(it.text, { mode: 'blind' })
+        else void sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind' })
+        return speak(`Sent to ${it.who.name}.`, true)
+      default:
+        submit(raw.trim(), { mode: 'blind' })
+        return speak('Sent.', false)
     }
-    if (/^read( my)?( new)? messages?$/.test(t) || t === 'read') {
-      const last = messages.slice(-5)
-      speak(last.length ? last.map(say).join('. ') : 'There are no messages here yet.', true)
-      return
-    }
-    if (/^(repeat|say (that )?again)$/.test(t)) {
-      speak(lastIn ? say(lastIn) : 'No message to repeat yet.', true)
-      return
-    }
-    const call = t.match(/^(video )?call(?: (.+))?$/)
-    if (call) {
-      const who = call[2] ? findPerson(call[2]) : !isGroup ? c : undefined
-      if (!who) return speak(`I couldn't find ${call[2] ?? 'that person'} in your contacts.`, true)
-      speak(`Calling ${who.name}`, true)
-      void startCall(who.id, !!call[1])
-      return
-    }
-    const sendTo = parseSendTo(raw, contacts)
-    if (sendTo) {
-      if (!isGroup && sendTo.who.id === id) submit(sendTo.text, { mode: 'blind' })
-      else void sendText({ kind: 'direct', id: sendTo.who.id }, sendTo.text, { mode: 'blind' })
-      speak(`Sent to ${sendTo.who.name}.`, true)
-      return
-    }
-    const open = t.match(/^(?:open|go to|chat with|message)\s+(.+)$/)
-    if (open) {
-      const who = findPerson(open[1])
-      if (!who) return speak(`I couldn't find ${open[1]} in your contacts.`, true)
-      nav(`/chat/${who.id}`)
-      return
-    }
-    if (/^next( chat)?$/.test(t)) {
-      if (!contacts.length) return speak('You have no other chats yet.', true)
-      const i = contacts.findIndex((p) => p.id === id)
-      nav(`/chat/${contacts[(i + 1) % contacts.length].id}`)
-      return
-    }
-    submit(raw.trim(), { mode: 'blind' })
-    speak('Sent.', false)
   }
   const talk = useTapToTalk(runVoice)
   const runRef = useRef(runVoice)

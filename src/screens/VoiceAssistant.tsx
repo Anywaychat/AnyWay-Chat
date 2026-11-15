@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Mic } from 'lucide-react'
 import { onMessage, sendText, type ChatMessage } from '../nexconn'
 import { canListen, setWakeWord, speak } from '../speech'
-import { parseSendTo, routeVoice } from '../voice'
+import { routeVoice, understand } from '../voice'
 import { startCall } from '../calls'
 import { contactById, useAuth } from '../state'
 
@@ -34,33 +34,24 @@ export default function VoiceAssistant() {
   // "Hey Chat" everywhere.
   useEffect(() => {
     if (!user || !canListen) return
-    const find = (spoken: string) => {
-      const q = spoken.trim().toLowerCase()
-      return ctx.current.contacts.find((p) => p.name.toLowerCase() === q || p.id === q.replace(/\s+/g, '')) ?? ctx.current.contacts.find((p) => p.name.toLowerCase().split(' ')[0] === q.split(' ')[0])
-    }
     const outsideChat = (raw: string) => {
-      const t = raw.trim().toLowerCase().replace(/[.!?]$/, '')
-      const sendTo = parseSendTo(raw, ctx.current.contacts)
-      if (sendTo) {
-        void sendText({ kind: 'direct', id: sendTo.who.id }, sendTo.text, { mode: 'blind' }).then((m) => speak(m ? `Sent to ${sendTo.who.name}.` : `Couldn't send to ${sendTo.who.name}.`, true))
-        return
-      }
-      const open = t.match(/^(?:open|go to|chat with|message)\s+(.+)$/)
-      const call = t.match(/^(video )?call\s+(.+)$/)
-      if (open) {
-        const who = find(open[1])
-        if (!who) return speak(`I couldn't find ${open[1]} in your contacts.`, true)
-        nav(`/chat/${who.id}`)
-      } else if (call) {
-        const who = find(call[2])
-        if (!who) return speak(`I couldn't find ${call[2]} in your contacts.`, true)
-        speak(`Calling ${who.name}`, true)
-        void startCall(who.id, !!call[1])
-      } else if (/^(who|list|read) (are )?(my )?(contacts|chats)$/.test(t)) {
-        const names = ctx.current.contacts.map((c) => c.name)
-        speak(names.length ? `Your chats: ${names.join(', ')}.` : 'You have no contacts yet.', true)
-      } else {
-        speak('Say: Hey Chat, send, a name, and your message. Or: Hey Chat, open, and a name.', true)
+      const it = understand(raw, ctx.current.contacts, false)
+      const people = ctx.current.contacts
+      switch (it.kind) {
+        case 'send':
+          return void sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind' }).then((m) => speak(m ? `Sent to ${it.who.name}.` : `Couldn't send to ${it.who.name}.`, true))
+        case 'call':
+          speak(`Calling ${it.who.name}`, true)
+          return void startCall(it.who.id, it.video)
+        case 'open':
+          return nav(`/chat/${it.who.id}`)
+        case 'list':
+        case 'read':
+          return speak(people.length ? `Your chats: ${people.map((c) => c.name).join(', ')}. Say open and a name to hear their messages.` : 'You have no contacts yet.', true)
+        case 'unclear':
+          return speak(it.who ? `Do you want to message or call ${it.who.name}? Say, for example: tell ${it.who.name} hello.` : "Sorry, I didn't get that. You can say: tell Priya I'm on my way, or call Meera.", true)
+        default:
+          return speak("Open a chat, or say: tell a name your message.", true)
       }
     }
     setWakeWord(true, (text) => routeVoice(text, outsideChat), setState)

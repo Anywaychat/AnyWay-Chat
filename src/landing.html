@@ -254,6 +254,27 @@ section{padding:72px 0}
 .end h2{font-size:clamp(32px,3.6vw,48px) !important;line-height:1.1 !important}
 .band-row{font-size:16px !important;font-weight:700 !important}
 @media (max-width:900px){.n{grid-template-columns:1fr !important}}
+
+/* hero with people */
+.hero4{display:grid;grid-template-columns:minmax(0,440px) 1fr;gap:48px;align-items:center;text-align:left;padding:8px 0 32px}
+.h4-tag{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--y);margin:0 0 12px}
+.hero4 h1{margin:0 0 18px}
+.h4-p{font-size:17px;color:var(--g);margin:0 0 12px;max-width:44ch}
+.h4-pills{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 26px}
+.h4-pills span{padding:6px 14px;border-radius:99px;font-size:14px;font-weight:700}
+.hero4 .ctas{display:flex;gap:12px;flex-wrap:wrap;margin:0}
+.h4-scene{position:relative;aspect-ratio:860/600;border-radius:28px;background:linear-gradient(180deg,#FFE9DD,#FFF6F4);overflow:hidden}
+.h4-scene svg{position:absolute;inset:0;width:100%;height:auto}
+.h4-scene .ch{animation:bob 3s ease-in-out infinite}
+.h4-scene .ch:nth-of-type(2){animation-delay:.6s}.h4-scene .ch:nth-of-type(3){animation-delay:1.2s}.h4-scene .ch:nth-of-type(4){animation-delay:1.8s}
+@keyframes bob{50%{translate:0 -6px}}
+.bub{position:absolute;background:#fff;border-radius:16px;padding:9px 13px;font-size:14px;line-height:1.35;box-shadow:0 6px 20px rgba(22,22,29,.1);max-width:46%;opacity:0;transform:translateY(8px);animation:pop 15s infinite}
+.bub small{display:block;font-size:11px;color:var(--g);margin-bottom:2px}
+.b1{left:14%;top:20%}.b2{left:36%;top:11%;animation-delay:3s}.b3{left:56%;top:31%;animation-delay:6s}.b4{right:3%;top:16%;animation-delay:9s}
+.b5{left:50%;top:4%;translate:-50% 0;background:#22305E;color:#fff;animation-delay:12s}.b5 small{color:#C9CEE6}
+@keyframes pop{0%{opacity:0;transform:translateY(8px)}3%,17%{opacity:1;transform:none}20%,100%{opacity:0;transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.h4-scene .ch{animation:none}.bub{animation:none;opacity:1;transform:none}.b5{display:none}}
+@media (max-width:900px){.hero4{grid-template-columns:1fr}}
 </style>
 
 <div class="first">
@@ -262,27 +283,92 @@ section{padding:72px 0}
     <a class="logo" href="#"><span class="cell" aria-hidden="true"><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i></span>AnyWay Chat</a>
     <a class="btn y" href="/start">Open the app</a>
   </nav>
-  <header class="hero hero3">
-    <h1>No one should need <span class="y">help</span> to say hello.</h1>
-    <p class="what">AnyWay Chat lets blind, deaf, deaf-blind and non-speaking people chat, call and meet anyone, each in their own way.</p>
-    <div class="flow" role="group" aria-label="Four people. Four ways to understand.">
-      <div class="flow-h" style="grid-column:1;grid-row:1">If you are</div>
-      <div class="flow-h r" style="grid-column:3;grid-row:1">You understand by</div>
-      <div class="core" style="grid-row:2 / span 4" aria-hidden="true"><b>AnyWay</b><small>translates live</small></div>
-      <div class="flow-in" style="grid-column:1;grid-row:2"><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7c2 0 3.8.7 5.3 1.7M22 12s-4 7-10 7c-2 0-3.8-.7-5.3-1.7"/><path d="M3 3l18 18"/></svg></span><span><strong>Blind</strong><small>you speak to send</small></span></div>
-      <div class="rail" style="grid-column:2;grid-row:2" aria-hidden="true"><span></span></div>
-      <div class="flow-out" style="grid-column:3;grid-row:2"><span><strong>Hearing every reply</strong><small>read aloud in a natural voice</small></span><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></svg></span></div>
-      <div class="flow-in" style="grid-column:1;grid-row:3"><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V3.5a1.5 1.5 0 0 1 3 0V11M14 11V5a1.5 1.5 0 0 1 3 0v7c0 4-2.5 8-7 8-3 0-4.5-2-6-5l-1-2a1.5 1.5 0 0 1 2.6-1.5L8 14"/></svg></span><span><strong>Deaf</strong><small>you sign to the camera</small></span></div>
-      <div class="rail" style="grid-column:2;grid-row:3" aria-hidden="true"><span></span></div>
-      <div class="flow-out" style="grid-column:3;grid-row:3"><span><strong>Seeing text and signs</strong><small>captions plus sign animations</small></span><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V3.5a1.5 1.5 0 0 1 3 0V11M14 11V5a1.5 1.5 0 0 1 3 0v7c0 4-2.5 8-7 8-3 0-4.5-2-6-5l-1-2a1.5 1.5 0 0 1 2.6-1.5L8 14"/></svg></span></div>
-      <div class="flow-in" style="grid-column:1;grid-row:4"><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span><strong>Non-speaking</strong><small>you tap phrases</small></span></div>
-      <div class="rail" style="grid-column:2;grid-row:4" aria-hidden="true"><span></span></div>
-      <div class="flow-out" style="grid-column:3;grid-row:4"><span><strong>Reading or listening</strong><small>whichever you prefer</small></span><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg></span></div>
-      <div class="flow-in" style="grid-column:1;grid-row:5"><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M3 9v6M21 9v6"/></svg></span><span><strong>Deaf-blind</strong><small>you type in braille</small></span></div>
-      <div class="rail" style="grid-column:2;grid-row:5" aria-hidden="true"><span></span></div>
-      <div class="flow-out" style="grid-column:3;grid-row:5"><span><strong>Feeling every reply</strong><small>vibration and braille display</small></span><span class="f-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M3 9v6M21 9v6"/></svg></span></div>
+  <header class="hero hero4">
+    <div class="h4-text">
+      <p class="h4-tag">CHAT FOR EVERYONE</p>
+      <h1>Talk <span class="y">your</span> way.<br>We'll do the rest.</h1>
+      <p class="h4-p">Some people speak. Some sign. Some tap, read or feel. AnyWay lets everyone chat with everyone, and translates in between.</p>
+      <p class="h4-p">Works for people who are blind, deaf, deaf-blind or non-speaking, and for everyone who talks with them.</p>
+      <div class="h4-pills"><span style="background:#FFE3D3">Speaks</span><span style="background:#E1ECFF">Signs</span><span style="background:#EEE5FF">Taps</span><span style="background:#DDF3EA">Feels</span></div>
+      <div class="ctas"><a class="btn y" href="/start">Start chatting</a><a class="btn o" href="#how">See it in real life</a></div>
     </div>
-    <div class="ctas"><a class="btn y" href="/start">Try the demo</a><a class="btn o" href="#how">See it in real life</a></div>
+    <div class="h4-scene" role="img" aria-label="Arjun, who is blind, speaks a message. Priya signs her coffee order. Meera taps a phrase and it is spoken. Kavin feels a vibration and replies in braille. Everyone talks in one chat.">
+  <svg viewBox="0 0 860 660" width="100%" height="100%">
+   <!-- ground + plants -->
+   <ellipse cx="430" cy="600" rx="380" ry="26" fill="#F6DCCB"/>
+   <circle cx="780" cy="120" r="46" fill="#FFD6A8"/>
+
+   <!-- ARJUN (blind, speaking, glasses, cane) -->
+   <g class="ch" transform="translate(110,250)">
+    <rect x="-34" y="90" width="68" height="150" rx="30" fill="#2F6FDB"/>
+    <rect x="-28" y="232" width="22" height="100" rx="10" fill="#1E2340"/><rect x="6" y="232" width="22" height="100" rx="10" fill="#1E2340"/>
+    <circle cx="0" cy="50" r="40" fill="var(--skin1)"/>
+    <path d="M-40 42 Q-36 4 0 6 Q38 4 40 40 Q24 22 -4 24 Q-26 24 -40 42Z" fill="#1A1A1A"/>
+    <rect x="-30" y="42" width="26" height="15" rx="6" fill="#1E2340"/><rect x="4" y="42" width="26" height="15" rx="6" fill="#1E2340"/>
+    <path d="M-12 72 Q0 82 12 72" stroke="#3A1F10" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M30 120 Q60 150 52 200" stroke="var(--skin1)" stroke-width="16" fill="none" stroke-linecap="round"/>
+    <line x1="52" y1="200" x2="74" y2="335" stroke="#fff" stroke-width="6"/><line x1="70" y1="310" x2="74" y2="335" stroke="var(--y)" stroke-width="6"/>
+    <path d="M-30 120 Q-60 110 -48 70" stroke="var(--skin1)" stroke-width="16" fill="none" stroke-linecap="round"/>
+    <rect x="-62" y="44" width="24" height="40" rx="6" fill="#1E2340"/>
+    <!-- sound waves -->
+    <path d="M60 40 q14 12 0 26 M76 30 q24 22 0 46" stroke="var(--y)" stroke-width="4" fill="none" stroke-linecap="round"/>
+   </g>
+
+   <!-- PRIYA (deaf, signing) -->
+   <g class="ch" transform="translate(320,260)">
+    <path d="M-40 92 L40 92 L52 250 L-52 250Z" fill="#E5484D"/>
+    <rect x="-26" y="244" width="20" height="90" rx="10" fill="var(--skin2)"/><rect x="6" y="244" width="20" height="90" rx="10" fill="var(--skin2)"/>
+    <path d="M-44 60 Q-50 0 0 -2 Q50 0 44 60 L44 110 L-44 110Z" fill="#2A1A12"/>
+    <circle cx="0" cy="48" r="38" fill="var(--skin2)"/>
+    <path d="M-38 40 Q-30 6 0 8 Q30 6 38 40 Q10 20 -38 40Z" fill="#2A1A12"/>
+    <circle cx="-13" cy="48" r="4" fill="#1E2340"/><circle cx="13" cy="48" r="4" fill="#1E2340"/>
+    <path d="M-12 66 Q0 78 12 66" stroke="#5A2A1A" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <circle cx="-38" cy="54" r="5" fill="#FFD6A8"/>
+    <!-- signing hands up -->
+    <path d="M-34 116 Q-70 90 -56 40" stroke="var(--skin2)" stroke-width="15" fill="none" stroke-linecap="round"/>
+    <path d="M34 116 Q76 96 66 52" stroke="var(--skin2)" stroke-width="15" fill="none" stroke-linecap="round"/>
+    <circle cx="-56" cy="34" r="12" fill="var(--skin2)"/><circle cx="66" cy="46" r="12" fill="var(--skin2)"/>
+    <path d="M-80 20 l-8 -8 M-72 10 l-2 -12 M88 30 l10 -6 M80 20 l4 -12" stroke="#2F6FDB" stroke-width="3" stroke-linecap="round"/>
+   </g>
+
+   <!-- MEERA (non-speaking, wheelchair, tablet) -->
+   <g class="ch" transform="translate(540,300)">
+    <circle cx="-30" cy="240" r="50" fill="none" stroke="#1E2340" stroke-width="9"/><circle cx="-30" cy="240" r="6" fill="#1E2340"/>
+    <circle cx="48" cy="276" r="14" fill="#1E2340"/>
+    <path d="M-50 180 L50 180 L56 200 L-50 200Z" fill="#1E2340"/><rect x="-62" y="70" width="12" height="130" rx="6" fill="#1E2340"/>
+    <rect x="-44" y="80" width="78" height="110" rx="30" fill="#2BA67A"/>
+    <path d="M20 180 L70 180 L74 262" stroke="#6B4A8B" stroke-width="20" fill="none" stroke-linecap="round"/>
+    <circle cx="-4" cy="40" r="36" fill="var(--skin3)"/>
+    <path d="M-40 34 Q-36 0 -4 2 Q30 0 32 30 Q12 14 -40 34Z M-40 34 Q-50 60 -36 80" fill="#1A1A1A" stroke="#1A1A1A" stroke-width="8"/>
+    <circle cx="-14" cy="40" r="4" fill="#1E2340"/><circle cx="10" cy="40" r="4" fill="#1E2340"/>
+    <path d="M-14 56 Q-2 66 10 56" stroke="#4A2410" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M26 110 Q60 120 70 104" stroke="var(--skin3)" stroke-width="14" fill="none" stroke-linecap="round"/>
+    <rect x="62" y="70" width="58" height="76" rx="9" fill="#1E2340" transform="rotate(-12 90 108)"/>
+    <rect x="69" y="78" width="44" height="22" rx="5" fill="#FFD6A8" transform="rotate(-12 90 108)"/>
+    <rect x="69" y="106" width="44" height="22" rx="5" fill="#fff" transform="rotate(-12 90 108)"/>
+   </g>
+
+   <!-- KAVIN (deaf-blind, phone buzzing, braille) -->
+   <g class="ch" transform="translate(740,270)">
+    <rect x="-34" y="90" width="68" height="150" rx="30" fill="#F2A33A"/>
+    <rect x="-26" y="232" width="22" height="98" rx="10" fill="#5B6078"/><rect x="4" y="232" width="22" height="98" rx="10" fill="#5B6078"/>
+    <circle cx="0" cy="50" r="38" fill="var(--skin4)"/>
+    <path d="M-38 44 Q-40 6 0 8 Q40 6 38 44 Q30 18 0 22 Q-30 18 -38 44Z" fill="#6A4128"/>
+    <path d="M-18 50 q6 -5 12 0 M6 50 q6 -5 12 0" stroke="#1E2340" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M-14 68 Q0 80 14 68" stroke="#6A3A1A" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M-30 120 Q-56 150 -26 168" stroke="var(--skin4)" stroke-width="15" fill="none" stroke-linecap="round"/>
+    <path d="M30 120 Q50 150 20 166" stroke="var(--skin4)" stroke-width="15" fill="none" stroke-linecap="round"/>
+    <rect x="-24" y="150" width="40" height="30" rx="7" fill="#1E2340"/>
+    <circle cx="-14" cy="160" r="2.5" fill="#fff"/><circle cx="-14" cy="168" r="2.5" fill="#fff"/><circle cx="-6" cy="160" r="2.5" fill="#fff"/><circle cx="4" cy="168" r="2.5" fill="#fff"/>
+    <path d="M-40 150 l-10 -4 M-42 164 l-12 0 M24 150 l10 -4 M26 164 l12 0" stroke="var(--y)" stroke-width="3" stroke-linecap="round"/>
+   </g>
+  </svg>
+      <div class="bub b1"><small>Arjun · said it</small>"Amma, I'll be home by 7 🙂"</div>
+      <div class="bub b2"><small>Priya · signed it</small>"Two coffees, please!"</div>
+      <div class="bub b3"><small>Meera · tapped, now spoken</small>🔊 "Great to see you!"</div>
+      <div class="bub b4"><small>Kavin · felt it, replied</small>⠕⠝ "On my way"</div>
+      <div class="bub b5"><small>Family group · 5 people</small>Everyone's in. Each their own way.</div>
+    </div>
   </header>
 </div>
 

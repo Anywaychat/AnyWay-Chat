@@ -101,6 +101,7 @@ export type Intent =
   | { kind: 'search'; query: string }
   | { kind: 'stopTalking' }
   | { kind: 'time' }
+  | { kind: 'describe' }
   | { kind: 'callWho'; video: boolean }
 
 const POLITE = /^(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|go ahead and|just)\s+)+/
@@ -117,6 +118,8 @@ export function understand(spoken: string, people: Person[], inChat: boolean): I
   const short = t.split(/\s+/).length <= 6
 
   if (/^(help|what can i say|what can you do)\b/.test(t)) return { kind: 'help' }
+
+  if (/\b(describe|what'?s in|what is in|what does)\b.*\b(photo|picture|image|pic)\b|^describe( it| that)?$/.test(t)) return { kind: 'describe' }
 
   // Starting something without saying who or what: the assistant will ask.
   if (/\b(new message|send (a |an )?(message|text)|write (a |an )?(message|text)?|type (a |an )?(new )?(message|text)?|compose|text someone|message someone|send something|write to someone)\b/.test(t) && !/\bsaying\b|\bthat\b/.test(t)) {
@@ -215,6 +218,7 @@ function fromLibrary(raw: string, people: Person[], inChat: boolean): Intent | n
     case 'send': return who && text ? { kind: 'send', who, text } : { kind: 'compose', who }
     case 'compose': return { kind: 'compose', who }
     case 'voiceNote': return { kind: 'voiceNote', who }
+    case 'describe': return { kind: 'describe' }
     case 'read': return { kind: 'read' }
     case 'unread': return { kind: 'unread' }
     case 'repeat': return { kind: 'repeat' }

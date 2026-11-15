@@ -6,6 +6,7 @@ import { usePresence, useThread } from '../useChat'
 import { startCall } from '../calls'
 import { canListen, listenOnce, speak, type Listening } from '../speech'
 import { registerChatVoice, understand } from '../voice'
+import { describePhoto } from '../vision'
 import { sendText } from '../nexconn'
 import { useNavigate } from 'react-router-dom'
 import ChatInfo from './ChatInfo'
@@ -55,6 +56,20 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
       setReplyTo(null)
     } else void send(text, origin)
   }
+  const [descriptions, setDescriptions] = useState<Record<string, string>>({})
+  const explain = async (m: ChatMessage, aloud = false) => {
+    if (!m.url) return
+    setDescriptions((d) => ({ ...d, [m.id]: d[m.id] ?? 'Describing…' }))
+    const text = (await describePhoto(m.url)) ?? "Couldn't describe this photo."
+    setDescriptions((d) => ({ ...d, [m.id]: text }))
+    if (aloud) speak(`The photo shows: ${text}`, true)
+  }
+  // Blind users get every photo in the chat described automatically.
+  useEffect(() => {
+    if (mode !== 'blind') return
+    messages.filter((m) => m.type === 'image' && !descriptions[m.id]).slice(-3).forEach((m) => void explain(m))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, mode])
   const preview = (m: ChatMessage) => (m.type === 'text' ? m.text : m.type === 'image' ? 'Photo' : m.type === 'voice' ? 'Voice message' : m.fileName ?? 'File')
 
   /* ---------- Blind: voice commands, read-back, Space to talk ---------- */
@@ -82,6 +97,12 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         return void startCall(it.who.id, it.video)
       case 'open':
         return it.who.id === id ? speak(lastIn ? say(lastIn) : `You're already in ${it.who.name}'s chat.`, true) : nav(`/chat/${it.who.id}`)
+      case 'describe': {
+        const photo = [...messages].reverse().find((m) => m.type === 'image')
+        if (!photo) return speak('There are no photos in this chat yet.', true)
+        speak('Looking at the photo…', true)
+        return void explain(photo, true)
+      }
       case 'previous': {
         if (!contacts.length) return speak('You have no other chats yet.', true)
         const i = contacts.findIndex((p) => p.id === id)
@@ -208,9 +229,18 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                   )}
                   {m.type === 'voice' && <audio className="voice" controls preload="metadata" src={m.url} />}
                   {m.type === 'image' && (
-                    <a href={m.url} target="_blank" rel="noreferrer" className="photo">
-                      <img src={m.url || m.thumb} alt="Photo" />
-                    </a>
+                    <>
+                      <a href={m.url} target="_blank" rel="noreferrer" className="photo">
+                        <img src={m.url || m.thumb} alt={descriptions[m.id] ?? 'Photo'} />
+                      </a>
+                      {(mode === 'blind' || descriptions[m.id]) && (
+                        <div className="photo-desc">
+                          {descriptions[m.id] ?? (
+                            <button className="link-btn" onClick={() => void explain(m)}>Describe this photo</button>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                   {m.type === 'file' && (
                     <a href={m.url} target="_blank" rel="noreferrer" className="file-chip">

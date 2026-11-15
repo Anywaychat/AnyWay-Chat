@@ -420,3 +420,5 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; font: inher
 .talk-btn.live { background: var(--danger); }
 @media (min-width: 901px) { .wake-pill { left: auto; right: 18px; transform: none; bottom: 18px; } }
 .voice-loading { font-weight: 400; opacity: .8; }
+.photo-desc { font-size: 13px; margin: 2px 0 4px; opacity: .9; font-style: italic; max-width: 280px; }
+.link-btn { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; font-style: normal; }

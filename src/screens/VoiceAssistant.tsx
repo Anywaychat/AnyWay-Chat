@@ -7,6 +7,7 @@ import { findMentioned, hasChat, routeVoice, understand, type Person } from '../
 import { acceptCall, endCall, getCall, startCall, toggleCam, toggleMic } from '../calls'
 import { contactById, useAuth } from '../state'
 import { usePresence } from '../useChat'
+import { describePhoto, preloadVision } from '../vision'
 
 /**
  * For blind users: "Hey Chat" works on every screen, and every new message is read aloud.
@@ -21,6 +22,7 @@ export default function VoiceAssistant() {
   const [voice, setVoice] = useState<VoiceState>('basic')
   useEffect(() => {
     preloadNaturalVoice()
+    preloadVision()
     return onVoiceState(setVoice)
   }, [])
   const ctx = useRef({ contacts, groups, pathname, auth, online })
@@ -54,6 +56,12 @@ export default function VoiceAssistant() {
       // "Priya sent you a message: are you coming tonight?"
       const thing = m.type === 'text' ? 'a message' : m.type === 'image' ? 'a photo' : m.type === 'voice' ? 'a voice message' : `a file, ${m.fileName}`
       const sent = group ? `${who} sent ${thing} in ${group}` : `${who} sent you ${thing}`
+      if (m.type === 'image' && m.url) {
+        // Say it arrived straight away, then describe it once the model has looked at it.
+        speak(`${sent}. Describing it…`)
+        void describePhoto(m.url).then((d) => speak(d ? `The photo shows: ${d}` : "Sorry, I couldn't describe this photo."))
+        return
+      }
       const line = m.type === 'text' ? `${sent}: ${m.text}` : `${sent}.`
       speak(line)
     })
@@ -64,7 +72,7 @@ export default function VoiceAssistant() {
     if (!user || !canListen) return
     const first = user.name.split(' ')[0]
     // Commands that only make sense inside an open chat are passed to that chat.
-    const CHAT_ONLY = new Set(['say', 'read', 'repeat', 'react', 'deleteLast', 'editLast', 'next', 'previous', 'search'])
+    const CHAT_ONLY = new Set(['describe', 'say', 'read', 'repeat', 'react', 'deleteLast', 'editLast', 'next', 'previous', 'search'])
     const cancelled = (t: string) => /^(cancel|stop|never ?mind|forget it|no)\b/i.test(t.trim())
     // Ask who, retrying once if the name isn't recognised.
     const askWho = async (question: string): Promise<Person | null> => {

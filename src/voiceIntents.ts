@@ -24,6 +24,11 @@ export const PHRASES: Record<string, string[]> = {
     'i want to send a voice message', 'can you record a message', 'record something', 'send a voice message to {name}',
     'send {name} a voice message', 'record a message for {name}', 'record a voice note for {name}', 'record a voice message for {name}', 'send a voice note to {name}', 'voice note for {name}', 'voice message {name}', 'send audio to {name}', 'leave {name} a voice note',
   ],
+  describe: [
+    'describe the photo', 'describe that photo', 'describe the picture', 'describe the image', 'what is in the photo', 'what is in the picture',
+    'what is in the image', 'what does the photo show', 'what is this photo', 'what is that picture', 'tell me about the photo', 'explain the photo',
+    'what did they send', 'describe it', 'what is the picture about', 'read the photo', 'what can you see', 'describe the last photo',
+  ],
   read: [
     'read my messages', 'read messages', 'read the messages', 'read it', 'read this chat', 'read the chat', 'what did they say', 'read out',
     'read aloud', 'read it out', 'read the last messages', 'what are the messages', 'tell me the messages', 'what is in this chat',

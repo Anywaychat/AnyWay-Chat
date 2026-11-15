@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Camera, Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, Trash2, Video, Volume2, X } from 'lucide-react'
+import { Camera, Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, Info, Trash2, Video, Volume2, X } from 'lucide-react'
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import { startCall } from '../calls'
+import ChatInfo from './ChatInfo'
 import type { ChatMessage, Origin as MsgOrigin } from '../nexconn'
 
 type SendFn = (text: string, origin: MsgOrigin) => void
@@ -22,13 +23,14 @@ import { Avatar, BackButton } from '../components/ui'
 
 export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' }) {
   const { id = '' } = useParams()
-  const { groups } = useAuth()
+  const { groups, blocked } = useAuth()
+  const [info, setInfo] = useState(false)
   const isGroup = kind === 'group'
   const group = isGroup ? groups.find((g) => g.id === id) : undefined
   const c = isGroup ? { ...contactById(id), name: group?.name ?? 'Group', initial: (group?.name ?? 'G').charAt(0).toUpperCase(), hue: 'slate' as const } : contactById(id)
   const { mode } = useProfile()
   const online = usePresence()
-  const { messages, send, sendFile, sendVoice, reply, edit, remove, react, notifyTyping, status, loading, me, typing } = useThread({ kind, id })
+  const { messages, send, sendFile, sendVoice, reply, edit, remove, react, notifyTyping, status, loading, me, typing, failed } = useThread({ kind, id })
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
   const [editing, setEditing] = useState<ChatMessage | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
@@ -76,6 +78,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         </div>
         {!isGroup && <button className="icon-btn" aria-label={`Voice call ${c.name}`} onClick={() => startCall(c.id, false)}><Phone size={19} aria-hidden="true" /></button>}
         {!isGroup && <button className="icon-btn" aria-label={`Video call ${c.name}`} onClick={() => startCall(c.id, true)}><Video size={20} aria-hidden="true" /></button>}
+        <button className="icon-btn" aria-label={isGroup ? 'Group info' : 'Contact info'} onClick={() => setInfo(true)}><Info size={19} aria-hidden="true" /></button>
         <button className="icon-btn" aria-label="Search in this chat" aria-pressed={searching} onClick={() => { setSearching(!searching); setQuery('') }}><Search size={19} aria-hidden="true" /></button>
       </header>
       {searching && (
@@ -164,6 +167,11 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
       </div>
 
       {typing.length > 0 && <div className="typing-row" aria-live="polite"><span className="dots"><i /><i /><i /></span>{isGroup ? `${contactById(typing[0]).name} is typing` : `${c.name} is typing`}</div>}
+      {failed && <div className="send-failed" role="alert">{failed}</div>}
+      {info && <ChatInfo kind={kind} id={id} onClose={() => setInfo(false)} />}
+      {!isGroup && blocked.includes(c.id) ? (
+        <div className="blocked-bar">You blocked {c.name}. <button className="link" style={{ background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }} onClick={() => setInfo(true)}>Unblock</button> to send messages.</div>
+      ) : (<>
       {(replyTo || editing) && (
         <div className="reply-bar">
           {editing ? <Pencil size={16} aria-hidden="true" /> : <Reply size={16} aria-hidden="true" />}
@@ -180,6 +188,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
       {mode === 'speech' && <SpeechComposer key={editing?.id} onSend={submit} />}
       {mode === 'standard' && <TextComposer key={editing?.id} onSend={submit} />}
       </ActionsCtx.Provider>
+      </>)}
     </div>
   )
 }

@@ -123,6 +123,9 @@ interface AuthCtx {
   logout: () => Promise<void>
   setMode: (m: Mode) => Promise<void>
   setAvatar: (dataUrl: string | null) => Promise<void>
+  blocked: string[]
+  setBlocked: (username: string, block: boolean) => Promise<string | null>
+  report: (username: string, reason: string) => Promise<string | null>
   addContact: (username: string) => Promise<string | null>
   refreshContacts: () => Promise<void>
 }
@@ -135,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [groups, setGroups] = useState<Group[]>([])
+  const [blocked, setBlockedList] = useState<string[]>([])
 
   const api = useCallback(
     async <T,>(path: string, init?: { method?: string; body?: unknown }): Promise<T> => {
@@ -166,8 +170,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true)
       return
     }
-    api<{ user: User }>('/me')
-      .then(({ user: u }) => {
+    api<{ user: User; blocked: string[] }>('/me')
+      .then(({ user: u, blocked: b }) => {
+        setBlockedList(b ?? [])
         known.set(u.id, toContact(u))
         setUser(u)
         return refreshContacts()
@@ -247,6 +252,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw e
         }
       },
+      blocked,
+      async setBlocked(username, block) {
+        try {
+          const r = await api<{ blocked: string[] }>('/block', { method: 'POST', body: { username, block } })
+          setBlockedList(r.blocked)
+          return null
+        } catch (e) {
+          return (e as Error).message
+        }
+      },
+      async report(username, reason) {
+        try {
+          await api('/report', { method: 'POST', body: { username, reason } })
+          return null
+        } catch (e) {
+          return (e as Error).message
+        }
+      },
       async setAvatar(avatar) {
         const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { avatar } })
         known.set(r.user.id, toContact(r.user))
@@ -267,7 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [user, ready, contacts, groups, api, refreshContacts],
+    [user, ready, contacts, groups, blocked, api, refreshContacts],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

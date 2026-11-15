@@ -406,3 +406,11 @@ select.input { appearance: auto; }
 .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
 .avatar-edit { position: relative; border: 0; background: none; padding: 0; cursor: pointer; border-radius: 50%; }
 .avatar-cam { position: absolute; right: -2px; bottom: -2px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; border: 2px solid var(--panel); }
+.info-head { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 0 4px; text-align: center; }
+.info-head strong { font-size: 18px; }
+.danger-btn { color: var(--danger); border-color: #F3C3BF; }
+.report-form { display: flex; flex-direction: column; gap: 8px; }
+textarea.input { height: auto; padding: 10px 12px; resize: vertical; font: inherit; }
+.add-people { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+.blocked-bar { padding: 14px max(16px, calc((100% - 820px) / 2)); background: var(--panel); border-top: 1px solid var(--line); color: var(--ink-2); font-size: 14px; text-align: center; }
+.send-failed { padding: 8px max(16px, calc((100% - 820px) / 2)); background: var(--accent-soft); color: var(--danger); font-size: 13px; border-top: 1px solid #F3C3BF; }

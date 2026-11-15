@@ -50,6 +50,7 @@ export function useThread(target: Target) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [typing, setTyping] = useState<string[]>([])
+  const [failed, setFailed] = useState<string | null>(null)
 
   useEffect(() => {
     if (status !== 'connected') return
@@ -100,7 +101,15 @@ export function useThread(target: Target) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, me, status])
 
-  const add = (m: ChatMessage | null) => m && setMessages((list) => [...list, m])
+  const add = (m: ChatMessage | null) => {
+    if (!m) {
+      setFailed("Couldn't send that message. Check your connection, or this person may not be accepting messages.")
+      setTimeout(() => setFailed(null), 6000)
+      return
+    }
+    setFailed(null)
+    setMessages((list) => [...list, m])
+  }
 
   return {
     messages,
@@ -108,6 +117,7 @@ export function useThread(target: Target) {
     loading,
     me,
     typing,
+    failed,
     send: async (text: string, origin: Origin) => {
       if (text.trim()) add(await sendText(target, text.trim(), origin))
     },

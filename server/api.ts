@@ -38,7 +38,14 @@ interface CallLog {
   time: number
   seconds: number
 }
+interface Report {
+  from: string
+  about: string
+  reason: string
+  time: number
+}
 interface Db {
+  reports?: Report[]
   calls?: Record<string, CallLog[]>
   users: Record<string, UserRecord>
   sessions: Record<string, string>
@@ -161,7 +168,34 @@ export function createApi(env: Record<string, string>) {
         return send(res, 200, { ok: true })
       }
 
-      if (path === '/me' && req.method === 'GET') return send(res, 200, { user: pub(me) })
+      if (path === '/me' && req.method === 'GET') return send(res, 200, { user: pub(me), blocked: me.blocked ?? [] })
+
+      if (path === '/block' && req.method === 'POST') {
+        const b = await readBody(req)
+        const other = cleanId(b.username)
+        if (!db.users[other] || other === me.id) return send(res, 404, { error: 'No one with that username.' })
+        const block = b.block !== false
+        const r = block
+          ? await nexconnPost(env, '/v4/user/blocklist/add', { userId: me.id, targetUserIds: [other] })
+          : await nexconnPost(env, '/v4/user/blocklist/remove', { userId: me.id, blockedUserIds: [other] })
+        if (!r || r.code !== 0) return send(res, 502, { error: 'Could not update the block right now.' })
+        const list = new Set(me.blocked ?? [])
+        if (block) list.add(other)
+        else list.delete(other)
+        me.blocked = [...list]
+        save(db)
+        return send(res, 200, { blocked: me.blocked })
+      }
+
+      if (path === '/report' && req.method === 'POST') {
+        const b = await readBody(req)
+        const about = cleanId(b.username)
+        if (!db.users[about]) return send(res, 404, { error: 'No one with that username.' })
+        db.reports = db.reports ?? []
+        db.reports.push({ from: me.id, about, reason: String(b.reason ?? '').slice(0, 500), time: Date.now() })
+        save(db)
+        return send(res, 200, { ok: true })
+      }
 
       if (path === '/me' && req.method === 'PATCH') {
         const b = await readBody(req)
@@ -228,6 +262,38 @@ export function createApi(env: Record<string, string>) {
         else list.push(log)
         save(db)
         return send(res, 200, { ok: true })
+      }
+
+      const gm = path.match(/^\/groups\/([a-z0-9]+)\/(members|leave)$/)
+      if (gm && req.method === 'POST') {
+        const g = db.groups?.[gm[1]]
+        if (!g || !g.members.includes(me.id)) return send(res, 404, { error: 'Group not found.' })
+        const b = await readBody(req)
+        const groupOut = () => ({ id: g.id, name: g.name, owner: g.owner, members: g.members.map((id) => db.users[id]).filter(Boolean).map(pub) })
+        if (gm[2] === 'leave') {
+          const r = await nexconnPost(env, '/v4/group-channel/leave', { channelId: g.id, userIds: [me.id] })
+          if (!r || r.code !== 0) return send(res, 502, { error: 'Could not leave the group. Try again.' })
+          g.members = g.members.filter((id) => id !== me.id)
+          if (g.owner === me.id && g.members.length) g.owner = g.members[0]
+          if (!g.members.length) delete db.groups![g.id]
+          save(db)
+          return send(res, 200, { ok: true })
+        }
+        if (g.owner !== me.id) return send(res, 403, { error: 'Only the group admin can change members.' })
+        const add = (Array.isArray(b.add) ? b.add : []).map(cleanId).filter((id) => db.users[id] && !g.members.includes(id))
+        const remove = (Array.isArray(b.remove) ? b.remove : []).map(cleanId).filter((id) => g.members.includes(id) && id !== me.id)
+        if (add.length) {
+          const r = await nexconnPost(env, '/v4/group-channel/join', { channelId: g.id, userIds: add })
+          if (!r || r.code !== 0) return send(res, 502, { error: 'Could not add people right now.' })
+          g.members.push(...add)
+        }
+        if (remove.length) {
+          const r = await nexconnPost(env, '/v4/group-channel/leave', { channelId: g.id, userIds: remove })
+          if (!r || r.code !== 0) return send(res, 502, { error: 'Could not remove people right now.' })
+          g.members = g.members.filter((id) => !remove.includes(id))
+        }
+        save(db)
+        return send(res, 200, { group: groupOut() })
       }
 
       if (path === '/groups' && req.method === 'GET') {

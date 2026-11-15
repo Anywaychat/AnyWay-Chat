@@ -255,35 +255,51 @@ section{padding:72px 0}
 .band-row{font-size:16px !important;font-weight:700 !important}
 @media (max-width:900px){.n{grid-template-columns:1fr !important}}
 
-/* hero with people */
-.hero4{display:grid;grid-template-columns:minmax(0,440px) 1fr;gap:48px;align-items:center;text-align:left;padding:8px 0 32px}
-.h4-tag{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--y);margin:0 0 12px}
-.hero4 h1{margin:0 0 18px}
-.h4-p{font-size:17px;color:var(--g);margin:0 0 12px;max-width:44ch}
-.h4-pills{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 26px}
-.h4-pills span{padding:6px 14px;border-radius:99px;font-size:14px;font-weight:700}
-.hero4 .ctas{display:flex;gap:12px;flex-wrap:wrap;margin:0}
-.h4-scene{position:relative;width:100%;max-width:560px;justify-self:center;aspect-ratio:1}
-.h4-art{position:absolute;inset:0;width:100%;height:100%}
-.wave{position:absolute;left:37%;top:32%;width:40px;height:40px}
-.wave i{position:absolute;left:0;top:0;width:40px;height:40px;border:3px solid var(--y);border-color:transparent var(--y) transparent transparent;border-radius:50%;opacity:0;animation:ring 12s infinite}
-.wave i:nth-child(2){animation-delay:.25s;transform:scale(1.5)}.wave i:nth-child(3){animation-delay:.5s;transform:scale(2)}
-@keyframes ring{0%{opacity:0}2%,18%{opacity:1}22%,100%{opacity:0}}
-.bub{position:absolute;background:#fff;border-radius:18px 18px 18px 6px;padding:10px 14px;font-size:14px;line-height:1.35;box-shadow:0 10px 28px rgba(22,22,29,.12);max-width:250px;opacity:0;animation:pop 12s infinite}
-.bub small{display:block;font-size:11px;font-weight:700;color:var(--g);margin-bottom:3px}
-.bub.me{background:#22305E;color:#fff;border-radius:18px 18px 6px 18px}.bub.me small{color:#C9CEE6}
-.tick{margin-left:8px;font-size:11px;color:#7FD3B0}
-.b1{left:44%;top:12%}
-.b2{right:0;top:30%;animation-delay:3s}
-.b3{right:2%;top:46%;animation-delay:6s}
-.b4{left:42%;top:20%;animation-delay:9s}
-.bars{display:flex;gap:3px;align-items:center;height:18px}
-.bars i{width:4px;height:6px;border-radius:2px;background:var(--y);animation:wv .7s ease-in-out infinite}
-.bars i:nth-child(even){animation-delay:.2s}
-@keyframes wv{50%{height:18px}}
-@keyframes pop{0%{opacity:0;transform:translateY(10px) scale(.96)}3%,22%{opacity:1;transform:none}25%,100%{opacity:0;transform:translateY(-6px)}}
-@media (prefers-reduced-motion:reduce){.bub,.wave i,.bars i{animation:none}.b1,.b2{opacity:1}}
-@media (max-width:900px){.hero4{grid-template-columns:1fr}}
+/* hero: one message, every way */
+.hero5{display:grid;grid-template-columns:minmax(0,500px) minmax(0,1fr);gap:48px;align-items:center;text-align:left;padding:8px 0 36px}
+.hero5 .kick{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--y);margin:0 0 14px}
+.hero5 h1{font-size:clamp(32px,3.3vw,46px) !important;line-height:1.1;margin:0 0 18px;overflow-wrap:break-word}
+.h5-p{font-size:17px;color:var(--g);margin:0 0 22px;max-width:46ch}
+.tri{display:flex;flex-direction:column;font-weight:800;font-size:18px;margin:0 0 28px;line-height:1.35}
+.tri span:last-child{color:var(--y)}
+.hero5 .ctas{display:flex;gap:12px;flex-wrap:wrap;margin:0}
+.h5-hub{position:relative;width:100%;max-width:600px;aspect-ratio:1;justify-self:center}
+.ring{position:absolute;inset:12%;border-radius:50%;border:2px dashed #E8D6D0}
+.core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:230px;background:#fff;border-radius:22px;padding:14px 18px;box-shadow:0 20px 50px rgba(34,48,94,.14);z-index:2}
+.core small{font-size:11px;color:var(--g);font-weight:700;letter-spacing:.06em}
+.core > div{font-size:20px;font-weight:700;margin-top:4px}
+.core .from{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:12px;color:var(--g);font-weight:400}
+.core .from i{width:20px;height:20px;border-radius:50%;background:#22305E}
+.card{position:absolute;width:224px;background:#fff;border-radius:20px;padding:13px 15px;box-shadow:0 10px 30px rgba(34,48,94,.1);border:1.5px solid var(--line);animation:glow 8s infinite}
+.card .h{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.card .ic{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:17px;flex-shrink:0}
+.card .h b{font-size:14px;display:block;line-height:1.2}.card .h span{font-size:12px;color:var(--g)}
+.c1{left:0;top:4%;width:250px}.c2{right:0;top:4%;animation-delay:2s}.c3{right:0;bottom:4%;animation-delay:4s}.c4{left:0;bottom:4%;animation-delay:6s}
+@keyframes glow{0%,100%{border-color:var(--line);transform:none}5%,22%{border-color:var(--y);transform:translateY(-4px)}27%{border-color:var(--line);transform:none}}
+.vp{display:flex;align-items:center;gap:9px}
+.play{width:30px;height:30px;border-radius:50%;background:var(--y);color:#fff;display:grid;place-items:center;font-size:11px;flex-shrink:0}
+.h5-hub .bars{display:flex;align-items:center;gap:2px;height:32px;flex:1;-webkit-mask:linear-gradient(90deg,#000 0 var(--p),rgba(0,0,0,.25) var(--p));mask:linear-gradient(90deg,#000 0 var(--p),rgba(0,0,0,.25) var(--p));animation:prog 8s linear infinite}
+.h5-hub .bars i{width:3px;border-radius:2px;background:var(--y);animation:jit 1s ease-in-out infinite}
+.h5-hub .bars i:nth-child(3n){animation-delay:.3s}.h5-hub .bars i:nth-child(3n+1){animation-delay:.6s}
+@keyframes jit{50%{transform:scaleY(.55)}}
+@property --p{syntax:'<percentage>';inherits:false;initial-value:0%}
+@keyframes prog{0%{--p:0%}22%,100%{--p:100%}}
+.t{font-size:12px;color:var(--g)}
+.live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--g);margin-top:8px}
+.live .dot{width:8px;height:8px;border-radius:50%;background:var(--y);animation:bl 1s infinite}
+@keyframes bl{50%{opacity:.25}}
+.sign{font-size:24px;letter-spacing:4px}
+.capt{background:var(--w);color:#fff;font-size:13px;padding:4px 8px;border-radius:6px;display:inline-block;margin-top:6px}
+.br{font-size:26px;letter-spacing:5px;line-height:1.1}
+.buzz{font-size:12px;color:var(--y);font-weight:700;margin-top:4px}
+.taps{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.taps span{background:#F4EFED;border-radius:9px;padding:7px 4px;font-size:12.5px;font-weight:700;text-align:center}
+.taps span.on{background:var(--y);color:#fff}
+.h5-hub .core{color:var(--w) !important;display:block;text-align:left;box-shadow:0 20px 50px rgba(34,48,94,.14) !important;height:auto !important}
+.h5-hub .ring{box-shadow:none !important;background:none !important}
+@media (prefers-reduced-motion:reduce){.card,.h5-hub .bars,.h5-hub .bars i,.live .dot{animation:none}.h5-hub .bars{--p:100%}}
+@media (max-width:1100px){.hero5{grid-template-columns:1fr}.h5-hub{max-width:560px}}
+@media (max-width:620px){.h5-hub{aspect-ratio:auto;display:grid;grid-template-columns:1fr;gap:12px}.ring{display:none}.core,.card{position:static;transform:none;width:auto !important}.core{order:-1}}
 </style>
 
 <div class="first">
@@ -292,23 +308,27 @@ section{padding:72px 0}
     <a class="logo" href="#"><span class="cell" aria-hidden="true"><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i></span>AnyWay Chat</a>
     <a class="btn y" href="/start">Open the app</a>
   </nav>
-  <header class="hero hero4">
-    <div class="h4-text">
-      <p class="h4-tag">CHAT FOR EVERYONE</p>
-      <h1>Talk <span class="y">your</span> way.<br>We'll do the rest.</h1>
-      <p class="h4-p">Some people speak. Some sign. Some tap, read or feel. AnyWay lets everyone chat with everyone, and translates in between.</p>
-      <p class="h4-p">Works for people who are blind, deaf, deaf-blind or non-speaking, and for everyone who talks with them.</p>
-      <div class="h4-pills"><span style="background:#FFE3D3">Speaks</span><span style="background:#E1ECFF">Signs</span><span style="background:#EEE5FF">Taps</span><span style="background:#DDF3EA">Feels</span></div>
-      <div class="ctas"><a class="btn y" href="/start">Start chatting</a><a class="btn o" href="#how">See it in real life</a></div>
+  <header class="hero hero5">
+    <div class="h5-text">
+      <p class="kick">CHAT FOR EVERYONE</p>
+      <h1>Chat isn't a privilege.<br><span class="y">It's for everyone.</span></h1>
+      <p class="h5-p">A chat application designed for everyone — whether you're blind, deaf, hard of hearing, non-speaking, deafblind, or simply someone who believes communication should have no barriers.</p>
+      <p class="tri"><span>Different abilities.</span><span>One conversation.</span><span>Everyone included.</span></p>
+      <div class="ctas"><a class="btn y" href="/start">Start chatting</a><a class="btn o" href="#how">See how it works</a></div>
     </div>
-    <div class="h4-scene" role="img" aria-label="Arjun, who is blind, says Hey Chat, tell Priya I'm at the signal. The message reaches Priya as text, and her reply is read aloud to him.">
-      <img src="/hero/arjun.svg" alt="" class="h4-art">
-      <span class="wave" aria-hidden="true"><i></i><i></i><i></i></span>
-      <div class="bub b1"><small>🎙 Arjun · said it</small>"Hey Chat, tell Priya I'm at the signal."</div>
-      <div class="bub b2 me"><small>Priya sees · text</small>I'm at the signal.<span class="tick">✓✓</span></div>
-      <div class="bub b3"><small>🤟 Priya · signed it</small>"I can see you! Two minutes 👋"</div>
-      <div class="bub b4"><small>🔊 Read aloud to Arjun</small><span class="bars"><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
-    </div>
+   <div class="h5-hub" role="img" aria-label="One message, Dinner at 8, reaches four friends four ways: read aloud to Arjun who is blind, signed and captioned for Priya who is deaf, braille and vibration for Kavin who is deaf-blind, and tap replies for Meera who is non-speaking.">
+
+  <div class="ring"></div>
+  <div class="core"><small>NEW MESSAGE</small><div>"Dinner at 8? 🍛"</div><div class="from"><i></i>from Amma, typed</div></div>
+
+  <div class="card c1"><div class="h"><span class="ic" style="background:#FFE3D3">🔊</span><div><b>Arjun hears it</b><span>Blind · read aloud</span></div></div><div class="vp"><span class="play">▶</span><div class="bars"><i style="height:6px"></i><i style="height:10px"></i><i style="height:16px"></i><i style="height:22px"></i><i style="height:14px"></i><i style="height:26px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:12px"></i><i style="height:24px"></i><i style="height:28px"></i><i style="height:20px"></i><i style="height:10px"></i><i style="height:16px"></i><i style="height:26px"></i><i style="height:30px"></i><i style="height:22px"></i><i style="height:14px"></i><i style="height:8px"></i><i style="height:12px"></i><i style="height:20px"></i><i style="height:26px"></i><i style="height:18px"></i><i style="height:10px"></i><i style="height:6px"></i><i style="height:14px"></i><i style="height:22px"></i><i style="height:28px"></i><i style="height:16px"></i><i style="height:10px"></i><i style="height:6px"></i><i style="height:8px"></i></div><span class="t">0:03</span></div><div class="live"><span class="dot"></span>Speaking · natural voice</div></div>
+
+  <div class="card c2"><div class="h"><span class="ic" style="background:#E1ECFF">🤟</span><div><b>Priya sees it</b><span>Deaf · sign + captions</span></div></div><div class="sign">🤟👌✋</div><span class="capt">Dinner at 8?</span></div>
+
+  <div class="card c3"><div class="h"><span class="ic" style="background:#DDF3EA">📳</span><div><b>Kavin feels it</b><span>Deaf-blind · braille</span></div></div><div class="br">⠙⠊⠝⠝⠑⠗ ⠼⠓</div><div class="buzz">· · — buzz pattern</div></div>
+
+  <div class="card c4"><div class="h"><span class="ic" style="background:#EEE5FF">👆</span><div><b>Meera replies</b><span>Non-speaking · taps</span></div></div><div class="taps"><span class="on">Yes! 🙌</span><span>Make it 9</span><span>Can't</span><span>Who's coming?</span></div></div>
+ </div>
   </header>
 </div>
 
@@ -363,7 +383,7 @@ section{padding:72px 0}
     <h2>Talk your way.</h2>
     <div class="ctas"><a class="btn y" href="/start">Open AnyWay Chat</a></div>
   </div>
-  <footer>Built with the Nexconn Chat SDK for the Nexconn Build Challenge 2026.<p style="font-size:12px;margin-top:8px"><a href="https://storyset.com/people">People illustrations by Storyset</a></p></footer>
+  <footer>Built with the Nexconn Chat SDK for the Nexconn Build Challenge 2026.</footer>
 </div>
 
 </div>

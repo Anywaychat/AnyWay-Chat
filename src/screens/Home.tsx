@@ -4,6 +4,7 @@ import { Bell, Footprints, Search, UserPlus, Users, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { contactById, useAuth, toContact, type Contact, type User } from '../state'
 import { Avatar, TabBar } from '../components/ui'
+import InstallButton from '../components/InstallButton'
 import { useChannels, usePresence } from '../useChat'
 
 const FILTERS = ['All', 'Unread'] as const
@@ -61,6 +62,7 @@ export default function Home() {
             <Bell size={16} aria-hidden="true" />Turn on notifications for new messages
           </button>
         )}
+        <InstallButton compact />
         <Link to="/go" className="go-card">
           <span className="go-ico"><Footprints size={18} aria-hidden="true" /></span>
           <span>

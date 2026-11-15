@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, Camera, LogOut } from 'lucide-react'
 import { useAuth } from '../state'
 import { Avatar, TabBar } from '../components/ui'
+import InstallButton from '../components/InstallButton'
 import { contactById } from '../state'
 
 export default function Profile() {
@@ -64,6 +65,10 @@ export default function Profile() {
               {notif === 'default' && <button className="btn" style={{ height: 36 }} onClick={() => Notification.requestPermission().then(setNotif)}>Turn on</button>}
             </div>
           </div>
+        </div>
+
+        <div className="section">
+          <InstallButton />
         </div>
 
         <div className="section" style={{ paddingBottom: 24 }}>

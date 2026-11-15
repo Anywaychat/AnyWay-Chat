@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, MessageCircle } from 'lucide-react'
 import { MODES, useAuth, type Mode } from '../state'
 import { ModeIcon } from '../components/ui'
+import InstallButton from '../components/InstallButton'
 
 const ICON_BG: Record<Mode, string> = {
   blind: 'hue-indigo',
@@ -53,6 +54,7 @@ export function Login() {
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="btn primary block" disabled={busy}>{busy ? 'Logging in…' : 'Log in'}</button>
       <p className="muted" style={{ textAlign: 'center' }}>New to AnyWay? <Link to="/signup" className="link">Create an account</Link></p>
+      <InstallButton />
     </form>
   )
 }

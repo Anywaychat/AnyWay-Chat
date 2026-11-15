@@ -1,4 +1,4 @@
-import { NCCallDirection, NCCallEngine, NCCallEndReason, NCCallLogOrder, NCCallMediaType, NCCallType, NCCallUserState, type NCCallLog, type NCCallSession } from '@nexconn/call'
+import { NCCallEngine, NCCallEndReason, NCCallMediaType, NCCallType, NCCallUserState, type NCCallSession } from '@nexconn/call'
 
 /**
  * One-to-one voice and video calls on the Nexconn Call SDK.
@@ -16,6 +16,27 @@ export interface CallState {
   micOn: boolean
   camOn: boolean
   endedReason: string | null
+}
+
+let outgoing = false
+let connectedAt: number | null = null
+let placedAt = 0
+
+function session() {
+  return sessionStorage.getItem('anyway.session') ?? localStorage.getItem('anyway.session') ?? ''
+}
+
+/** Saves the finished call to this user's history on our server. */
+function saveCall(answered: boolean) {
+  if (!state.callId || !state.peer) return
+  const seconds = answered && connectedAt ? (Date.now() - connectedAt) / 1000 : 0
+  void fetch('/api/calls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session()}` },
+    body: JSON.stringify({ callId: state.callId, peer: state.peer, video: state.video, outgoing, answered, time: placedAt || Date.now(), seconds }),
+  })
+    .then(() => historyListeners.forEach((l) => l()))
+    .catch(() => {})
 }
 
 const IDLE: CallState = { phase: 'idle', callId: null, peer: null, video: false, startTime: null, micOn: true, camOn: true, endedReason: null }
@@ -95,6 +116,9 @@ export function startCallEngine() {
   engine.setCallEventHandler({
     onCallReceived({ session }) {
       if (state.phase !== 'idle' && state.phase !== 'ended') return
+      outgoing = false
+      connectedAt = null
+      placedAt = Date.now()
       set({
         ...IDLE,
         phase: 'incoming',
@@ -107,6 +131,7 @@ export function startCallEngine() {
       if (userState === NCCallUserState.ONCALL) bindViews(userId)
     },
     onCallConnected({ session }) {
+      connectedAt = connectedAt ?? Date.now()
       set({ phase: 'connected', callId: session.getCallId(), startTime: state.startTime ?? Date.now() })
       bindViews(state.peer)
     },
@@ -120,7 +145,7 @@ export function startCallEngine() {
       historyListeners.forEach((l) => l())
     },
     onCallEnded({ reason }) {
-      setTimeout(() => historyListeners.forEach((l) => l()), 1500)
+      saveCall(connectedAt !== null)
       set({ phase: 'ended', endedReason: REASONS[reason] ?? 'Call ended' })
       setTimeout(() => state.phase === 'ended' && set(IDLE), 1800)
     },
@@ -130,6 +155,9 @@ export function startCallEngine() {
 export async function startCall(peer: string, video: boolean): Promise<string | null> {
   if (!engine) return 'Calls are still connecting. Try again in a moment.'
   if (state.phase !== 'idle' && state.phase !== 'ended') return 'You are already in a call.'
+  outgoing = true
+  connectedAt = null
+  placedAt = Date.now()
   set({ ...IDLE, phase: 'outgoing', peer, video })
   const blocked = await checkDevices(video)
   if (blocked) {
@@ -177,6 +205,7 @@ export async function endCall() {
   if (!engine) return set(IDLE)
   await engine.endCall(state.callId ? { callId: state.callId } : undefined).catch(() => {})
   if (state.phase !== 'ended') {
+    saveCall(connectedAt !== null)
     set({ phase: 'ended', endedReason: 'Call ended' })
     setTimeout(() => state.phase === 'ended' && set(IDLE), 1200)
   }
@@ -214,28 +243,10 @@ export function onHistoryChange(l: () => void) {
   }
 }
 
-const MISSED = new Set([NCCallEndReason.NO_ANSWER, NCCallEndReason.MISSED, NCCallEndReason.DECLINED, NCCallEndReason.CANCELED])
-
-function toRecord(l: NCCallLog): CallRecord {
-  const outgoing = l.callDirection === NCCallDirection.CALL_OUT || l.callerUserId === me
-  const peer = outgoing ? (l.participants.find((p) => p !== me) ?? '') : l.callerUserId
-  const raw = l.duration || (l.endTime && l.startTime ? l.endTime - l.startTime : 0)
-  const seconds = raw > 100000 ? Math.round(raw / 1000) : raw > 3600 * 10 ? Math.round(raw / 1000) : Math.round(raw)
-  return {
-    callId: l.callId,
-    peer,
-    video: l.mediaType === NCCallMediaType.AUDIO_VIDEO,
-    outgoing,
-    missed: MISSED.has(l.endReason) && seconds === 0,
-    time: l.startTime || l.creationTime,
-    seconds,
-  }
-}
-
-/** Past calls for the signed-in user, newest first. */
+/** Past calls for the signed-in user, newest first (saved by the app on our server). */
 export async function loadCallHistory(): Promise<CallRecord[]> {
-  if (!engine) return []
-  const r = await engine.getHistoryCallLogs({ count: 50, order: NCCallLogOrder.DESC }).catch(() => null)
-  if (!r || r.code !== 0 || !r.callLogInfo) return []
-  return r.callLogInfo.callLogList.filter((l) => l.callType === NCCallType.SINGLE).map(toRecord).sort((a, b) => b.time - a.time)
+  const r = await fetch('/api/calls', { headers: { Authorization: `Bearer ${session()}` } }).catch(() => null)
+  if (!r || !r.ok) return []
+  const { calls } = (await r.json()) as { calls: { callId: string; peer: string; video: boolean; outgoing: boolean; answered: boolean; time: number; seconds: number }[] }
+  return calls.map((c) => ({ callId: c.callId, peer: c.peer, video: c.video, outgoing: c.outgoing, missed: !c.answered, time: c.time, seconds: c.seconds }))
 }

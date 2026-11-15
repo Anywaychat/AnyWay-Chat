@@ -27,7 +27,17 @@ interface GroupRecord {
   members: string[]
   createdAt: number
 }
+interface CallLog {
+  callId: string
+  peer: string
+  video: boolean
+  outgoing: boolean
+  answered: boolean
+  time: number
+  seconds: number
+}
 interface Db {
+  calls?: Record<string, CallLog[]>
   users: Record<string, UserRecord>
   sessions: Record<string, string>
   groups?: Record<string, GroupRecord>
@@ -186,6 +196,33 @@ export function createApi(env: Record<string, string>) {
         if (!other.contacts.includes(me.id)) other.contacts.push(me.id)
         save(db)
         return send(res, 200, { contact: pub(other) })
+      }
+
+      if (path === '/calls' && req.method === 'GET') {
+        return send(res, 200, { calls: (db.calls?.[me.id] ?? []).slice().sort((a, b) => b.time - a.time).slice(0, 100) })
+      }
+
+      if (path === '/calls' && req.method === 'POST') {
+        const b = await readBody(req)
+        const callId = String(b.callId ?? '').slice(0, 80)
+        const peer = cleanId(b.peer)
+        if (!callId || !peer) return send(res, 400, { error: 'Missing call details.' })
+        const log: CallLog = {
+          callId,
+          peer,
+          video: !!b.video,
+          outgoing: !!b.outgoing,
+          answered: !!b.answered,
+          time: Number(b.time) || Date.now(),
+          seconds: Math.max(0, Math.min(86400, Math.round(Number(b.seconds) || 0))),
+        }
+        db.calls = db.calls ?? {}
+        const list = (db.calls[me.id] = db.calls[me.id] ?? [])
+        const i = list.findIndex((c) => c.callId === callId)
+        if (i >= 0) list[i] = log
+        else list.push(log)
+        save(db)
+        return send(res, 200, { ok: true })
       }
 
       if (path === '/groups' && req.method === 'GET') {

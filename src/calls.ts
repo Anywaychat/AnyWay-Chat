@@ -1,4 +1,4 @@
-import { NCCallEngine, NCCallEndReason, NCCallMediaType, NCCallType, NCCallUserState, type NCCallSession } from '@nexconn/call'
+import { NCCallDirection, NCCallEngine, NCCallEndReason, NCCallLogOrder, NCCallMediaType, NCCallType, NCCallUserState, type NCCallLog, type NCCallSession } from '@nexconn/call'
 
 /**
  * One-to-one voice and video calls on the Nexconn Call SDK.
@@ -113,7 +113,14 @@ export function startCallEngine() {
     onStartTimeReceived({ startTime }) {
       set({ startTime })
     },
+    onLocalCallLogReceived() {
+      historyListeners.forEach((l) => l())
+    },
+    onServerCallLogReceived() {
+      historyListeners.forEach((l) => l())
+    },
     onCallEnded({ reason }) {
+      setTimeout(() => historyListeners.forEach((l) => l()), 1500)
       set({ phase: 'ended', endedReason: REASONS[reason] ?? 'Call ended' })
       setTimeout(() => state.phase === 'ended' && set(IDLE), 1800)
     },
@@ -187,4 +194,48 @@ export async function toggleCam() {
   const next = !state.camOn
   await engine.enableCamera(next)
   set({ camOn: next })
+}
+
+export interface CallRecord {
+  callId: string
+  peer: string
+  video: boolean
+  outgoing: boolean
+  missed: boolean
+  time: number
+  seconds: number
+}
+
+const historyListeners = new Set<() => void>()
+export function onHistoryChange(l: () => void) {
+  historyListeners.add(l)
+  return () => {
+    historyListeners.delete(l)
+  }
+}
+
+const MISSED = new Set([NCCallEndReason.NO_ANSWER, NCCallEndReason.MISSED, NCCallEndReason.DECLINED, NCCallEndReason.CANCELED])
+
+function toRecord(l: NCCallLog): CallRecord {
+  const outgoing = l.callDirection === NCCallDirection.CALL_OUT || l.callerUserId === me
+  const peer = outgoing ? (l.participants.find((p) => p !== me) ?? '') : l.callerUserId
+  const raw = l.duration || (l.endTime && l.startTime ? l.endTime - l.startTime : 0)
+  const seconds = raw > 100000 ? Math.round(raw / 1000) : raw > 3600 * 10 ? Math.round(raw / 1000) : Math.round(raw)
+  return {
+    callId: l.callId,
+    peer,
+    video: l.mediaType === NCCallMediaType.AUDIO_VIDEO,
+    outgoing,
+    missed: MISSED.has(l.endReason) && seconds === 0,
+    time: l.startTime || l.creationTime,
+    seconds,
+  }
+}
+
+/** Past calls for the signed-in user, newest first. */
+export async function loadCallHistory(): Promise<CallRecord[]> {
+  if (!engine) return []
+  const r = await engine.getHistoryCallLogs({ count: 50, order: NCCallLogOrder.DESC }).catch(() => null)
+  if (!r || r.code !== 0 || !r.callLogInfo) return []
+  return r.callLogInfo.callLogList.filter((l) => l.callType === NCCallType.SINGLE).map(toRecord).sort((a, b) => b.time - a.time)
 }

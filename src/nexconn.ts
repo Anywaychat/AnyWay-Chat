@@ -14,7 +14,7 @@ import {
   type Message,
 } from '@nexconn/chat'
 import type { Mode } from './state'
-import { installCalls, startCallEngine } from './calls'
+import { installCalls, setCallUser, startCallEngine } from './calls'
 
 /** How a message was originally made, carried alongside the text so each receiver can render it their way. */
 export interface Origin {
@@ -170,6 +170,7 @@ export async function connectAs(userId: string): Promise<boolean> {
     if (!initialized) {
       installCalls()
       NCEngine.initialize({ appKey: import.meta.env.VITE_NEXCONN_APP_KEY })
+      startCallEngine()
       setupHandlers()
       initialized = true
     }
@@ -179,10 +180,11 @@ export async function connectAs(userId: string): Promise<boolean> {
       const r = await fetch('/api/nexconn-token', { headers: { Authorization: `Bearer ${session}` } })
       const { token } = (await r.json()) as { token?: string }
       if (!token) throw new Error('no token')
+      setCallUser(userId)
       const res = await NCEngine.connect({ token })
       if (res.code !== 0) throw new Error(`connect ${res.code}`)
       connectedAs = userId
-      startCallEngine(userId)
+      setCallUser(userId)
       emitStatus('connected')
       return true
     } catch {

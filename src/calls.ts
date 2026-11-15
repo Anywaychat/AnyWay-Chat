@@ -83,9 +83,13 @@ function bindViews(peer: string | null) {
   if (remote && peer) engine.setRemoteVideoView([{ userId: peer, videoElement: remote }])
 }
 
-/** Called once the user is connected to Nexconn. */
-export function startCallEngine(userId: string) {
+/** Remember who is signed in, so we can tell the caller from the callee. */
+export function setCallUser(userId: string) {
   me = userId
+}
+
+/** Must run after NCEngine.initialize and before NCEngine.connect, or incoming calls are never delivered. */
+export function startCallEngine() {
   if (engine) return
   engine = NCCallEngine.initialize({})
   engine.setCallEventHandler({

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { connectAs, loadHistory, onMessage, onStatus, sendText, type ChatMessage, type Origin } from './nexconn'
+import { connectAs, loadChannels, loadHistory, markRead, onMessage, onStatus, sendText, type ChannelSummary, type ChatMessage, type Origin } from './nexconn'
 import { useProfile } from './state'
 
 export type Status = 'connecting' | 'connected' | 'error'
@@ -15,6 +15,7 @@ export function useConnection() {
     }
   }, [])
   useEffect(() => {
+    if (!me) return
     connectAs(me, name).then((ok) => setStatus(ok ? 'connected' : 'error'))
   }, [me, name])
   return status
@@ -37,8 +38,12 @@ export function useThread(peer: string) {
         setLoading(false)
       }
     })
+    void markRead(peer)
     const off = onMessage((m) => {
-      if (m.from === peer && m.to === me) setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m]))
+      if (m.from === peer && m.to === me) {
+        setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m]))
+        void markRead(peer)
+      }
     })
     return () => {
       alive = false
@@ -54,4 +59,24 @@ export function useThread(peer: string) {
   }
 
   return { messages, send, status, loading, me }
+}
+
+/** Chat list: latest message and unread count per person, kept live. */
+export function useChannels() {
+  const status = useConnection()
+  const [channels, setChannels] = useState<ChannelSummary[]>([])
+  useEffect(() => {
+    if (status !== 'connected') return
+    let alive = true
+    const refresh = () => loadChannels().then((c) => alive && setChannels(c))
+    refresh()
+    const off = onMessage(() => setTimeout(refresh, 300))
+    const t = setInterval(refresh, 15000)
+    return () => {
+      alive = false
+      void off()
+      clearInterval(t)
+    }
+  }, [status])
+  return { channels, status }
 }

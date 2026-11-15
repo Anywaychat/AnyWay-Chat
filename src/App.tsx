@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
-import { useProfile, type Mode } from './state'
-import Welcome from './screens/Welcome'
+import { useAuth, type Mode } from './state'
+import { Login, Signup } from './screens/Auth'
 import Home from './screens/Home'
 import Chat from './screens/Chat'
 import VoiceCall from './screens/VoiceCall'
@@ -24,13 +24,18 @@ function EmptyPane() {
 }
 
 export default function App() {
-  const { mode } = useProfile()
+  const { user, ready } = useAuth()
   const { pathname } = useLocation()
 
   if (pathname === '/') return <Landing />
+  if (!ready) return null
 
-  const onboarding = pathname === '/start'
-  const dark = DARK_MODES.includes(mode) && !onboarding
+  const onboarding = ['/start', '/login', '/signup'].includes(pathname)
+  if (!user && !onboarding) return <Navigate to="/login" replace />
+  if (user && onboarding) return <Navigate to="/home" replace />
+  if (!user && pathname === '/start') return <Navigate to="/signup" replace />
+
+  const dark = !!user && DARK_MODES.includes(user.mode)
 
   return (
     <div className={`shell${dark ? ' dark' : ''}${onboarding ? ' onboarding' : ''}`}>
@@ -41,7 +46,8 @@ export default function App() {
       )}
       <main className="app">
         <Routes>
-          <Route path="/start" element={<Welcome />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
           <Route
             path="/home"
             element={

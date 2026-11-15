@@ -49,7 +49,7 @@ export default function Chat() {
     <div className="screen">
       <header className="topbar">
         <BackButton />
-        <Avatar c={c} size="sm" online={c.online} />
+        <Avatar c={c} size="sm" />
         <div className="topbar-title">
           <strong>{c.name}</strong>
           <span>{status === 'connected' ? <span className="online">connected</span> : status === 'error' ? 'offline, check the connection' : 'connecting…'} · {HOW[c.mode]}</span>

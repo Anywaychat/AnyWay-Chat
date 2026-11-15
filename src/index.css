@@ -278,3 +278,22 @@ input { font: inherit; color: inherit; }
 
 /* one tab bar only: on desktop it lives in the sidebar */
 @media (min-width: 901px) { .app .tabbar { display: none; } }
+
+/* ---------- Auth, forms, modal ---------- */
+.auth { gap: 14px; }
+.field-label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; color: var(--ink-2); }
+.input { height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); padding: 0 12px; font-size: 15px; font-weight: 400; }
+.input:focus { outline: none; border-color: var(--accent); }
+select.input { appearance: auto; }
+.field-hint { font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.form-error { margin: 0; color: #FF8A80; font-size: 14px; }
+.form-ok { margin: 0; color: var(--green); font-size: 14px; }
+.link { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
+.btn:disabled { opacity: .6; cursor: default; }
+.empty-list { padding: 28px 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--ink-2); }
+.empty-list p { margin: 0; }
+.empty-list .hint { text-align: left; }
+.modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.modal h2 { margin: 0; font-size: 18px; }
+.modal-list { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }

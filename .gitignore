@@ -34,3 +34,6 @@ dist-ssr
 
 # Local agent tooling
 .claude/
+
+# Local account database
+data/

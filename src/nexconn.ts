@@ -102,7 +102,9 @@ export async function connectAs(userId: string, name: string): Promise<boolean> 
     }
     if (connectedAs) await NCEngine.disconnect()
     try {
-      const r = await fetch(`/api/token?userId=${encodeURIComponent(userId)}&name=${encodeURIComponent(name)}`)
+      void name
+      const session = localStorage.getItem('anyway.session') ?? ''
+      const r = await fetch('/api/nexconn-token', { headers: { Authorization: `Bearer ${session}` } })
       const { token } = (await r.json()) as { token?: string }
       if (!token) throw new Error('no token')
       const res = await NCEngine.connect({ token })
@@ -144,4 +146,32 @@ export async function loadHistory(peer: string): Promise<ChatMessage[]> {
     .map(toChat)
     .filter((m): m is ChatMessage => !!m)
     .sort((a, b) => a.sentTime - b.sentTime)
+}
+
+export interface ChannelSummary {
+  peer: string
+  lastText: string
+  lastFrom: string
+  lastTime: number
+  unread: number
+}
+
+/** Direct chats with their latest message and unread count, newest first. */
+export async function loadChannels(): Promise<ChannelSummary[]> {
+  const query = BaseChannel.createChannelsQuery({ pageSize: 50 })
+  const { code, data } = await query.loadNextPage()
+  if (code !== 0 || !data) return []
+  const list = (Array.isArray(data) ? data : (data as { data?: BaseChannel[] }).data ?? []) as BaseChannel[]
+  return list
+    .filter((c) => c instanceof DirectChannel || c.identifier.channelType === new DirectChannel('x').identifier.channelType)
+    .map((c) => {
+      const m = c.latestMessage
+      const text = m && m.messageType === 'RC:TxtMsg' ? ((m.content as { text?: string }).text ?? '') : m ? 'Message' : ''
+      return { peer: c.channelId, lastText: text, lastFrom: m?.senderUserId ?? '', lastTime: m?.sentTime ?? c.operationTime, unread: c.unreadCount }
+    })
+    .sort((a, b) => b.lastTime - a.lastTime)
+}
+
+export async function markRead(peer: string) {
+  await new DirectChannel(peer).clearUnreadCount()
 }

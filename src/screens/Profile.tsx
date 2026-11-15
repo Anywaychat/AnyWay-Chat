@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { MODES, useProfile } from '../state'
+import { useNavigate } from 'react-router-dom'
+import { MODES, useAuth, type Mode } from '../state'
 import { TabBar } from '../components/ui'
 
 const PACKS = [
@@ -21,13 +21,17 @@ function Toggle({ label, initial }: { label: string; initial: boolean }) {
 }
 
 export default function Profile() {
-  const { mode, name } = useProfile()
+  const { user, setMode, logout } = useAuth()
+  const nav = useNavigate()
+  const mode = user?.mode ?? 'standard'
+  const name = user?.name ?? ''
   const info = MODES[mode]
 
   return (
     <div className="screen">
       <header className="home-head">
         <h1>{name}</h1>
+        <p>@{user?.id}</p>
         <p style={{ margin: 0, color: 'var(--ink-2)', fontSize: 15 }}>This is how AnyWay talks for you.</p>
       </header>
       <div className="scroll">
@@ -36,7 +40,11 @@ export default function Profile() {
             <div><small>You send by</small><strong>{info.sends}</strong></div>
             <div><small>You receive as</small><strong>{info.receives}</strong></div>
           </div>
-          <Link to="/start" className="btn block">Change how I talk</Link>
+          <label className="field-label">Change how I talk
+            <select className="input" value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
+              {(Object.keys(MODES) as Mode[]).map((m) => <option key={m} value={m}>{MODES[m].label}</option>)}
+            </select>
+          </label>
         </div>
 
         <div className="section">
@@ -72,6 +80,7 @@ export default function Profile() {
         </div>
 
         <div className="section" style={{ paddingBottom: 24 }}>
+          <button className="btn block" onClick={async () => { await logout(); nav('/login') }}>Log out</button>
           <h2>Emergency</h2>
           <div className="panel">
             <div className="panel-row">

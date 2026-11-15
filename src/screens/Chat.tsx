@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { createContext, useContext, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Camera, CheckCheck, Hand, Keyboard, LayoutGrid, Mic, MoreVertical, Paperclip, Phone, Send, Smile, Video, Volume2 } from 'lucide-react'
-import { contactById, useProfile, type Mode } from '../state'
-import { useThread } from '../useChat'
+import { Camera, Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, MoreVertical, Paperclip, Phone, Send, Smile, Video, Volume2 } from 'lucide-react'
+import { contactById, useAuth, useProfile, type Mode } from '../state'
+import { usePresence, useThread } from '../useChat'
 import type { Origin as MsgOrigin } from '../nexconn'
 
 type SendFn = (text: string, origin: MsgOrigin) => void
+interface Actions {
+  sendFile: (f: File) => void
+  notifyTyping: () => void
+}
+const ActionsCtx = createContext<Actions>({ sendFile: () => {}, notifyTyping: () => {} })
+const kb = (n = 0) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 const fmt = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 import { Avatar, BackButton, ModeIcon, Wave } from '../components/ui'
 
@@ -36,12 +42,28 @@ function Origin({ mode, gloss }: { mode: Mode; gloss?: string }) {
   )
 }
 
-export default function Chat() {
-  const { id } = useParams()
-  const c = contactById(id)
+export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' }) {
+  const { id = '' } = useParams()
+  const { groups } = useAuth()
+  const isGroup = kind === 'group'
+  const group = isGroup ? groups.find((g) => g.id === id) : undefined
+  const c = isGroup ? { ...contactById(id), name: group?.name ?? 'Group', initial: (group?.name ?? 'G').charAt(0).toUpperCase(), hue: 'slate' as const } : contactById(id)
   const { mode } = useProfile()
-  const { messages, send, status, loading, me } = useThread(c.id)
+  const online = usePresence()
+  const { messages, send, sendFile, notifyTyping, status, loading, me, typing } = useThread({ kind, id })
   const lastIn = [...messages].reverse().find((m) => m.from !== me)
+  const subtitle =
+    status === 'error'
+      ? 'offline, check your connection'
+      : status === 'connecting'
+        ? 'connecting…'
+        : typing.length
+          ? isGroup
+            ? `${typing.map((t) => contactById(t).name).join(', ')} typing…`
+            : 'typing…'
+          : isGroup
+            ? `${group?.members.length ?? 0} members: ${group?.members.map((m) => (m.id === me ? 'you' : m.name)).join(', ') ?? ''}`
+            : `${online.has(c.id) ? 'online' : 'offline'} · ${HOW[c.mode]}`
 
   if (mode === 'deafblind') return <DeafBlindChat name={c.name} />
 
@@ -49,20 +71,20 @@ export default function Chat() {
     <div className="screen">
       <header className="topbar">
         <BackButton />
-        <Avatar c={c} size="sm" />
+        {isGroup ? <span className="avatar sm hue-slate" aria-hidden="true"><Users size={18} /></span> : <Avatar c={c} size="sm" online={online.has(c.id)} />}
         <div className="topbar-title">
           <strong>{c.name}</strong>
-          <span>{status === 'connected' ? <span className="online">connected</span> : status === 'error' ? 'offline, check the connection' : 'connecting…'} · {HOW[c.mode]}</span>
+          <span className={typing.length || (!isGroup && online.has(c.id)) ? 'online' : ''}>{subtitle}</span>
         </div>
-        <Link to={`/call/voice/${c.id}`} className="icon-btn" aria-label={`Voice call ${c.name}`}><Phone size={19} aria-hidden="true" /></Link>
-        <Link to={`/call/video/${c.id}`} className="icon-btn" aria-label={`Video call ${c.name}`}><Video size={20} aria-hidden="true" /></Link>
+        {!isGroup && <Link to={`/call/voice/${c.id}`} className="icon-btn" aria-label={`Voice call ${c.name}`}><Phone size={19} aria-hidden="true" /></Link>}
+        {!isGroup && <Link to={`/call/video/${c.id}`} className="icon-btn" aria-label={`Video call ${c.name}`}><Video size={20} aria-hidden="true" /></Link>}
         <button className="icon-btn" aria-label="More options"><MoreVertical size={19} aria-hidden="true" /></button>
       </header>
 
       {mode === 'blind' && lastIn && (
         <div className="readout" role="status">
           <Volume2 size={18} aria-hidden="true" />
-          Latest from {c.name}: “{lastIn.text}”
+          Latest from {contactById(lastIn.from).name}: “{lastIn.text}”
         </div>
       )}
 
@@ -70,21 +92,33 @@ export default function Chat() {
         <div className="thread">
           <span className="e2e">Messages are translated on your device into the way each person understands them.</span>
           {loading && status === 'connected' && <span className="day">Loading messages…</span>}
-          {!loading && messages.length === 0 && <span className="day">No messages yet. Say hello to {c.name}.</span>}
+          {!loading && messages.length === 0 && <span className="day">No messages yet. Say hello{isGroup ? ' to the group' : ` to ${c.name}`}.</span>}
           {messages.map((m, i) => {
             const mine = m.from === me
             const playing = mode === 'blind' && m === lastIn
-            const omode = m.origin?.mode ?? (mine ? mode : c.mode)
+            const omode = m.origin?.mode ?? (mine ? mode : contactById(m.from).mode)
             return (
               <div key={m.id + i} className={`msg ${mine ? 'me' : 'them'}${playing ? ' playing' : ''}`}>
                 <div className="bubble">
-                  <Origin mode={omode} gloss={m.origin?.gloss} />
-                  {m.text}
+                  {isGroup && !mine && <div className="sender">{contactById(m.from).name}</div>}
+                  {m.type === 'text' && <Origin mode={omode} gloss={m.origin?.gloss} />}
+                  {m.type === 'image' && (
+                    <a href={m.url} target="_blank" rel="noreferrer" className="photo">
+                      <img src={m.url || m.thumb} alt="Photo" />
+                    </a>
+                  )}
+                  {m.type === 'file' && (
+                    <a href={m.url} target="_blank" rel="noreferrer" className="file-chip">
+                      <FileText size={22} aria-hidden="true" />
+                      <span><strong>{m.fileName}</strong><small>{kb(m.fileSize)}</small></span>
+                    </a>
+                  )}
+                  {m.type === 'text' && m.text}
                   <span className="stamp">
                     {fmt(m.sentTime)}
-                    {mine && <CheckCheck size={14} aria-label="Sent" />}
+                    {mine && !isGroup && (m.read ? <CheckCheck size={14} className="read" aria-label="Read" /> : <Check size={14} aria-label="Sent" />)}
                   </span>
-                  {!mine && mode === 'deaf' && omode !== 'deaf' && (
+                  {m.type === 'text' && !mine && mode === 'deaf' && omode !== 'deaf' && (
                     <div className="sign-clip">
                       <span className="thumb"><Hand size={18} aria-hidden="true" /></span>
                       Watch in ISL
@@ -97,16 +131,21 @@ export default function Chat() {
         </div>
       </div>
 
+      {typing.length > 0 && <div className="typing-row" aria-live="polite"><span className="dots"><i /><i /><i /></span>{isGroup ? `${contactById(typing[0]).name} is typing` : `${c.name} is typing`}</div>}
+      <ActionsCtx.Provider value={{ sendFile, notifyTyping }}>
       {mode === 'blind' && <BlindComposer name={c.name} onSend={send} />}
       {mode === 'deaf' && <DeafComposer onSend={send} />}
       {mode === 'speech' && <SpeechComposer onSend={send} />}
       {mode === 'standard' && <TextComposer onSend={send} />}
+      </ActionsCtx.Provider>
     </div>
   )
 }
 
 function TextField({ placeholder = 'Message', onSend, mode }: { placeholder?: string; onSend: SendFn; mode: Mode }) {
   const [text, setText] = useState('')
+  const { sendFile, notifyTyping } = useContext(ActionsCtx)
+  const fileRef = useRef<HTMLInputElement>(null)
   const submit = () => {
     if (!text.trim()) return
     onSend(text, { mode: mode === 'speech' ? 'speech' : mode === 'deafblind' ? 'deafblind' : 'standard' })
@@ -116,8 +155,9 @@ function TextField({ placeholder = 'Message', onSend, mode }: { placeholder?: st
     <form className="text-compose" onSubmit={(e) => { e.preventDefault(); submit() }}>
       <div className="field">
         <button type="button" className="icon-btn" aria-label="Emoji"><Smile size={19} aria-hidden="true" /></button>
-        <input placeholder={placeholder} aria-label="Message" value={text} onChange={(e) => setText(e.target.value)} />
-        <button type="button" className="icon-btn" aria-label="Attach"><Paperclip size={19} aria-hidden="true" /></button>
+        <input placeholder={placeholder} aria-label="Message" value={text} onChange={(e) => { setText(e.target.value); notifyTyping() }} />
+        <button type="button" className="icon-btn" aria-label="Send a photo or file" onClick={() => fileRef.current?.click()}><Paperclip size={19} aria-hidden="true" /></button>
+        <input ref={fileRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) sendFile(f); e.target.value = '' }} />
       </div>
       <button type="submit" className="send" aria-label="Send"><Send size={18} aria-hidden="true" /></button>
     </form>

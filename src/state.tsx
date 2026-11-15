@@ -1,3 +1,4 @@
+import { disconnect } from './nexconn'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 export type Mode = 'blind' | 'deaf' | 'speech' | 'deafblind' | 'standard'
@@ -65,6 +66,13 @@ export interface Contact extends User {
   hue: 'coral' | 'indigo' | 'emerald' | 'violet' | 'slate'
 }
 
+export interface Group {
+  id: string
+  name: string
+  owner: string
+  members: User[]
+}
+
 const HUE: Record<Mode, Contact['hue']> = { deaf: 'coral', blind: 'indigo', speech: 'emerald', deafblind: 'violet', standard: 'slate' }
 
 export const toContact = (u: User): Contact => ({ ...u, initial: (u.name || u.id).charAt(0).toUpperCase(), hue: HUE[u.mode] })
@@ -75,17 +83,27 @@ export const contactById = (id?: string): Contact => known.get(id ?? '') ?? toCo
 
 const SESSION_KEY = 'anyway.session'
 
-function readSession(): string | null {
+/** Each tab keeps its own login (sessionStorage), falling back to the last login on this device (localStorage). */
+export function readSession(): string | null {
   try {
-    return localStorage.getItem(SESSION_KEY)
+    const own = sessionStorage.getItem(SESSION_KEY)
+    if (own) return own
+    const shared = localStorage.getItem(SESSION_KEY)
+    if (shared) sessionStorage.setItem(SESSION_KEY, shared)
+    return shared
   } catch {
     return null
   }
 }
 function writeSession(v: string | null) {
   try {
-    if (v) localStorage.setItem(SESSION_KEY, v)
-    else localStorage.removeItem(SESSION_KEY)
+    if (v) {
+      sessionStorage.setItem(SESSION_KEY, v)
+      localStorage.setItem(SESSION_KEY, v)
+    } else {
+      sessionStorage.removeItem(SESSION_KEY)
+      localStorage.removeItem(SESSION_KEY)
+    }
   } catch {
     /* storage unavailable */
   }
@@ -95,6 +113,8 @@ interface AuthCtx {
   user: User | null
   ready: boolean
   contacts: Contact[]
+  groups: Group[]
+  createGroup: (name: string, members: string[]) => Promise<string | null>
   api: <T>(path: string, init?: { method?: string; body?: unknown }) => Promise<T>
   login: (username: string, password: string) => Promise<string | null>
   signup: (p: { username: string; name: string; password: string; mode: Mode }) => Promise<string | null>
@@ -111,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
 
   const api = useCallback(
     async <T,>(path: string, init?: { method?: string; body?: unknown }): Promise<T> => {
@@ -131,6 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cs = list.map(toContact)
     cs.forEach((c) => known.set(c.id, c))
     setContacts(cs)
+    const { groups: gs } = await api<{ groups: Group[] }>('/groups')
+    gs.forEach((g) => g.members.forEach((m) => known.has(m.id) || known.set(m.id, toContact(m))))
+    setGroups(gs)
   }, [api])
 
   useEffect(() => {
@@ -164,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       ready,
       contacts,
+      groups,
       api,
       refreshContacts,
       async login(username, password) {
@@ -186,10 +211,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async logout() {
         await api('/logout', { method: 'POST' }).catch(() => {})
+        await disconnect().catch(() => {})
         writeSession(null)
         setSession(null)
         setUser(null)
         setContacts([])
+        setGroups([])
+      },
+      async createGroup(name, members) {
+        try {
+          const r = await api<{ group: Group }>('/groups', { method: 'POST', body: { name, members } })
+          await refreshContacts()
+          return r.group.id
+        } catch (e) {
+          throw e
+        }
       },
       async setMode(m) {
         const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { mode: m } })
@@ -206,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [user, ready, contacts, api, refreshContacts],
+    [user, ready, contacts, groups, api, refreshContacts],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

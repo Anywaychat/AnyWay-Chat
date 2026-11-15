@@ -10,6 +10,7 @@ import Go from './screens/Go'
 import Calls from './screens/Calls'
 import Profile from './screens/Profile'
 import Landing from './screens/Landing'
+import { useNotifications } from './useChat'
 
 const DARK_MODES: Mode[] = ['blind', 'deafblind']
 
@@ -26,6 +27,8 @@ function EmptyPane() {
 export default function App() {
   const { user, ready } = useAuth()
   const { pathname } = useLocation()
+  const open = pathname.startsWith('/chat/') ? `direct:${pathname.slice(6)}` : pathname.startsWith('/group/') ? `group:${pathname.slice(7)}` : null
+  useNotifications(open)
 
   if (pathname === '/') return <Landing />
   if (!ready) return null
@@ -57,7 +60,8 @@ export default function App() {
               </>
             }
           />
-          <Route path="/chat/:id" element={<Chat />} />
+          <Route path="/chat/:id" element={<Chat key={pathname} />} />
+          <Route path="/group/:id" element={<Chat key={pathname} kind="group" />} />
           <Route path="/call/voice/:id" element={<VoiceCall />} />
           <Route path="/call/video/:id" element={<VideoCall />} />
           <Route path="/go" element={<Go />} />

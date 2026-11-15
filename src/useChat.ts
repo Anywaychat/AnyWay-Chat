@@ -1,67 +1,106 @@
 import { useEffect, useState } from 'react'
-import { connectAs, loadChannels, loadHistory, markRead, onMessage, onStatus, sendText, type ChannelSummary, type ChatMessage, type Origin } from './nexconn'
-import { useProfile } from './state'
+import {
+  connectAs,
+  keyOf,
+  loadChannels,
+  loadHistory,
+  markRead,
+  onMessage,
+  onPresence,
+  onReceipt,
+  onSent,
+  onStatus,
+  onTyping,
+  sendFile,
+  sendText,
+  sendTyping,
+  watchPresence,
+  type ChannelSummary,
+  type ChatMessage,
+  type Origin,
+  type Target,
+} from './nexconn'
+import { contactById, useAuth, useProfile } from './state'
 
 export type Status = 'connecting' | 'connected' | 'error'
 
 /** Keeps the signed-in user connected to Nexconn. */
 export function useConnection() {
-  const { me, name } = useProfile()
+  const { me } = useProfile()
   const [status, setStatus] = useState<Status>('connecting')
-  useEffect(() => {
-    const off = onStatus(setStatus)
-    return () => {
-      off()
-    }
-  }, [])
+  useEffect(() => onStatus(setStatus), [])
   useEffect(() => {
     if (!me) return
-    connectAs(me, name).then((ok) => setStatus(ok ? 'connected' : 'error'))
-  }, [me, name])
+    connectAs(me).then((ok) => setStatus(ok ? 'connected' : 'error'))
+  }, [me])
   return status
 }
 
-/** Live message thread with one person. */
-export function useThread(peer: string) {
+/** Live conversation with one person or a group. */
+export function useThread(target: Target) {
   const { me } = useProfile()
   const status = useConnection()
+  const key = keyOf(target)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
+  const [typing, setTyping] = useState<string[]>([])
 
   useEffect(() => {
     if (status !== 'connected') return
     let alive = true
     setLoading(true)
-    loadHistory(peer).then((h) => {
-      if (alive) {
-        setMessages(h)
-        setLoading(false)
-      }
+    setMessages([])
+    loadHistory(target).then((h) => {
+      if (!alive) return
+      setMessages(h)
+      setLoading(false)
+      void markRead(target, h)
     })
-    void markRead(peer)
-    const off = onMessage((m) => {
-      if (m.from === peer && m.to === me) {
-        setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m]))
-        void markRead(peer)
-      }
+    const offMsg = onMessage((m) => {
+      if (m.key !== key || m.from === me) return
+      setMessages((list) => (list.some((x) => x.id === m.id) ? list : [...list, m]))
+      setTyping([])
+      if (!document.hidden) void markRead(target, [m])
+    })
+    let typingTimer: ReturnType<typeof setTimeout> | undefined
+    const offTyping = onTyping((k, ids) => {
+      if (k !== key) return
+      setTyping(ids)
+      clearTimeout(typingTimer)
+      typingTimer = setTimeout(() => setTyping([]), 6000)
+    })
+    const offReceipt = onReceipt((k, ids) => {
+      if (k !== key) return
+      setMessages((list) => list.map((m) => (ids.includes(m.id) ? { ...m, read: true } : m)))
     })
     return () => {
       alive = false
-      void off()
+      offMsg()
+      offTyping()
+      offReceipt()
+      clearTimeout(typingTimer)
     }
-  }, [peer, me, status])
+    // target is rebuilt each render; key captures its identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, me, status])
 
-  const send = async (text: string, origin: Origin) => {
-    const clean = text.trim()
-    if (!clean) return
-    const m = await sendText(peer, clean, origin)
-    if (m) setMessages((list) => [...list, m])
+  const add = (m: ChatMessage | null) => m && setMessages((list) => [...list, m])
+
+  return {
+    messages,
+    status,
+    loading,
+    me,
+    typing,
+    send: async (text: string, origin: Origin) => {
+      if (text.trim()) add(await sendText(target, text.trim(), origin))
+    },
+    sendFile: async (file: File) => add(await sendFile(target, file)),
+    notifyTyping: () => sendTyping(target),
   }
-
-  return { messages, send, status, loading, me }
 }
 
-/** Chat list: latest message and unread count per person, kept live. */
+/** Chat list: latest message and unread count per conversation, kept live. */
 export function useChannels() {
   const status = useConnection()
   const [channels, setChannels] = useState<ChannelSummary[]>([])
@@ -70,13 +109,61 @@ export function useChannels() {
     let alive = true
     const refresh = () => loadChannels().then((c) => alive && setChannels(c))
     refresh()
-    const off = onMessage(() => setTimeout(refresh, 300))
+    const first = setTimeout(refresh, 1500)
+    const later = () => setTimeout(refresh, 400)
+    const off1 = onMessage(later)
+    const off2 = onSent(later)
     const t = setInterval(refresh, 15000)
     return () => {
       alive = false
-      void off()
+      off1()
+      off2()
+      clearTimeout(first)
       clearInterval(t)
     }
   }, [status])
   return { channels, status }
+}
+
+/** Which contacts are online right now. */
+export function usePresence() {
+  const { contacts } = useAuth()
+  const status = useConnection()
+  const [online, setOnline] = useState<Set<string>>(new Set())
+  const ids = contacts.map((c) => c.id).join(',')
+  useEffect(() => {
+    if (status !== 'connected' || !ids) return
+    let alive = true
+    const refresh = () => watchPresence(ids.split(',')).then((s) => alive && setOnline(s))
+    refresh()
+    const off = onPresence(refresh)
+    const t = setInterval(refresh, 30000)
+    return () => {
+      alive = false
+      off()
+      clearInterval(t)
+    }
+  }, [status, ids])
+  return online
+}
+
+/** Shows a browser notification for new messages when you aren't looking at that chat. */
+export function useNotifications(openKey: string | null) {
+  const { me } = useProfile()
+  const { groups } = useAuth()
+  useEffect(() => {
+    if (!me) return
+    return onMessage((m) => {
+      if (m.from === me) return
+      if (!document.hidden && m.key === openKey) return
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+      const sender = contactById(m.from).name
+      const group = m.key.startsWith('group:') ? groups.find((g) => `group:${g.id}` === m.key)?.name : undefined
+      const n = new Notification(group ? `${sender} in ${group}` : sender, { body: m.type === 'text' ? m.text : m.type === 'image' ? 'Sent a photo' : `Sent a file: ${m.fileName}`, tag: m.key })
+      n.onclick = () => {
+        window.focus()
+        window.location.href = m.key.startsWith('group:') ? `/group/${m.key.slice(6)}` : `/chat/${m.key.slice(7)}`
+      }
+    })
+  }, [me, openKey, groups])
 }

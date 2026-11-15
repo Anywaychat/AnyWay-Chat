@@ -297,3 +297,21 @@ select.input { appearance: auto; }
 .modal { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .modal h2 { margin: 0; font-size: 18px; }
 .modal-list { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+
+/* ---------- Typing, receipts, media, groups ---------- */
+.sender { font-size: 12px; font-weight: 700; color: var(--blue); margin-bottom: 2px; }
+.stamp .read { color: #8FD3FF; }
+.photo { display: block; margin: 2px -4px 4px -6px; }
+.photo img { display: block; max-width: 280px; max-height: 320px; width: 100%; border-radius: 10px; object-fit: cover; background: var(--raised); }
+.file-chip { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 2px 0 4px; border-radius: 10px; background: rgba(0,0,0,.2); min-width: 200px; }
+.file-chip strong { display: block; font-size: 14px; word-break: break-all; }
+.file-chip small { font-size: 12px; opacity: .8; }
+.typing-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); padding: 6px max(20px, calc((100% - 820px) / 2)); }
+.typing-row .dots { display: inline-flex; gap: 3px; }
+.typing-row .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-2); animation: blink 1.2s infinite; }
+.typing-row .dots i:nth-child(2) { animation-delay: .2s; } .typing-row .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+.notif-card { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px dashed var(--line); background: transparent; color: var(--ink-2); font-size: 13px; cursor: pointer; text-align: left; }
+.notif-card:hover { background: var(--hover); color: var(--ink); }
+.pick-row { cursor: pointer; padding: 8px 4px; }
+.pick-row input { width: 18px; height: 18px; accent-color: var(--accent); }

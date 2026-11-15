@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Footprints, Search, UserPlus, X } from 'lucide-react'
-import { useAuth, toContact, type Contact, type User } from '../state'
+import { Bell, Footprints, Search, UserPlus, Users, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { contactById, useAuth, toContact, type Contact, type User } from '../state'
 import { Avatar, ModeIcon, TabBar } from '../components/ui'
-import { useChannels } from '../useChat'
+import { useChannels, usePresence } from '../useChat'
 
 const FILTERS = ['All', 'Unread'] as const
 
@@ -17,16 +18,21 @@ function timeLabel(t: number) {
 }
 
 export default function Home() {
-  const { user, contacts } = useAuth()
+  const { user, contacts, groups } = useAuth()
   const { channels } = useChannels()
+  const online = usePresence()
+  const [makingGroup, setMakingGroup] = useState(false)
+  const [notif, setNotif] = useState(typeof Notification === 'undefined' ? 'denied' : Notification.permission)
   const { pathname } = useLocation()
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('All')
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
 
-  const byPeer = new Map(channels.map((c) => [c.peer, c]))
-  const rows = contacts
-    .map((c) => ({ c, ch: byPeer.get(c.id) }))
+  const byKey = new Map(channels.map((c) => [c.key, c]))
+  const rows = [
+    ...contacts.map((c) => ({ c, group: false, href: `/chat/${c.id}`, ch: byKey.get(`direct:${c.id}`) })),
+    ...groups.map((g) => ({ c: { id: g.id, name: g.name, mode: 'standard' as const, initial: g.name.charAt(0).toUpperCase(), hue: 'slate' as const }, group: true, href: `/group/${g.id}`, ch: byKey.get(`group:${g.id}`) })),
+  ]
     .filter(({ ch }) => (filter === 'Unread' ? (ch?.unread ?? 0) > 0 : true))
     .filter(({ c }) => !query || c.name.toLowerCase().includes(query.toLowerCase()) || c.id.includes(query.toLowerCase()))
     .sort((a, b) => (b.ch?.lastTime ?? 0) - (a.ch?.lastTime ?? 0))
@@ -37,6 +43,7 @@ export default function Home() {
         <div className="row-between">
           <h1>Chats</h1>
           <div className="head-actions">
+            <button className="icon-btn" aria-label="New group" onClick={() => setMakingGroup(true)}><Users size={20} aria-hidden="true" /></button>
             <button className="icon-btn" aria-label="Add a contact" onClick={() => setAdding(true)}><UserPlus size={20} aria-hidden="true" /></button>
           </div>
         </div>
@@ -49,6 +56,11 @@ export default function Home() {
             <button key={f} className="pill" aria-pressed={f === filter} onClick={() => setFilter(f)}>{f}</button>
           ))}
         </div>
+        {notif === 'default' && (
+          <button className="notif-card" onClick={() => Notification.requestPermission().then(setNotif)}>
+            <Bell size={16} aria-hidden="true" />Turn on notifications for new messages
+          </button>
+        )}
         <Link to="/go" className="go-card">
           <span className="go-ico"><Footprints size={18} aria-hidden="true" /></span>
           <span>
@@ -66,17 +78,17 @@ export default function Home() {
             <p className="hint">Ask a friend for their AnyWay username. You are <strong>@{user?.id}</strong>.</p>
           </div>
         )}
-        {rows.map(({ c, ch }) => (
-          <Link key={c.id} to={`/chat/${c.id}`} className={`chat-row${pathname === `/chat/${c.id}` ? ' active' : ''}`} role="listitem">
-            <Avatar c={c} />
+        {rows.map(({ c, ch, group, href }) => (
+          <Link key={href} to={href} className={`chat-row${pathname === href ? ' active' : ''}`} role="listitem">
+            {group ? <span className="avatar hue-slate" aria-hidden="true"><Users size={20} /></span> : <Avatar c={c} online={online.has(c.id)} />}
             <div className="chat-row-main">
               <div className="chat-row-top">
                 <span className="name">{c.name}</span>
                 <time className={ch?.unread ? 'new' : ''}>{timeLabel(ch?.lastTime ?? 0)}</time>
               </div>
               <div className="chat-row-bottom">
-                <span className={`mode-tag mode-${c.mode}`}><ModeIcon mode={c.mode} size={14} /></span>
-                <span className="preview">{ch?.lastText ? `${ch.lastFrom === user?.id ? 'You: ' : ''}${ch.lastText}` : `@${c.id}`}</span>
+                {!group && <span className={`mode-tag mode-${c.mode}`}><ModeIcon mode={c.mode} size={14} /></span>}
+                <span className="preview">{ch?.lastText ? `${ch.lastFrom === user?.id ? 'You' : group ? contactById(ch.lastFrom).name : ''}${ch.lastFrom === user?.id || group ? ': ' : ''}${ch.lastText}` : group ? 'New group' : `@${c.id}`}</span>
                 {ch?.unread ? <span className="badge" aria-label={`${ch.unread} unread`}>{ch.unread}</span> : null}
               </div>
             </div>
@@ -85,6 +97,7 @@ export default function Home() {
       </div>
       <TabBar />
       {adding && <AddContact onClose={() => setAdding(false)} />}
+      {makingGroup && <NewGroup onClose={() => setMakingGroup(false)} />}
     </div>
   )
 }
@@ -149,6 +162,64 @@ function AddContact({ onClose }: { onClose: () => void }) {
         </div>
         {msg && <p className="form-ok" role="status">{msg}</p>}
       </div>
+    </div>
+  )
+}
+
+function NewGroup({ onClose }: { onClose: () => void }) {
+  const { contacts, createGroup } = useAuth()
+  const nav = useNavigate()
+  const [name, setName] = useState('')
+  const [picked, setPicked] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
+
+  return (
+    <div className="modal-back" role="presentation" onClick={onClose}>
+      <form
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="New group"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={async (e) => {
+          e.preventDefault()
+          setBusy(true)
+          setError(null)
+          try {
+            const id = await createGroup(name, picked)
+            onClose()
+            if (id) nav(`/group/${id}`)
+          } catch (err) {
+            setError((err as Error).message)
+          }
+          setBusy(false)
+        }}
+      >
+        <div className="row-between">
+          <h2>New group</h2>
+          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><X size={20} aria-hidden="true" /></button>
+        </div>
+        <label className="field-label">Group name
+          <input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)} required maxLength={64} />
+        </label>
+        <div className="field-label" style={{ marginBottom: -4 }}>Members</div>
+        <div className="modal-list">
+          {contacts.length === 0 && <p className="muted">Add contacts first, then make a group with them.</p>}
+          {contacts.map((c) => (
+            <label key={c.id} className="chat-row pick-row">
+              <input type="checkbox" checked={picked.includes(c.id)} onChange={() => toggle(c.id)} />
+              <Avatar c={c} size="sm" />
+              <span className="chat-row-main"><strong>{c.name}</strong><span className="muted">@{c.id}</span></span>
+            </label>
+          ))}
+        </div>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="btn primary block" disabled={busy || !name.trim() || picked.length === 0}>
+          {busy ? 'Creating…' : `Create group${picked.length ? ` with ${picked.length}` : ''}`}
+        </button>
+      </form>
     </div>
   )
 }

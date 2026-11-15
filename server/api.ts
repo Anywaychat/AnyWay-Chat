@@ -20,9 +20,17 @@ interface UserRecord {
   contacts: string[]
   createdAt: number
 }
+interface GroupRecord {
+  id: string
+  name: string
+  owner: string
+  members: string[]
+  createdAt: number
+}
 interface Db {
   users: Record<string, UserRecord>
   sessions: Record<string, string>
+  groups?: Record<string, GroupRecord>
 }
 
 export interface PublicUser {
@@ -62,7 +70,8 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
-async function issueNexconnToken(env: Record<string, string>, user: PublicUser): Promise<string | null> {
+/** Signed call to the Nexconn Platform Chat API (Singapore, with backup domain). */
+async function nexconnPost<T>(env: Record<string, string>, path: string, body: unknown): Promise<(T & { code: number }) | null> {
   const appKey = env.VITE_NEXCONN_APP_KEY
   const secret = env.NEXCONN_APP_SECRET
   if (!appKey || !secret) return null
@@ -71,19 +80,23 @@ async function issueNexconnToken(env: Record<string, string>, user: PublicUser):
       const nonce = randomBytes(6).toString('hex')
       const timestamp = String(Date.now())
       const signature = createHash('sha1').update(secret + nonce + timestamp).digest('hex')
-      const r = await fetch(`https://${host}/v4/auth/access-token/issue`, {
+      const r = await fetch(`https://${host}${path}`, {
         method: 'POST',
         headers: { 'App-Key': appKey, Nonce: nonce, Timestamp: timestamp, Signature: signature, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, name: user.name }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(5000),
       })
-      const j = (await r.json()) as { code: number; result?: { accessToken: string } }
-      return j.code === 0 && j.result ? j.result.accessToken : null
+      return (await r.json()) as T & { code: number }
     } catch {
       /* try backup domain */
     }
   }
   return null
+}
+
+async function issueNexconnToken(env: Record<string, string>, user: PublicUser): Promise<string | null> {
+  const j = await nexconnPost<{ result?: { accessToken: string } }>(env, '/v4/auth/access-token/issue', { userId: user.id, name: user.name })
+  return j && j.code === 0 && j.result ? j.result.accessToken : null
 }
 
 const cleanId = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 32)
@@ -173,6 +186,28 @@ export function createApi(env: Record<string, string>) {
         if (!other.contacts.includes(me.id)) other.contacts.push(me.id)
         save(db)
         return send(res, 200, { contact: pub(other) })
+      }
+
+      if (path === '/groups' && req.method === 'GET') {
+        const groups = Object.values(db.groups ?? {})
+          .filter((g) => g.members.includes(me.id))
+          .map((g) => ({ id: g.id, name: g.name, owner: g.owner, members: g.members.map((id) => db.users[id]).filter(Boolean).map(pub) }))
+        return send(res, 200, { groups })
+      }
+
+      if (path === '/groups' && req.method === 'POST') {
+        const b = await readBody(req)
+        const name = String(b.name ?? '').trim().slice(0, 64)
+        const members = Array.isArray(b.members) ? b.members.map(cleanId).filter((id) => db.users[id] && id !== me.id) : []
+        if (!name) return send(res, 400, { error: 'Give the group a name.' })
+        if (members.length === 0) return send(res, 400, { error: 'Pick at least one person.' })
+        const id = `g${randomBytes(6).toString('hex')}`
+        const r = await nexconnPost(env, '/v4/group-channel/create', { channelId: id, name, owner: me.id, userIds: members.slice(0, 30) })
+        if (!r || r.code !== 0) return send(res, 502, { error: `Could not create the group on the chat service${r ? ` (code ${r.code})` : ''}.` })
+        db.groups = db.groups ?? {}
+        db.groups[id] = { id, name, owner: me.id, members: [me.id, ...members], createdAt: Date.now() }
+        save(db)
+        return send(res, 200, { group: { id, name, owner: me.id, members: db.groups[id].members.map((m) => pub(db.users[m])) } })
       }
 
       return send(res, 404, { error: 'Not found' })

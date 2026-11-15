@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Bell, Footprints, Search, UserPlus, Users, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { contactById, useAuth, toContact, type Contact, type User } from '../state'
-import { Avatar, ModeIcon, TabBar } from '../components/ui'
+import { Avatar, TabBar } from '../components/ui'
 import { useChannels, usePresence } from '../useChat'
 
 const FILTERS = ['All', 'Unread'] as const
@@ -87,7 +87,6 @@ export default function Home() {
                 <time className={ch?.unread ? 'new' : ''}>{timeLabel(ch?.lastTime ?? 0)}</time>
               </div>
               <div className="chat-row-bottom">
-                {!group && <span className={`mode-tag mode-${c.mode}`}><ModeIcon mode={c.mode} size={14} /></span>}
                 <span className="preview">{ch?.lastText ? `${ch.lastFrom === user?.id ? 'You' : group ? contactById(ch.lastFrom).name : ''}${ch.lastFrom === user?.id || group ? ': ' : ''}${ch.lastText}` : group ? 'New group' : `@${c.id}`}</span>
                 {ch?.unread ? <span className="badge" aria-label={`${ch.unread} unread`}>{ch.unread}</span> : null}
               </div>

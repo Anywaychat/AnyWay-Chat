@@ -14,34 +14,7 @@ interface Actions {
 const ActionsCtx = createContext<Actions>({ sendFile: () => {}, notifyTyping: () => {} })
 const kb = (n = 0) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 const fmt = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-import { Avatar, BackButton, ModeIcon, Wave } from '../components/ui'
-
-const MADE: Record<Mode, string> = {
-  deaf: 'Signed in ISL',
-  blind: 'Spoken',
-  speech: 'Tapped',
-  deafblind: 'Braille',
-  standard: 'Spoken',
-}
-
-const HOW: Record<Mode, string> = {
-  deaf: 'signs in ISL',
-  blind: 'speaks',
-  speech: 'taps phrases',
-  deafblind: 'uses braille',
-  standard: 'talks and types',
-}
-
-function Origin({ mode, gloss }: { mode: Mode; gloss?: string }) {
-  const voice = mode === 'blind' || mode === 'standard'
-  return (
-    <div className="origin">
-      {voice ? <Wave n={8} /> : <ModeIcon mode={mode} size={13} />}
-      {MADE[mode]}
-      {gloss && mode === 'deaf' && <span className="gloss-inline">{gloss}</span>}
-    </div>
-  )
-}
+import { Avatar, BackButton } from '../components/ui'
 
 export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' }) {
   const { id = '' } = useParams()
@@ -64,7 +37,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
             : 'typing…'
           : isGroup
             ? `${group?.members.length ?? 0} members: ${group?.members.map((m) => (m.id === me ? 'you' : m.name)).join(', ') ?? ''}`
-            : `${online.has(c.id) ? 'online' : 'offline'} · ${HOW[c.mode]}`
+            : online.has(c.id) ? 'online' : 'offline'
 
   if (mode === 'deafblind') return <DeafBlindChat name={c.name} />
 
@@ -97,12 +70,10 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
           {messages.map((m, i) => {
             const mine = m.from === me
             const playing = mode === 'blind' && m === lastIn
-            const omode = m.origin?.mode ?? (mine ? mode : contactById(m.from).mode)
             return (
               <div key={m.id + i} className={`msg ${mine ? 'me' : 'them'}${playing ? ' playing' : ''}`}>
                 <div className="bubble">
                   {isGroup && !mine && <div className="sender">{contactById(m.from).name}</div>}
-                  {m.type === 'text' && <Origin mode={omode} gloss={m.origin?.gloss} />}
                   {m.type === 'image' && (
                     <a href={m.url} target="_blank" rel="noreferrer" className="photo">
                       <img src={m.url || m.thumb} alt="Photo" />
@@ -119,12 +90,6 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                     {fmt(m.sentTime)}
                     {mine && !isGroup && (m.read ? <CheckCheck size={14} className="read" aria-label="Read" /> : <Check size={14} aria-label="Sent" />)}
                   </span>
-                  {m.type === 'text' && !mine && mode === 'deaf' && omode !== 'deaf' && (
-                    <div className="sign-clip">
-                      <span className="thumb"><Hand size={18} aria-hidden="true" /></span>
-                      Watch in ISL
-                    </div>
-                  )}
                 </div>
               </div>
             )

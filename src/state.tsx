@@ -73,9 +73,10 @@ export interface Group {
   members: User[]
 }
 
-const HUE: Record<Mode, Contact['hue']> = { deaf: 'coral', blind: 'indigo', speech: 'emerald', deafblind: 'violet', standard: 'slate' }
-
-export const toContact = (u: User): Contact => ({ ...u, initial: (u.name || u.id).charAt(0).toUpperCase(), hue: HUE[u.mode] })
+const HUES: Contact['hue'][] = ['coral', 'indigo', 'emerald', 'violet', 'slate']
+// Avatar colour comes from the username, so it never hints at how someone talks.
+const hueFor = (id: string) => HUES[[...id].reduce((n, ch) => n + ch.charCodeAt(0), 0) % HUES.length]
+export const toContact = (u: User): Contact => ({ ...u, initial: (u.name || u.id).charAt(0).toUpperCase(), hue: hueFor(u.id) })
 
 // Every user the app has seen, so any screen can show a name and mode from an id.
 const known = new Map<string, Contact>()

@@ -51,9 +51,11 @@ export default function VoiceAssistant() {
       if (m.from === user.id) return
       const who = contactById(m.from).name
       const group = m.key.startsWith('group:') ? ctx.current.groups.find((g) => `group:${g.id}` === m.key)?.name : undefined
-      const what = m.type === 'text' ? m.text : m.type === 'image' ? 'sent a photo' : m.type === 'voice' ? 'sent a voice message' : `sent a file, ${m.fileName}`
-      const open = ctx.current.pathname === (group ? `/group/${m.key.slice(6)}` : `/chat/${m.from}`)
-      speak(open ? `${who}: ${what}` : `New message from ${who}${group ? ` in ${group}` : ''}. ${what}`)
+      // "Priya sent you a message: are you coming tonight?"
+      const thing = m.type === 'text' ? 'a message' : m.type === 'image' ? 'a photo' : m.type === 'voice' ? 'a voice message' : `a file, ${m.fileName}`
+      const sent = group ? `${who} sent ${thing} in ${group}` : `${who} sent you ${thing}`
+      const line = m.type === 'text' ? `${sent}: ${m.text}` : `${sent}.`
+      speak(line)
     })
   }, [user])
 

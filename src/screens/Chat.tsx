@@ -279,7 +279,8 @@ function BlindComposer({ name, onSend }: { name: string; onSend: SendFn }) {
 }
 
 function DeafComposer({ onSend }: { onSend: SendFn }) {
-  const [signing, setSigning] = useState(true)
+  const { draft } = useContext(ActionsCtx)
+  const [signing, setSigning] = useState(!draft)
   return (
     <div className="composer">
       <div className="mode-bar">

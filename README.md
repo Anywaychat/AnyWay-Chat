@@ -42,23 +42,6 @@ flowchart LR
   R --> B["speech · captions · signs · vibration<br/>in the receiver's own way"]
 ```
 
-## Features
-
-| Feature | What it does | Status |
-|---|---|---|
-| **Landing page** | Explains the product in one screen | ✅ Done |
-| **Profiles** | Pick how you talk; the whole app adapts | ✅ Done |
-| **Real-time chat** | One-to-one messaging through the Nexconn Chat SDK, with history | ✅ Working |
-| **Message origin** | Each message carries how it was made (signed with its gloss, spoken, tapped, braille) | ✅ Working |
-| **Phrase board** | Non-speaking users send ready phrases in one tap | ✅ Working |
-| **Adaptive chat screens** | Different composer and layout for blind, deaf, non-speaking and deaf-blind users | ✅ UI done |
-| **Voice in, voice out** | Speak to send, hear every message read aloud | 🛠 Next |
-| **Sign recognition** | Camera reads Indian Sign Language (fingerspelling + common signs) | 🛠 Planned |
-| **Text to sign** | Incoming messages shown as sign clips | 🛠 Planned |
-| **Voice & video calls** | Live captions, and signs or taps spoken aloud during calls | 🛠 Planned (UI done) |
-| **Go mode** | One phone on the table becomes a face-to-face interpreter; the other person needs no app | 🛠 Planned (UI done) |
-| **Deaf-blind mode** | Vibration patterns and braille keys | 🛠 Planned (UI done) |
-
 ## Nexconn SDK usage
 
 | Nexconn feature | Used for |

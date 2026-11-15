@@ -1,4 +1,4 @@
-import { disconnect } from './nexconn'
+import { disconnect, onMessage } from './nexconn'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 export type Mode = 'blind' | 'deaf' | 'speech' | 'deafblind' | 'standard'
@@ -175,6 +175,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .finally(() => setReady(true))
   }, [session, api, refreshContacts])
+
+  // Someone new may add you, message you or put you in a group at any time: pick that up without a refresh.
+  useEffect(() => {
+    if (!user) return
+    const known = () => new Set([...contacts.map((c) => `direct:${c.id}`), ...groups.map((g) => `group:${g.id}`)])
+    const off = onMessage((m) => {
+      if (!known().has(m.key)) void refreshContacts().catch(() => {})
+    })
+    const onFocus = () => void refreshContacts().catch(() => {})
+    window.addEventListener('focus', onFocus)
+    const t = setInterval(onFocus, 20000)
+    return () => {
+      off()
+      window.removeEventListener('focus', onFocus)
+      clearInterval(t)
+    }
+  }, [user, contacts, groups, refreshContacts])
 
   const start = (s: string, u: User) => {
     writeSession(s)

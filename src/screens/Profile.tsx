@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, LogOut } from 'lucide-react'
+import { Bell, Camera, LogOut } from 'lucide-react'
 import { useAuth } from '../state'
 import { Avatar, TabBar } from '../components/ui'
 import { contactById } from '../state'
 
 export default function Profile() {
-  const { user, logout } = useAuth()
+  const { user, logout, setAvatar } = useAuth()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [photoErr, setPhotoErr] = useState<string | null>(null)
   const nav = useNavigate()
   const [notif, setNotif] = useState(typeof Notification === 'undefined' ? 'denied' : Notification.permission)
   if (!user) return null
@@ -21,11 +23,33 @@ export default function Profile() {
         <div className="section">
           <div className="panel">
             <div className="panel-row">
-              <Avatar c={me} />
+              <button className="avatar-edit" aria-label="Change profile photo" onClick={() => fileRef.current?.click()}>
+                <Avatar c={{ ...me, avatar: user.avatar }} />
+                <span className="avatar-cam"><Camera size={13} aria-hidden="true" /></span>
+              </button>
               <span className="grow"><strong>{user.name}</strong><span>@{user.id}</span></span>
+              {user.avatar && <button className="btn" style={{ height: 34 }} onClick={() => setAvatar(null)}>Remove photo</button>}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={async (e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!f) return
+                  setPhotoErr(null)
+                  try {
+                    await setAvatar(await shrink(f))
+                  } catch {
+                    setPhotoErr('That photo could not be used. Try another one.')
+                  }
+                }}
+              />
             </div>
           </div>
-          <p className="hint" style={{ textAlign: 'left', margin: 0 }}>Share your username so friends can add you.</p>
+          {photoErr && <p className="form-error">{photoErr}</p>}
+          <p className="hint" style={{ textAlign: 'left', margin: 0 }}>Tap your photo to change it. Share your username so friends can add you.</p>
         </div>
 
         <div className="section">
@@ -51,4 +75,14 @@ export default function Profile() {
       <TabBar />
     </div>
   )
+}
+
+/** Crops to a square and shrinks to 192px so it stays small enough to store and send around. */
+async function shrink(file: File): Promise<string> {
+  const img = await createImageBitmap(file)
+  const side = Math.min(img.width, img.height)
+  const c = document.createElement('canvas')
+  c.width = c.height = 192
+  c.getContext('2d')!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 192, 192)
+  return c.toDataURL('image/jpeg', 0.82)
 }

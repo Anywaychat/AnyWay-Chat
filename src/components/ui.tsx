@@ -36,10 +36,10 @@ export function ModeTag({ mode }: { mode: Mode }) {
   )
 }
 
-export function Avatar({ c, size = '', online }: { c: Pick<Contact, 'initial' | 'hue'>; size?: '' | 'sm' | 'xl'; online?: boolean }) {
+export function Avatar({ c, size = '', online }: { c: Pick<Contact, 'initial' | 'hue'> & { avatar?: string }; size?: '' | 'sm' | 'xl'; online?: boolean }) {
   return (
     <div className={`avatar ${size} hue-${c.hue}`} aria-hidden="true">
-      {c.initial}
+      {c.avatar ? <img src={c.avatar} alt="" /> : c.initial}
       {online && <span className="dot" />}
     </div>
   )

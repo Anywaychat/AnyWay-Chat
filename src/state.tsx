@@ -59,6 +59,7 @@ export interface User {
   id: string
   name: string
   mode: Mode
+  avatar?: string
 }
 
 export interface Contact extends User {
@@ -121,6 +122,7 @@ interface AuthCtx {
   signup: (p: { username: string; name: string; password: string; mode: Mode }) => Promise<string | null>
   logout: () => Promise<void>
   setMode: (m: Mode) => Promise<void>
+  setAvatar: (dataUrl: string | null) => Promise<void>
   addContact: (username: string) => Promise<string | null>
   refreshContacts: () => Promise<void>
 }
@@ -244,6 +246,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           throw e
         }
+      },
+      async setAvatar(avatar) {
+        const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { avatar } })
+        known.set(r.user.id, toContact(r.user))
+        setUser(r.user)
       },
       async setMode(m) {
         const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { mode: m } })

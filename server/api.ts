@@ -18,6 +18,8 @@ interface UserRecord {
   salt: string
   hash: string
   contacts: string[]
+  avatar?: string
+  blocked?: string[]
   createdAt: number
 }
 interface GroupRecord {
@@ -47,6 +49,7 @@ export interface PublicUser {
   id: string
   name: string
   mode: Mode
+  avatar?: string
 }
 
 const DB_PATH = resolve(process.cwd(), 'data/db.json')
@@ -60,7 +63,7 @@ function save(db: Db) {
   writeFileSync(DB_PATH, JSON.stringify(db, null, 2))
 }
 
-const pub = (u: UserRecord): PublicUser => ({ id: u.id, name: u.name, mode: u.mode })
+const pub = (u: UserRecord): PublicUser => ({ id: u.id, name: u.name, mode: u.mode, avatar: u.avatar })
 const hashPw = (pw: string, salt: string) => scryptSync(pw, salt, 32).toString('hex')
 
 function send(res: ServerResponse, status: number, body: unknown) {
@@ -72,7 +75,7 @@ function send(res: ServerResponse, status: number, body: unknown) {
 async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   let raw = ''
   for await (const chunk of req) raw += chunk
-  if (raw.length > 10_000) return {}
+  if (raw.length > 150_000) return {}
   try {
     return JSON.parse(raw || '{}') as Record<string, unknown>
   } catch {
@@ -164,6 +167,8 @@ export function createApi(env: Record<string, string>) {
         const b = await readBody(req)
         if (MODES.includes(b.mode as Mode)) me.mode = b.mode as Mode
         if (typeof b.name === 'string' && b.name.trim()) me.name = b.name.trim().slice(0, 40)
+        if (b.avatar === null) delete me.avatar
+        else if (typeof b.avatar === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(b.avatar) && b.avatar.length < 120_000) me.avatar = b.avatar
         save(db)
         return send(res, 200, { user: pub(me) })
       }

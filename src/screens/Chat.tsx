@@ -498,8 +498,15 @@ function BlindComposer({ name, talk }: { name: string; talk: Talk }) {
 }
 
 function DeafComposer({ onSend }: { onSend: SendFn }) {
-  const { draft } = useContext(ActionsCtx)
-  const [signing, setSigning] = useState(!draft)
+  // Opening a chat starts the camera so they can sign right away; it's off everywhere else.
+  // It pauses while the app is in the background and comes back when they return.
+  const [signing, setSigning] = useState(true)
+  const [away, setAway] = useState(document.hidden)
+  useEffect(() => {
+    const check = () => setAway(document.hidden)
+    document.addEventListener('visibilitychange', check)
+    return () => document.removeEventListener('visibilitychange', check)
+  }, [])
   return (
     <div className="composer">
       <div className="mode-bar">
@@ -507,7 +514,7 @@ function DeafComposer({ onSend }: { onSend: SendFn }) {
         <button className="pill" aria-pressed={!signing} onClick={() => setSigning(false)}><Keyboard size={14} aria-hidden="true" />Type</button>
       </div>
       {signing ? (
-        <SignCamera onSend={(text, gloss, confidence) => onSend(text, { mode: 'deaf', gloss, confidence })} />
+        away ? <p className="hint">Camera paused.</p> : <SignCamera onSend={(text, gloss, confidence) => onSend(text, { mode: 'deaf', gloss, confidence })} />
       ) : (
         <TextField onSend={(t) => onSend(t, { mode: 'deaf' })} mode="deaf" />
       )}

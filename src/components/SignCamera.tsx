@@ -33,7 +33,11 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
     ;(async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false })
-        if (!alive) return
+        // Left the chat while the camera was starting: turn it straight back off.
+        if (!alive) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
+        }
         const v = video.current!
         v.srcObject = stream
         await v.play()

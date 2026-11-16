@@ -50,7 +50,9 @@ export function findMentioned(spoken: string, people: Person[]): { who: Person; 
   const w = words(spoken)
   let best: { who: Person; start: number; end: number; score: number } | null = null
   for (const p of people) {
-    const keys = [compact(p.name), compact(p.name.split(' ')[0]), compact(p.id)].filter((k) => k.length >= 2)
+    const real = (p as { realName?: string }).realName ?? ''
+    // Match the nickname you gave them, their own name, or their username.
+    const keys = [compact(p.name), compact(p.name.split(' ')[0]), compact(real), compact(real.split(' ')[0]), compact(p.id)].filter((k) => k.length >= 2)
     for (let i = 0; i < w.length; i++) {
       for (let n = 1; n <= 3 && i + n <= w.length; n++) {
         const spokenRaw = w.slice(i, i + n).join('')

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Ban, Flag, LogOut, UserMinus, UserPlus, X } from 'lucide-react'
+import { Ban, Flag, LogOut, Pencil, UserMinus, UserPlus, X } from 'lucide-react'
 import { contactById, toContact, useAuth, type Group } from '../state'
 import { Avatar } from '../components/ui'
 
@@ -19,8 +19,10 @@ export default function ChatInfo({ kind, id, onClose }: { kind: 'direct' | 'grou
 }
 
 function PersonInfo({ id }: { id: string }) {
-  const { blocked, setBlocked, report } = useAuth()
-  const c = contactById(id)
+  const { blocked, setBlocked, report, setNickname, contacts } = useAuth()
+  const c = contacts.find((x) => x.id === id) ?? contactById(id)
+  const [naming, setNaming] = useState(false)
+  const [nick, setNick] = useState('')
   const isBlocked = blocked.includes(id)
   const [reporting, setReporting] = useState(false)
   const [reason, setReason] = useState('')
@@ -31,8 +33,27 @@ function PersonInfo({ id }: { id: string }) {
       <div className="info-head">
         <Avatar c={c} size="xl" />
         <strong>{c.name}</strong>
-        <span className="muted">@{c.id}</span>
+        <span className="muted">{c.nickname ? `${c.realName} · ` : ''}@{c.id}</span>
       </div>
+      {naming ? (
+        <form
+          className="name-edit"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            const err = await setNickname(id, nick)
+            setMsg(err ?? (nick.trim() ? `You'll see them as ${nick.trim()}. Only you see this name.` : `Nickname removed.`))
+            if (!err) setNaming(false)
+          }}
+        >
+          <input className="input" aria-label={`Nickname for ${c.realName}`} placeholder={c.realName} value={nick} onChange={(e) => setNick(e.target.value)} maxLength={40} autoFocus />
+          <button className="btn primary" style={{ height: 40 }}>Save</button>
+          <button type="button" className="btn" style={{ height: 40 }} onClick={() => setNaming(false)}>Cancel</button>
+        </form>
+      ) : (
+        <button className="btn block" onClick={() => { setNick(c.nickname ?? ''); setNaming(true); setMsg(null) }}>
+          <Pencil size={16} aria-hidden="true" />{c.nickname ? 'Change nickname' : 'Give a nickname'}
+        </button>
+      )}
       <button className={`btn block${isBlocked ? '' : ' danger-btn'}`} onClick={async () => setMsg((await setBlocked(id, !isBlocked)) ?? (isBlocked ? `${c.name} is unblocked.` : `${c.name} is blocked. They can't message or call you.`))}>
         <Ban size={16} aria-hidden="true" />{isBlocked ? `Unblock ${c.name}` : `Block ${c.name}`}
       </button>

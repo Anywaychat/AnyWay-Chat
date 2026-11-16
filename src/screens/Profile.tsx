@@ -1,14 +1,19 @@
 import { enablePush } from '../push'
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Camera, LogOut } from 'lucide-react'
-import { useAuth } from '../state'
-import { Avatar, TabBar } from '../components/ui'
+import { Bell, Camera, CheckCircle2, LogOut, Pencil } from 'lucide-react'
+import { MODES, useAuth, type Mode } from '../state'
+import { Avatar, ModeIcon, TabBar } from '../components/ui'
+import { preloadNaturalVoice } from '../speech'
 import InstallButton from '../components/InstallButton'
 import { contactById } from '../state'
 
 export default function Profile() {
-  const { user, logout, setAvatar } = useAuth()
+  const { user, logout, setAvatar, setName, setMode } = useAuth()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [nameMsg, setNameMsg] = useState<string | null>(null)
+  const [modeMsg, setModeMsg] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const [photoErr, setPhotoErr] = useState<string | null>(null)
   const nav = useNavigate()
@@ -29,7 +34,26 @@ export default function Profile() {
                 <Avatar c={{ ...me, avatar: user.avatar }} />
                 <span className="avatar-cam"><Camera size={13} aria-hidden="true" /></span>
               </button>
-              <span className="grow"><strong>{user.name}</strong><span>@{user.id}</span></span>
+              {editing ? (
+                <form
+                  className="grow name-edit"
+                  onSubmit={async (e) => {
+                    e.preventDefault()
+                    const err = await setName(draft)
+                    setNameMsg(err ?? 'Name saved. Your friends will see it.')
+                    if (!err) setEditing(false)
+                  }}
+                >
+                  <input className="input" aria-label="Your name" value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={40} required autoFocus />
+                  <button className="btn primary" style={{ height: 40 }}>Save</button>
+                  <button type="button" className="btn" style={{ height: 40 }} onClick={() => setEditing(false)}>Cancel</button>
+                </form>
+              ) : (
+                <>
+                  <span className="grow"><strong>{user.name}</strong><span>@{user.id}</span></span>
+                  <button className="icon-btn" aria-label="Change your name" onClick={() => { setDraft(user.name); setEditing(true); setNameMsg(null) }}><Pencil size={17} aria-hidden="true" /></button>
+                </>
+              )}
               {user.avatar && <button className="btn" style={{ height: 34 }} onClick={() => setAvatar(null)}>Remove photo</button>}
               <input
                 ref={fileRef}
@@ -52,6 +76,36 @@ export default function Profile() {
           </div>
           {photoErr && <p className="form-error">{photoErr}</p>}
           <p className="hint" style={{ textAlign: 'left', margin: 0 }}>Tap your photo to change it. Share your username so friends can add you.</p>
+        </div>
+
+        {nameMsg && <div className="section" style={{ paddingTop: 0 }}><p className="form-ok" role="status">{nameMsg}</p></div>}
+
+        <div className="section">
+          <h2>How you talk</h2>
+          <div className="mode-list" role="group" aria-label="How you talk">
+            {(Object.keys(MODES) as Mode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                className="mode-opt"
+                aria-pressed={m === user.mode}
+                onClick={async () => {
+                  if (m === user.mode) return
+                  if (m === 'blind') preloadNaturalVoice()
+                  await setMode(m)
+                  setModeMsg(`Switched to: ${MODES[m].label}.`)
+                }}
+              >
+                <span className="mode-ico hue-slate"><ModeIcon mode={m} /></span>
+                <span>
+                  <strong>{MODES[m].label}</strong>
+                  <span>{MODES[m].sends}, {MODES[m].receives.toLowerCase()}</span>
+                </span>
+                {m === user.mode && <CheckCircle2 className="check" size={22} aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+          {modeMsg && <p className="form-ok" role="status">{modeMsg}</p>}
         </div>
 
         <div className="section">

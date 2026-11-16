@@ -21,6 +21,8 @@ interface UserRecord {
   contacts: string[]
   avatar?: string
   blocked?: string[]
+  /** Names this user gave their contacts, only they see them. */
+  nicknames?: Record<string, string>
   createdAt: number
 }
 interface GroupRecord {
@@ -323,7 +325,19 @@ export function createApi(env: Record<string, string | undefined>) {
       }
 
       if (path === '/contacts' && req.method === 'GET') {
-        return send(res, 200, { contacts: me.contacts.map((id) => db.users[id]).filter(Boolean).map(pub) })
+        return send(res, 200, { contacts: me.contacts.map((id) => db.users[id]).filter(Boolean).map((u) => ({ ...pub(u), nickname: me.nicknames?.[u.id] })) })
+      }
+
+      if (path === '/nickname' && req.method === 'POST') {
+        const b = await readBody(req)
+        const other = cleanId(b.username)
+        if (!me.contacts.includes(other)) return send(res, 404, { error: 'That person is not in your contacts.' })
+        const nick = String(b.nickname ?? '').trim().slice(0, 40)
+        me.nicknames ??= {}
+        if (nick) me.nicknames[other] = nick
+        else delete me.nicknames[other]
+        await save(db)
+        return send(res, 200, { nickname: nick || null })
       }
 
       if (path === '/contacts' && req.method === 'POST') {

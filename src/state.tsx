@@ -60,9 +60,13 @@ export interface User {
   name: string
   mode: Mode
   avatar?: string
+  /** The name you gave this contact. Only you see it. */
+  nickname?: string
 }
 
 export interface Contact extends User {
+  /** Their own name, even when you gave them a nickname. */
+  realName: string
   initial: string
   hue: 'coral' | 'indigo' | 'emerald' | 'violet' | 'slate'
 }
@@ -77,7 +81,10 @@ export interface Group {
 const HUES: Contact['hue'][] = ['coral', 'indigo', 'emerald', 'violet', 'slate']
 // Avatar colour comes from the username, so it never hints at how someone talks.
 const hueFor = (id: string) => HUES[[...id].reduce((n, ch) => n + ch.charCodeAt(0), 0) % HUES.length]
-export const toContact = (u: User): Contact => ({ ...u, initial: (u.name || u.id).charAt(0).toUpperCase(), hue: hueFor(u.id) })
+export const toContact = (u: User): Contact => {
+  const name = u.nickname || u.name
+  return { ...u, name, realName: u.name, initial: (name || u.id).charAt(0).toUpperCase(), hue: hueFor(u.id) }
+}
 
 // Every user the app has seen, so any screen can show a name and mode from an id.
 const known = new Map<string, Contact>()
@@ -122,6 +129,8 @@ interface AuthCtx {
   signup: (p: { username: string; name: string; password: string; mode: Mode }) => Promise<string | null>
   logout: () => Promise<void>
   setMode: (m: Mode) => Promise<void>
+  setName: (name: string) => Promise<string | null>
+  setNickname: (username: string, nickname: string) => Promise<string | null>
   setAvatar: (dataUrl: string | null) => Promise<void>
   blocked: string[]
   setBlocked: (username: string, block: boolean) => Promise<string | null>
@@ -274,6 +283,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { avatar } })
         known.set(r.user.id, toContact(r.user))
         setUser(r.user)
+      },
+      async setName(name) {
+        try {
+          const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { name } })
+          known.set(r.user.id, toContact(r.user))
+          setUser(r.user)
+          return null
+        } catch (e) {
+          return (e as Error).message
+        }
+      },
+      async setNickname(username, nickname) {
+        try {
+          await api('/nickname', { method: 'POST', body: { username, nickname } })
+          await refreshContacts()
+          return null
+        } catch (e) {
+          return (e as Error).message
+        }
       },
       async setMode(m) {
         const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { mode: m } })

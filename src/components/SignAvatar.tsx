@@ -28,7 +28,7 @@ export function loadAnim(id: string) {
 }
 
 // Point numbers: 0-24 body (MediaPipe pose), 25-45 first hand, 46-66 second hand.
-const BODY: [number, number][] = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24]]
+const BODY: [number, number][] = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16]]
 const HAND: [number, number][] = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]]
 
 export default function SignAvatar({ ids, onDone, loop = false, speed = 1, still = false, className }: { ids: string[]; onDone?: () => void; loop?: boolean; speed?: number; still?: boolean; className?: string }) {
@@ -100,8 +100,22 @@ export default function SignAvatar({ ids, onDone, loop = false, speed = 1, still
           ctx.lineWidth = W * 0.012
           ctx.stroke()
         }
-        BODY.forEach(([p, q]) => line(p, q, W * 0.035, ink))
-        for (const base of [25, 46]) HAND.forEach(([p, q]) => line(base + p, base + q, W * 0.014, hand))
+        // A short torso hanging from the shoulders (hip points are often off-camera and jumpy).
+        if (ls && rs) {
+          const w = Math.hypot(ls[0] - rs[0], ls[1] - rs[1])
+          ctx.fillStyle = ink
+          ctx.globalAlpha = 0.12
+          ctx.beginPath()
+          ctx.moveTo(ls[0], ls[1])
+          ctx.lineTo(rs[0], rs[1])
+          ctx.lineTo(rs[0] + (ls[0] - rs[0]) * 0.1, rs[1] + w * 1.1)
+          ctx.lineTo(ls[0] - (ls[0] - rs[0]) * 0.1, ls[1] + w * 1.1)
+          ctx.closePath()
+          ctx.fill()
+          ctx.globalAlpha = 1
+        }
+        BODY.forEach(([p, q]) => line(p, q, W * 0.03, ink))
+        for (const base of [25, 46]) HAND.forEach(([p, q]) => line(base + p, base + q, W * 0.022, hand))
         if (!still) raf = requestAnimationFrame(draw)
       }
       raf = requestAnimationFrame(draw)

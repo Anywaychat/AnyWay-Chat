@@ -31,7 +31,7 @@ export function loadAnim(id: string) {
 const BODY: [number, number][] = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24]]
 const HAND: [number, number][] = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]]
 
-export default function SignAvatar({ ids, onDone, loop = false, speed = 1, className }: { ids: string[]; onDone?: () => void; loop?: boolean; speed?: number; className?: string }) {
+export default function SignAvatar({ ids, onDone, loop = false, speed = 1, still = false, className }: { ids: string[]; onDone?: () => void; loop?: boolean; speed?: number; still?: boolean; className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -61,7 +61,8 @@ export default function SignAvatar({ ids, onDone, loop = false, speed = 1, class
             return
           }
         }
-        const k = Math.min(f, n - 1)
+        // A still picture shows the middle of the sign, where the hands are clearest.
+        const k = still ? Math.floor(n / 2) : Math.min(f, n - 1)
         const W = c.width
         const H = c.height
         const pt = (p: number): [number, number] | null => {
@@ -101,7 +102,7 @@ export default function SignAvatar({ ids, onDone, loop = false, speed = 1, class
         }
         BODY.forEach(([p, q]) => line(p, q, W * 0.035, ink))
         for (const base of [25, 46]) HAND.forEach(([p, q]) => line(base + p, base + q, W * 0.014, hand))
-        raf = requestAnimationFrame(draw)
+        if (!still) raf = requestAnimationFrame(draw)
       }
       raf = requestAnimationFrame(draw)
     })()
@@ -109,7 +110,7 @@ export default function SignAvatar({ ids, onDone, loop = false, speed = 1, class
       alive = false
       cancelAnimationFrame(raf)
     }
-  }, [ids.join(','), loop, speed])
+  }, [ids.join(','), loop, speed, still])
 
   return <canvas ref={canvas} width={300} height={300} className={className ?? 'sign-avatar'} aria-hidden="true" />
 }

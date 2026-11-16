@@ -20,8 +20,10 @@ interface Actions {
   sendVoice: (b: Blob) => void
   notifyTyping: () => void
   draft: string
+  /** The other person's latest text message, so the sign panel can suggest a reply. */
+  lastIncoming: string
 }
-const ActionsCtx = createContext<Actions>({ sendFile: () => {}, sendVoice: () => {}, notifyTyping: () => {}, draft: '' })
+const ActionsCtx = createContext<Actions>({ sendFile: () => {}, sendVoice: () => {}, notifyTyping: () => {}, draft: '', lastIncoming: '' })
 const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 const kb = (n = 0) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
@@ -329,7 +331,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
           <button className="icon-btn" aria-label="Cancel" onClick={() => { setReplyTo(null); setEditing(null) }}><X size={18} aria-hidden="true" /></button>
         </div>
       )}
-      <ActionsCtx.Provider value={{ sendFile, sendVoice, notifyTyping, draft: editing?.text ?? '' }}>
+      <ActionsCtx.Provider value={{ sendFile, sendVoice, notifyTyping, draft: editing?.text ?? '', lastIncoming: [...messages].reverse().find((m) => m.from !== me && m.type === 'text')?.text ?? '' }}>
       {mode === 'blind' && (
         <>
           <BlindComposer name={c.name} talk={talk} />
@@ -498,6 +500,7 @@ function BlindComposer({ name, talk }: { name: string; talk: Talk }) {
 }
 
 function DeafComposer({ onSend }: { onSend: SendFn }) {
+  const { lastIncoming } = useContext(ActionsCtx)
   // Opening a chat starts the camera so they can sign right away; it's off everywhere else.
   // It pauses while the app is in the background and comes back when they return.
   const [signing, setSigning] = useState(true)
@@ -514,7 +517,7 @@ function DeafComposer({ onSend }: { onSend: SendFn }) {
         <button className="pill" aria-pressed={!signing} onClick={() => setSigning(false)}><Keyboard size={14} aria-hidden="true" />Type</button>
       </div>
       {signing ? (
-        away ? <p className="hint">Camera paused.</p> : <SignCamera onSend={(text, gloss, confidence) => onSend(text, { mode: 'deaf', gloss, confidence })} />
+        away ? <p className="hint">Camera paused.</p> : <SignCamera context={lastIncoming} onSend={(text, gloss, confidence) => onSend(text, { mode: 'deaf', gloss, confidence })} />
       ) : (
         <TextField onSend={(t) => onSend(t, { mode: 'deaf' })} mode="deaf" />
       )}

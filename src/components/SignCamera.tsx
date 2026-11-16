@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Delete, Send, X } from 'lucide-react'
 import { glossToSentence, loadSignReader, SignReader, type Guess } from '../sign'
-import { loadSigns } from '../signs'
+import { loadSigns, type SignWord } from '../signs'
+import { rememberSigns, suggestSigns } from '../signSuggest'
+import SignThumb from './SignThumb'
 import SignWordPicker from './SignWordPicker'
 
 type Word = { word: string; options: Guess[] }
@@ -10,7 +12,7 @@ type Word = { word: string; options: Guess[] }
  * Sign to the camera, one word at a time. Each sign becomes a word; tap a word to swap it
  * for the next-best guess. Everything runs on the phone; video never leaves it.
  */
-export default function SignCamera({ onSend }: { onSend: (text: string, gloss: string, confidence: number) => void }) {
+export default function SignCamera({ onSend, context = '' }: { onSend: (text: string, gloss: string, confidence: number) => void; context?: string }) {
   const video = useRef<HTMLVideoElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
@@ -21,9 +23,16 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
   const [dict, setDict] = useState(false)
   // Sign ids like "goodmorning" -> readable "Good Morning".
   const [names, setNames] = useState<Record<string, string>>({})
+  const [all, setAll] = useState<SignWord[]>([])
   useEffect(() => {
-    void loadSigns().then((ws) => setNames(Object.fromEntries(ws.map((w) => [w.id, w.name]))))
+    void loadSigns().then((ws) => {
+      setAll(ws)
+      setNames(Object.fromEntries(ws.map((w) => [w.id, w.name])))
+    })
   }, [])
+  const addWord = (id: string) => setWords((ws) => [...ws, { word: id, options: [{ word: id, score: 1 }] }])
+  // Like a phone keyboard: the first few are picked for this person and this moment.
+  const { top, rest } = suggestSigns(all, { context, last: words[words.length - 1]?.word })
   const say = (id: string) => names[id] ?? id
 
   useEffect(() => {
@@ -108,6 +117,7 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
             disabled={!words.length}
             onClick={() => {
               onSend(sentence, words.map((w) => say(w.word).toUpperCase()).join(' · '), confidence)
+              rememberSigns(words.map((w) => w.word))
               setWords([])
             }}
           >
@@ -116,9 +126,25 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
         </div>
       </div>
     </div>
+    {top.length > 0 && (
+      <div className="suggest-bar" role="group" aria-label="Suggested signs">
+        {top.map((w) => (
+          <button key={w.id} className="suggest top" onClick={() => addWord(w.id)} aria-label={`Add ${w.name}`}>
+            <SignThumb id={w.id} />
+            <span>{w.name}</span>
+          </button>
+        ))}
+        {rest.map((w) => (
+          <button key={w.id} className="suggest" onClick={() => addWord(w.id)} aria-label={`Add ${w.name}`}>
+            <SignThumb id={w.id} />
+            <span>{w.name}</span>
+          </button>
+        ))}
+      </div>
+    )}
     {dict && (
       <div className="dict-drawer">
-        <SignWordPicker compact onPick={(w) => setWords((ws) => [...ws, { word: w.id, options: [{ word: w.id, score: 1 }] }])} />
+        <SignWordPicker compact onPick={(w) => addWord(w.id)} />
       </div>
     )}
     </>

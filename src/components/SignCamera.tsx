@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Delete, Send, X } from 'lucide-react'
+import { BookOpen, Delete, Send, X } from 'lucide-react'
 import { glossToSentence, loadSignReader, SignReader, type Guess } from '../sign'
+import { loadSigns } from '../signs'
+import SignWordPicker from './SignWordPicker'
 
 type Word = { word: string; options: Guess[] }
 
@@ -16,6 +18,13 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
   const [recording, setRecording] = useState(false)
   const [words, setWords] = useState<Word[]>([])
   const [picking, setPicking] = useState<number | null>(null)
+  const [dict, setDict] = useState(false)
+  // Sign ids like "goodmorning" -> readable "Good Morning".
+  const [names, setNames] = useState<Record<string, string>>({})
+  useEffect(() => {
+    void loadSigns().then((ws) => setNames(Object.fromEntries(ws.map((w) => [w.id, w.name]))))
+  }, [])
+  const say = (id: string) => names[id] ?? id
 
   useEffect(() => {
     let reader: SignReader | null = null
@@ -54,10 +63,11 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
     }
   }, [])
 
-  const sentence = glossToSentence(words.map((w) => w.word))
+  const sentence = glossToSentence(words.map((w) => say(w.word).toLowerCase()))
   const confidence = words.length ? Math.round((words.reduce((s, w) => s + (w.options.find((o) => o.word === w.word)?.score ?? 0), 0) / words.length) * 100) : 0
 
   return (
+    <>
     <div className="sign-panel">
       <div className="cam" aria-label="Camera preview">
         <video ref={video} playsInline muted className="cam-video" />
@@ -70,8 +80,8 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
         <div className="gloss" aria-live="polite">
           {words.length === 0 && <span className="muted">Sign one word at a time. Lower your hands between words.</span>}
           {words.map((w, i) => (
-            <button key={i} className="gloss-word" aria-label={`${w.word}, tap to change`} onClick={() => setPicking(picking === i ? null : i)}>
-              {w.word.toUpperCase()}
+            <button key={i} className="gloss-word" aria-label={`${say(w.word)}, tap to change`} onClick={() => setPicking(picking === i ? null : i)}>
+              {say(w.word).toUpperCase()}
             </button>
           ))}
         </div>
@@ -79,7 +89,7 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
           <div className="gloss-options" role="group" aria-label="Did you mean">
             {words[picking].options.map((o) => (
               <button key={o.word} className="pill" onClick={() => { setWords((ws) => ws.map((w, i) => (i === picking ? { ...w, word: o.word } : w))); setPicking(null) }}>
-                {o.word} <small>{Math.round(o.score * 100)}%</small>
+                {say(o.word)} <small>{Math.round(o.score * 100)}%</small>
               </button>
             ))}
             <button className="pill" onClick={() => { setWords((ws) => ws.filter((_, i) => i !== picking)); setPicking(null) }}><X size={13} aria-hidden="true" />Remove</button>
@@ -87,12 +97,13 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
         )}
         {sentence && <div className="will-send">Will send <strong>“{sentence}”</strong></div>}
         <div className="sign-actions">
+          <button className="btn" aria-pressed={dict} onClick={() => setDict(!dict)}><BookOpen size={16} aria-hidden="true" />Dictionary</button>
           <button className="btn" disabled={!words.length} onClick={() => setWords((w) => w.slice(0, -1))}><Delete size={16} aria-hidden="true" />Undo</button>
           <button
             className="btn primary"
             disabled={!words.length}
             onClick={() => {
-              onSend(sentence, words.map((w) => w.word.toUpperCase()).join(' · '), confidence)
+              onSend(sentence, words.map((w) => say(w.word).toUpperCase()).join(' · '), confidence)
               setWords([])
             }}
           >
@@ -101,5 +112,11 @@ export default function SignCamera({ onSend }: { onSend: (text: string, gloss: s
         </div>
       </div>
     </div>
+    {dict && (
+      <div className="dict-drawer">
+        <SignWordPicker compact onPick={(w) => setWords((ws) => [...ws, { word: w.id, options: [{ word: w.id, score: 1 }] }])} />
+      </div>
+    )}
+    </>
   )
 }

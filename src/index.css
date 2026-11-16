@@ -449,3 +449,12 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; font: inher
 .sign-stage { width: 100%; max-width: 220px; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 0; cursor: pointer; display: grid; place-items: center; --sign-ink: var(--ink); --sign-hand: var(--accent); }
 .sign-stage.big { max-width: 320px; align-self: center; cursor: default; }
 .sign-avatar { width: 100%; height: 100%; }
+.dict-drawer { border-top: 1px solid var(--line); padding-top: 10px; max-height: 340px; overflow-y: auto; }
+.dict { display: flex; flex-direction: column; gap: 10px; }
+.dict.compact .dict-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+.dict.compact .dict-word { height: 38px; font-size: 13px; }
+.dict-player { flex-direction: row; align-items: center; gap: 14px; }
+.dict-player-side { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.dict.compact .sign-stage { max-width: 150px; }
+.btn[aria-pressed='true'] { border-color: var(--accent); background: var(--accent-soft); }
+@media (max-width: 600px) { .dict-player { flex-direction: column; align-items: stretch; } }

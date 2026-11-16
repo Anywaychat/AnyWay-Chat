@@ -69,6 +69,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   const [query, setQuery] = useState('')
   // Search the words people wrote, and file names; photos and voice notes have no words to match.
   const matches = (m: ChatMessage, q: string) => (m.type === 'text' ? m.text : m.type === 'file' ? m.fileName ?? '' : '').toLowerCase().includes(q)
+  const newestIncoming = [...messages].reverse().find((m) => m.from !== me && m.type === 'text')?.id
   const shown = searching && query.trim() ? messages.filter((m) => matches(m, query.trim().toLowerCase())) : messages
   const bottomRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -278,7 +279,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                     </a>
                   )}
                   {m.type === 'text' && m.text}
-                  {m.type === 'text' && mode === 'deaf' && !mine && <SignStrip text={m.text} />}
+                  {m.type === 'text' && mode === 'deaf' && !mine && <SignStrip text={m.text} autoPlay={m.id === newestIncoming} />}
                   <span className="stamp">
                     {m.edited && <span className="edited">edited</span>}
                     {fmt(m.sentTime)}

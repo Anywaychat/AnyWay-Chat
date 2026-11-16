@@ -130,7 +130,8 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
       <div className="suggest-bar" role="group" aria-label="Suggested signs">
         {top.map((w) => (
           <button key={w.id} className="suggest top" onClick={() => addWord(w.id)} aria-label={`Add ${w.name}`}>
-            <SignThumb id={w.id} />
+            {/* The top picks play their sign, so you can see it before choosing. */}
+            <video className="sign-thumb" src={`/signs/${w.id}.mp4`} poster={`/signs/${w.id}.jpg`} autoPlay loop muted playsInline preload="auto" />
             <span>{w.name}</span>
           </button>
         ))}

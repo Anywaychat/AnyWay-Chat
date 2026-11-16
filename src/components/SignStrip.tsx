@@ -4,7 +4,7 @@ import { loadSigns, toSigns, type Piece } from '../signs'
 import SignClip from './SignClip'
 
 /** Shows a message in Indian Sign Language: the sign clips play one after another, words without a sign stay as text. */
-export default function SignStrip({ text }: { text: string }) {
+export default function SignStrip({ text, autoPlay = false }: { text: string; autoPlay?: boolean }) {
   const [pieces, setPieces] = useState<Piece[] | null>(null)
   const [at, setAt] = useState(-1)
 
@@ -17,6 +17,11 @@ export default function SignStrip({ text }: { text: string }) {
   }, [text])
 
   const signs = (pieces ?? []).flatMap((p, i) => (p.kind === 'sign' ? [i] : []))
+  // The newest message signs itself as soon as it's seen; older ones wait for a tap.
+  const first = signs[0] ?? -1
+  useEffect(() => {
+    if (autoPlay && first >= 0) setAt(first)
+  }, [autoPlay, first, text])
   if (!pieces || !signs.length) return null
   const next = () => {
     const k = signs.indexOf(at)
@@ -30,7 +35,7 @@ export default function SignStrip({ text }: { text: string }) {
           {pieces[at].kind === 'sign' && <SignClip key={at} ids={[pieces[at].word.id]} onDone={next} />}
         </button>
       ) : (
-        <button className="sign-play" onClick={() => setAt(signs[0])}><Play size={14} aria-hidden="true" />Show in sign</button>
+        <button className="sign-play" onClick={() => setAt(signs[0])}><Play size={14} aria-hidden="true" />{autoPlay ? 'Sign again' : 'Show in sign'}</button>
       )}
       <div className="sign-words">
         {pieces.map((p, i) =>

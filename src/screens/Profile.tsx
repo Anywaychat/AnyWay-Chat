@@ -1,3 +1,4 @@
+import { enablePush } from '../push'
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Camera, LogOut } from 'lucide-react'
@@ -62,7 +63,7 @@ export default function Profile() {
                 <strong>New message alerts</strong>
                 <span>{notif === 'granted' ? 'On' : notif === 'denied' ? 'Blocked in your browser settings' : 'Off'}</span>
               </span>
-              {notif === 'default' && <button className="btn" style={{ height: 36 }} onClick={() => Notification.requestPermission().then(setNotif)}>Turn on</button>}
+              {notif === 'default' && <button className="btn" style={{ height: 36 }} onClick={() => Notification.requestPermission().then((p) => { setNotif(p); if (p === 'granted') void enablePush() })}>Turn on</button>}
             </div>
           </div>
         </div>

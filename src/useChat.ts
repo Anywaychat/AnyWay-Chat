@@ -1,3 +1,4 @@
+import { showLocalNotification } from './push'
 import { useEffect, useState } from 'react'
 import {
   connectAs,
@@ -199,11 +200,9 @@ export function useNotifications(openKey: string | null) {
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
       const sender = contactById(m.from).name
       const group = m.key.startsWith('group:') ? groups.find((g) => `group:${g.id}` === m.key)?.name : undefined
-      const n = new Notification(group ? `${sender} in ${group}` : sender, { body: m.type === 'text' ? m.text : m.type === 'image' ? 'Sent a photo' : `Sent a file: ${m.fileName}`, tag: m.key })
-      n.onclick = () => {
-        window.focus()
-        window.location.href = m.key.startsWith('group:') ? `/group/${m.key.slice(6)}` : `/chat/${m.key.slice(7)}`
-      }
+      const body = m.type === 'text' ? m.text : m.type === 'image' ? 'Sent a photo' : m.type === 'voice' ? 'Sent a voice message' : `Sent a file: ${m.fileName}`
+      const url = m.key.startsWith('group:') ? `/group/${m.key.slice(6)}` : `/chat/${m.key.slice(7)}`
+      void showLocalNotification(group ? `${sender} in ${group}` : sender, body, m.key, url)
     })
   }, [me, openKey, groups])
 }

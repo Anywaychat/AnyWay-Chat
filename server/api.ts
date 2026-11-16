@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import webpush from 'web-push'
 import { dirname, resolve } from 'node:path'
 
 /**
@@ -50,6 +51,12 @@ interface Db {
   users: Record<string, UserRecord>
   sessions: Record<string, string>
   groups?: Record<string, GroupRecord>
+  /** Web Push subscriptions per user (one per device). */
+  push?: Record<string, PushSubscription[]>
+}
+interface PushSubscription {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
 }
 
 export interface PublicUser {
@@ -153,6 +160,8 @@ const cleanId = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/[^
 
 export function createApi(env: Record<string, string | undefined>) {
   useRedis(env)
+  const pushReady = !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY)
+  if (pushReady) webpush.setVapidDetails('https://anywaychat.vercel.app', env.VAPID_PUBLIC_KEY!, env.VAPID_PRIVATE_KEY!)
   return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const url = new URL(req.url ?? '', 'http://localhost')
     if (!url.pathname.startsWith('/api/')) return next()
@@ -241,6 +250,66 @@ export function createApi(env: Record<string, string | undefined>) {
       if (path === '/nexconn-token' && req.method === 'GET') {
         const token = await issueNexconnToken(env, pub(me))
         return token ? send(res, 200, { token }) : send(res, 502, { error: 'Could not reach the chat service.' })
+      }
+
+      if (path === '/push/key' && req.method === 'GET') {
+        return send(res, 200, { key: pushReady ? env.VAPID_PUBLIC_KEY : null })
+      }
+
+      if (path === '/push/subscribe' && req.method === 'POST') {
+        const b = await readBody(req)
+        const sub = b.subscription as PushSubscription | undefined
+        if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) return send(res, 400, { error: 'Bad subscription.' })
+        db.push ??= {}
+        // An endpoint belongs to one device, so move it to whoever is signed in there now.
+        for (const id of Object.keys(db.push)) db.push[id] = db.push[id].filter((x) => x.endpoint !== sub.endpoint)
+        db.push[me.id] = [...(db.push[me.id] ?? []), { endpoint: sub.endpoint, keys: sub.keys }].slice(-5)
+        await save(db)
+        return send(res, 200, { ok: true })
+      }
+
+      if (path === '/push/notify' && req.method === 'POST') {
+        // Called by the sender's app right after a message goes out, so the other person's phone buzzes even with the app closed.
+        if (!pushReady) return send(res, 200, { sent: 0 })
+        const b = await readBody(req)
+        const kind = b.kind === 'group' ? 'group' : 'direct'
+        const target = cleanId(b.id)
+        let to: string[] = []
+        let title = me.name
+        if (kind === 'direct') {
+          const other = db.users[target]
+          if (other && me.contacts.includes(other.id) && !(other.blocked ?? []).includes(me.id)) to = [other.id]
+        } else {
+          const g = db.groups?.[target]
+          if (g?.members.includes(me.id)) {
+            to = g.members.filter((m) => m !== me.id)
+            title = `${me.name} in ${g.name}`
+          }
+        }
+        const body = String(b.body ?? 'New message').slice(0, 140)
+        const url = kind === 'group' ? `/group/${target}` : `/chat/${me.id}`
+        const payload = JSON.stringify({ title, body, url, tag: kind === 'group' ? `group:${target}` : `direct:${me.id}` })
+        let sent = 0
+        let changed = false
+        await Promise.all(
+          to.flatMap((id) =>
+            (db.push?.[id] ?? []).map(async (sub) => {
+              try {
+                await webpush.sendNotification(sub, payload, { TTL: 3600, urgency: 'high' })
+                sent++
+              } catch (e) {
+                const code = (e as { statusCode?: number }).statusCode
+                // The device unsubscribed or the app was uninstalled: forget it.
+                if (code === 404 || code === 410) {
+                  db.push![id] = db.push![id].filter((x) => x.endpoint !== sub.endpoint)
+                  changed = true
+                }
+              }
+            }),
+          ),
+        )
+        if (changed) await save(db)
+        return send(res, 200, { sent })
       }
 
       if (path === '/users/search' && req.method === 'GET') {

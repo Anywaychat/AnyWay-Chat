@@ -1,3 +1,4 @@
+import { enablePush } from '../push'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Bell, Footprints, Search, UserPlus, Users, X } from 'lucide-react'
@@ -58,7 +59,7 @@ export default function Home() {
           ))}
         </div>
         {notif === 'default' && (
-          <button className="notif-card" onClick={() => Notification.requestPermission().then(setNotif)}>
+          <button className="notif-card" onClick={() => Notification.requestPermission().then((p) => { setNotif(p); if (p === 'granted') void enablePush() })}>
             <Bell size={16} aria-hidden="true" />Turn on notifications for new messages
           </button>
         )}

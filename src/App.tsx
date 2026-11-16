@@ -11,6 +11,8 @@ import Calls from './screens/Calls'
 import Profile from './screens/Profile'
 import Landing from './screens/Landing'
 import { useNotifications } from './useChat'
+import { useEffect } from 'react'
+import { enablePush } from './push'
 
 const DARK_MODES: Mode[] = ['blind', 'deafblind']
 
@@ -29,6 +31,10 @@ export default function App() {
   const { pathname } = useLocation()
   const open = pathname.startsWith('/chat/') ? `direct:${pathname.slice(6)}` : pathname.startsWith('/group/') ? `group:${pathname.slice(7)}` : null
   useNotifications(open)
+  // Once notifications are allowed, sign this device up for push so messages arrive even when the app is closed.
+  useEffect(() => {
+    if (user) void enablePush()
+  }, [user])
 
   if (pathname === '/') return <Landing />
   if (!ready) return null

@@ -16,6 +16,7 @@ import {
 } from '@nexconn/chat'
 import type { Mode } from './state'
 import { installCalls, setCallUser, startCallEngine } from './calls'
+import { notifyPush } from './push'
 
 /** How a message was originally made, carried alongside the text so each receiver can render it their way. */
 export interface Origin {
@@ -267,6 +268,7 @@ export async function sendText(t: Target, text: string, origin: Origin): Promise
   params.needReceipt = t.kind === 'direct'
   const { code, data } = await channelFor(t).sendMessage(params)
   if (code !== 0 || !data) return null
+  notifyPush(t, text)
   sentListeners.forEach((l) => l())
   return toChat(data)
 }
@@ -278,6 +280,7 @@ export async function sendFile(t: Target, file: File): Promise<ChatMessage | nul
   if (made.code !== 0 || !made.data) return null
   const { code, data } = await channelFor(t).sendMediaMessage(made.data as never)
   if (code !== 0 || !data) return null
+  notifyPush(t, isImage ? '📷 Photo' : `📎 ${file.name}`)
   sentListeners.forEach((l) => l())
   return toChat(data as Message)
 }
@@ -301,14 +304,20 @@ export async function loadHistory(t: Target): Promise<ChatMessage[]> {
   const { code, data } = await query.loadNextPage()
   if (code !== 0 || !data) return []
   const list = (Array.isArray(data) ? data : (data as { data?: Message[] }).data ?? []) as Message[]
-  return list
-    .map((m) => {
-      const cm = toChat(m)
-      if (cm && m.senderUserId === connectedAs && m.needReceipt) cm.read = m.sentReceipt
-      return cm
-    })
+  const out = list
+    .map((m) => toChat(m))
     .filter((m): m is ChatMessage => !!m)
     .sort((a, b) => a.sentTime - b.sentTime)
+  // Ask the server which of my direct messages the other person has read, so old messages show the right ticks.
+  const mine = list.filter((m) => m.senderUserId === connectedAs && m.needReceipt && m.messageId).map((m) => m.messageId)
+  if (t.kind === 'direct' && mine.length) {
+    const r = await channelFor(t).getMessageReadReceiptInfo(mine).catch(() => null)
+    const read = new Set((r?.code === 0 && r.data ? r.data : []).filter((x) => x.readCount > 0).map((x) => x.messageId))
+    out.forEach((m) => {
+      if (read.has(m.id)) m.read = true
+    })
+  }
+  return out
 }
 
 /** Clears unread and tells the sender their direct messages were read. */
@@ -378,6 +387,7 @@ export async function sendReply(t: Target, text: string, origin: Origin, to: Cha
   } as never)
   const { code, data } = await channelFor(t).sendMessage(params)
   if (code !== 0 || !data) return null
+  notifyPush(t, text)
   sentListeners.forEach((l) => l())
   const cm = toChat(data)
   if (cm && !cm.replyTo) cm.replyTo = { id: to.id, from: to.from, text: to.text }
@@ -428,6 +438,7 @@ export async function sendVoice(t: Target, blob: Blob): Promise<ChatMessage | nu
   if (made.code !== 0 || !made.data) return null
   const { code, data } = await channelFor(t).sendMediaMessage(made.data as never)
   if (code !== 0 || !data) return null
+  notifyPush(t, '🎤 Voice message')
   sentListeners.forEach((l) => l())
   return toChat(data as Message)
 }

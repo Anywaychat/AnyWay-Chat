@@ -21,7 +21,8 @@ import {
   sendFile,
   sendText,
   sendTyping,
-  watchPresence,
+  subscribePresence,
+  queryPresence,
   type ChannelSummary,
   type ChatMessage,
   type Origin,
@@ -167,20 +168,42 @@ export function useChannels() {
 }
 
 /** Which contacts are online right now. */
+// One shared presence watcher for the whole app. Before, every screen showing an online dot subscribed on its own,
+// and each subscribe fired a presence event that triggered another subscribe: a loop Nexconn started refusing (20607).
+let presenceKey = ''
+let presenceOnline = new Set<string>()
+let presenceTimer: ReturnType<typeof setTimeout> | undefined
+const presenceViews = new Set<(s: Set<string>) => void>()
+function readPresence(ids: string[]) {
+  clearTimeout(presenceTimer)
+  // Bunch up bursts of presence events into one read.
+  presenceTimer = setTimeout(async () => {
+    presenceOnline = await queryPresence(ids)
+    presenceViews.forEach((v) => v(presenceOnline))
+  }, 400)
+}
+
 export function usePresence() {
   const { contacts } = useAuth()
   const status = useConnection()
-  const [online, setOnline] = useState<Set<string>>(new Set())
-  const ids = contacts.map((c) => c.id).join(',')
+  const [online, setOnline] = useState<Set<string>>(presenceOnline)
+  const ids = contacts.map((c) => c.id).sort().join(',')
+  useEffect(() => {
+    presenceViews.add(setOnline)
+    return () => {
+      presenceViews.delete(setOnline)
+    }
+  }, [])
   useEffect(() => {
     if (status !== 'connected' || !ids) return
-    let alive = true
-    const refresh = () => watchPresence(ids.split(',')).then((s) => alive && setOnline(s))
-    refresh()
-    const off = onPresence(refresh)
-    const t = setInterval(refresh, 30000)
+    const list = ids.split(',')
+    if (presenceKey !== ids) {
+      presenceKey = ids
+      void subscribePresence(list).then(() => readPresence(list))
+    }
+    const off = onPresence(() => readPresence(list))
+    const t = setInterval(() => readPresence(list), 60000)
     return () => {
-      alive = false
       off()
       clearInterval(t)
     }

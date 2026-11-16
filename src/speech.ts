@@ -71,15 +71,22 @@ export function preloadNaturalVoice() {
   kokoroLoading = (async () => {
     try {
       const { KokoroTTS } = await import('kokoro-js')
-      const gpu = 'gpu' in navigator
-      kokoro = (await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: gpu ? 'fp32' : 'q8', device: gpu ? 'webgpu' : 'wasm' })) as unknown as Kokoro
+      // The small (about 90 MB) version runs on every phone and laptop. The WebGPU version needs a 300 MB download,
+      // which took minutes on mobile data, so people heard the robotic fallback voice the whole time.
+      const load = () => KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'wasm' })
+      kokoro = (await load().catch(() => load())) as unknown as Kokoro
       setVoiceState('natural')
-    } catch {
+    } catch (e) {
+      console.warn('Natural voice could not load, using the built-in voice.', e)
       kokoro = null
+      kokoroLoading = null
       setVoiceState('basic')
     }
   })()
 }
+
+/** Resolves once the natural voice has finished loading (or failed), so other big downloads can wait their turn. */
+export const naturalVoiceSettled = () => kokoroLoading ?? Promise.resolve()
 
 // One line at a time, so messages don't talk over each other.
 const queue: string[] = []
@@ -98,17 +105,22 @@ async function pump() {
         const audio = await kokoro.generate(text, { voice: 'af_heart', speed: rate })
         if (myGen !== generation) break
         const url = URL.createObjectURL(audio.toBlob())
-        await new Promise<void>((done) => {
+        const played = await new Promise<boolean>((done) => {
           const el = new Audio(url)
           playing = el
-          el.onended = el.onerror = () => {
+          const finish = (ok: boolean) => {
+            clearTimeout(guard)
             URL.revokeObjectURL(url)
             playing = null
-            done()
+            done(ok)
           }
-          void el.play().catch(() => done())
+          const guard = setTimeout(() => finish(true), 5000 + text.length * 150)
+          el.onended = () => finish(true)
+          el.onerror = () => finish(false)
+          // If the browser blocks playback (no tap yet), say this line with the built-in voice instead of skipping it.
+          void el.play().catch(() => finish(false))
         })
-        continue
+        if (played) continue
       } catch {
         /* fall back to the built-in voice for this line */
       }
@@ -118,7 +130,13 @@ async function pump() {
         const u = new SpeechSynthesisUtterance(text)
         u.lang = LANG
         u.rate = rate
-        u.onend = u.onerror = () => done()
+        // Some browsers never fire "end" (for example when sound is blocked until the first tap),
+        // which used to freeze the queue so no later message was ever read. Give up after a fair time.
+        const guard = setTimeout(done, 3000 + text.length * 120)
+        u.onend = u.onerror = () => {
+          clearTimeout(guard)
+          done()
+        }
         window.speechSynthesis.speak(u)
       })
     }

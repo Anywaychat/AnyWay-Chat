@@ -1,3 +1,4 @@
+import { preloadNaturalVoice } from '../speech'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, MessageCircle } from 'lucide-react'
@@ -107,7 +108,11 @@ export function Signup() {
       <p className="lede">You choose this once. You can change it later in your profile.</p>
       <div className="mode-list" role="group" aria-label="Your way of talking">
         {(Object.keys(MODES) as Mode[]).map((m) => (
-          <button key={m} type="button" className="mode-opt" aria-pressed={m === mode} onClick={() => setMode(m)}>
+          <button key={m} type="button" className="mode-opt" aria-pressed={m === mode} onClick={() => {
+            setMode(m)
+            // Start downloading the natural voice right away, so it's ready by the time they reach their chats.
+            if (m === 'blind') preloadNaturalVoice()
+          }}>
             <span className={`mode-ico ${ICON_BG[m]}`}><ModeIcon mode={m} /></span>
             <span>
               <strong>{MODES[m].label}</strong>

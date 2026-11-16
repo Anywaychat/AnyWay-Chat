@@ -63,7 +63,9 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   }, [menu])
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
-  const shown = searching && query.trim() ? messages.filter((m) => m.text.toLowerCase().includes(query.trim().toLowerCase())) : messages
+  // Search the words people wrote, and file names; photos and voice notes have no words to match.
+  const matches = (m: ChatMessage, q: string) => (m.type === 'text' ? m.text : m.type === 'file' ? m.fileName ?? '' : '').toLowerCase().includes(q)
+  const shown = searching && query.trim() ? messages.filter((m) => matches(m, query.trim().toLowerCase())) : messages
   const bottomRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!searching) bottomRef.current?.scrollIntoView({ block: 'end' })
@@ -131,7 +133,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
       }
       case 'search': {
         const q = it.query.toLowerCase()
-        const found = messages.filter((m) => m.text.toLowerCase().includes(q))
+        const found = messages.filter((m) => matches(m, q))
         setSearching(true)
         setQuery(it.query)
         return speak(found.length ? `Found ${found.length}. ${found.slice(-3).map(say).join('. ')}` : `Nothing here mentions ${it.query}.`, true)

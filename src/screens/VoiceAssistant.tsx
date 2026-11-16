@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Mic } from 'lucide-react'
 import { loadChannels, onMessage, sendText, sendVoice, type ChatMessage } from '../nexconn'
-import { ask, canListen, onVoiceState, preloadNaturalVoice, recordVoiceNote, setRate, setWakeWord, speak, stopSpeaking, whenQuiet, type VoiceState } from '../speech'
+import { ask, canListen, onVoiceState, preloadNaturalVoice, naturalVoiceSettled, recordVoiceNote, setRate, setWakeWord, speak, stopSpeaking, whenQuiet, type VoiceState } from '../speech'
 import { findMentioned, hasChat, routeVoice, understand, type Person } from '../voice'
 import { acceptCall, endCall, getCall, startCall, toggleCam, toggleMic } from '../calls'
 import { contactById, useAuth } from '../state'
@@ -22,7 +22,8 @@ export default function VoiceAssistant() {
   const [voice, setVoice] = useState<VoiceState>('basic')
   useEffect(() => {
     preloadNaturalVoice()
-    preloadVision()
+    // Load the photo model after the voice, so they don't fight over a slow connection.
+    void naturalVoiceSettled().then(() => preloadVision())
     return onVoiceState(setVoice)
   }, [])
   const ctx = useRef({ contacts, groups, pathname, auth, online })

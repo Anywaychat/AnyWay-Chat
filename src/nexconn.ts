@@ -278,6 +278,7 @@ export async function sendFile(t: Target, file: File): Promise<ChatMessage | nul
   const isImage = file.type.startsWith('image/') && file.type !== 'image/gif'
   const made = isImage ? await Helper.createSendImageMessageParams(file) : await Helper.createSendFileMessageParams(file)
   if (made.code !== 0 || !made.data) return null
+  if (t.kind === 'direct') (made.data as { needReceipt?: boolean }).needReceipt = true
   const { code, data } = await channelFor(t).sendMediaMessage(made.data as never)
   if (code !== 0 || !data) return null
   notifyPush(t, isImage ? '📷 Photo' : `📎 ${file.name}`)
@@ -358,12 +359,17 @@ export async function loadChannels(): Promise<ChannelSummary[]> {
     .sort((a, b) => b.lastTime - a.lastTime)
 }
 
-/** Watches contacts' online status. Returns the ids currently online. */
-export async function watchPresence(userIds: string[]): Promise<Set<string>> {
-  if (!userIds.length) return new Set()
+/** Subscribes to contacts' online status. Call rarely: each call can itself trigger a presence event. */
+export async function subscribePresence(userIds: string[]) {
+  if (!userIds.length) return
   await NCEngine.userModule.subscribeEvent({ subscribeType: SubscribeType.ONLINE_STATUS, userIds, expiry: 86400 }).catch(() => {})
-  const r = await NCEngine.userModule.getSubscribeUsersOnlineStatus(userIds).catch(() => null)
+}
+
+/** Reads who is online right now, without subscribing again. */
+export async function queryPresence(userIds: string[]): Promise<Set<string>> {
   const online = new Set<string>()
+  if (!userIds.length) return online
+  const r = await NCEngine.userModule.getSubscribeUsersOnlineStatus(userIds).catch(() => null)
   if (r && r.code === 0 && r.data) r.data.forEach((s) => s.isOnline && online.add(s.userId))
   return online
 }
@@ -385,6 +391,7 @@ export async function sendReply(t: Target, text: string, origin: Origin, to: Cha
     referMsg: { content: to.text },
     extra: JSON.stringify(origin),
   } as never)
+  ;(params as { needReceipt?: boolean }).needReceipt = t.kind === 'direct'
   const { code, data } = await channelFor(t).sendMessage(params)
   if (code !== 0 || !data) return null
   notifyPush(t, text)
@@ -436,6 +443,7 @@ export async function sendVoice(t: Target, blob: Blob): Promise<ChatMessage | nu
   const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || 'audio/webm' })
   const made = await Helper.createSendHDVoiceMessageParams(file)
   if (made.code !== 0 || !made.data) return null
+  if (t.kind === 'direct') (made.data as { needReceipt?: boolean }).needReceipt = true
   const { code, data } = await channelFor(t).sendMediaMessage(made.data as never)
   if (code !== 0 || !data) return null
   notifyPush(t, '🎤 Voice message')

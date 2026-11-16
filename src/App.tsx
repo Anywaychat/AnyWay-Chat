@@ -9,6 +9,7 @@ import VoiceAssistant from './screens/VoiceAssistant'
 import Go from './screens/Go'
 import Calls from './screens/Calls'
 import Profile from './screens/Profile'
+import SignDictionary from './screens/SignDictionary'
 import Landing from './screens/Landing'
 import { useNotifications } from './useChat'
 import { useEffect } from 'react'
@@ -71,6 +72,7 @@ export default function App() {
           <Route path="/go" element={user?.mode === 'blind' ? <Navigate to="/home" replace /> : <Go />} />
           <Route path="/calls" element={<Calls />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/signs" element={<SignDictionary />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

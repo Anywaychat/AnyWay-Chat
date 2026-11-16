@@ -4,6 +4,7 @@ import { Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, Pa
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import SignCamera from '../components/SignCamera'
+import SignStrip from '../components/SignStrip'
 import { startCall } from '../calls'
 import { canListen, listenOnce, speak, type Listening } from '../speech'
 import { registerChatVoice, understand } from '../voice'
@@ -275,6 +276,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                     </a>
                   )}
                   {m.type === 'text' && m.text}
+                  {m.type === 'text' && mode === 'deaf' && !mine && <SignStrip text={m.text} />}
                   <span className="stamp">
                     {m.edited && <span className="edited">edited</span>}
                     {fmt(m.sentTime)}

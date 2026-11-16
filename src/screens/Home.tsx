@@ -1,7 +1,7 @@
 import { enablePush } from '../push'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Bell, Footprints, Search, UserPlus, Users, X } from 'lucide-react'
+import { Bell, BookOpen, Footprints, Search, UserPlus, Users, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { contactById, useAuth, toContact, type Contact, type User } from '../state'
 import { Avatar, TabBar } from '../components/ui'
@@ -64,6 +64,15 @@ export default function Home() {
           </button>
         )}
         <InstallButton compact />
+        {user?.mode === 'deaf' && (
+          <Link to="/signs" className="go-card">
+            <span className="go-ico"><BookOpen size={18} aria-hidden="true" /></span>
+            <span>
+              <strong>Sign dictionary</strong>
+              <span className="sub">Everyday words in Indian Sign Language</span>
+            </span>
+          </Link>
+        )}
         {user?.mode !== 'blind' && (
         <Link to="/go" className="go-card">
           <span className="go-ico"><Footprints size={18} aria-hidden="true" /></span>

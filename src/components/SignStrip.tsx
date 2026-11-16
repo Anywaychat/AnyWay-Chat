@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Play } from 'lucide-react'
-import { clipUrl, loadSigns, toSigns, type Piece } from '../signs'
+import { loadSigns, toSigns, type Piece } from '../signs'
+import SignAvatar from './SignAvatar'
 
 /** Shows a message in Indian Sign Language: the sign clips play one after another, words without a sign stay as text. */
 export default function SignStrip({ text }: { text: string }) {
   const [pieces, setPieces] = useState<Piece[] | null>(null)
   const [at, setAt] = useState(-1)
-  const video = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     let alive = true
@@ -17,13 +17,6 @@ export default function SignStrip({ text }: { text: string }) {
   }, [text])
 
   const signs = (pieces ?? []).flatMap((p, i) => (p.kind === 'sign' ? [i] : []))
-  useEffect(() => {
-    if (at < 0 || !video.current || pieces?.[at]?.kind !== 'sign') return
-    const p = pieces[at]
-    video.current.src = clipUrl(p.word.id)
-    void video.current.play().catch(() => {})
-  }, [at, pieces])
-
   if (!pieces || !signs.length) return null
   const next = () => {
     const k = signs.indexOf(at)
@@ -33,7 +26,9 @@ export default function SignStrip({ text }: { text: string }) {
   return (
     <div className="sign-strip">
       {at >= 0 ? (
-        <video ref={video} className="sign-clip-video" muted playsInline onEnded={next} onClick={() => setAt(-1)} aria-label={`Sign for ${pieces[at].kind === 'sign' ? pieces[at].word.name : ''}`} />
+        <button className="sign-stage" onClick={() => setAt(-1)} aria-label="Stop signing">
+          {pieces[at].kind === 'sign' && <SignAvatar key={at} ids={[pieces[at].word.id]} onDone={next} />}
+        </button>
       ) : (
         <button className="sign-play" onClick={() => setAt(signs[0])}><Play size={14} aria-hidden="true" />Show in sign</button>
       )}

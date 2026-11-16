@@ -13,7 +13,6 @@ export type Piece = { kind: 'sign'; word: SignWord; said: string } | { kind: 'te
 
 let index: Promise<SignWord[]> | null = null
 export const loadSigns = () => (index ??= fetch('/signs/index.json').then((r) => (r.ok ? (r.json() as Promise<SignWord[]>) : [])).catch(() => []))
-export const clipUrl = (id: string) => `/signs/${id}.mp4`
 
 // Everyday words people type, mapped to the sign that means the same thing.
 const SAME: Record<string, string> = {

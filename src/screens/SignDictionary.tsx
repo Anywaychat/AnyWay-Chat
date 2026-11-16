@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Search, Turtle } from 'lucide-react'
-import { clipUrl, loadSigns, type SignWord } from '../signs'
+import { loadSigns, type SignWord } from '../signs'
+import SignAvatar from '../components/SignAvatar'
 
-/** Common Indian Sign Language words, grouped, each with a real signer's video. */
+/** Common Indian Sign Language words, grouped, drawn from real Deaf signers' movements. */
 export default function SignDictionary() {
   const nav = useNavigate()
   const [words, setWords] = useState<SignWord[]>([])
@@ -39,7 +40,7 @@ export default function SignDictionary() {
 
           {open && (
             <div className="dict-player">
-              <video key={open.id + slow} src={clipUrl(open.id)} autoPlay loop muted playsInline ref={(v) => { if (v) v.playbackRate = slow ? 0.5 : 1 }} aria-label={`Sign for ${open.name}`} />
+              <div className="sign-stage big" role="img" aria-label={`Sign for ${open.name}`}><SignAvatar ids={[open.id]} loop speed={slow ? 0.5 : 1} /></div>
               <div className="row-between">
                 <strong>{open.name}</strong>
                 <button className="chip-btn" aria-pressed={slow} onClick={() => setSlow(!slow)}><Turtle size={14} aria-hidden="true" /> Slow</button>
@@ -48,7 +49,7 @@ export default function SignDictionary() {
           )}
 
           {words.length === 0 ? (
-            <p className="muted">Sign videos are still being prepared.</p>
+            <p className="muted">Signs are still being prepared.</p>
           ) : shown.length === 0 ? (
             <p className="muted">No sign for “{q}” yet.</p>
           ) : (

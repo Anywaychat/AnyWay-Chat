@@ -64,6 +64,7 @@ export default function Home() {
           </button>
         )}
         <InstallButton compact />
+        {user?.mode !== 'blind' && (
         <Link to="/go" className="go-card">
           <span className="go-ico"><Footprints size={18} aria-hidden="true" /></span>
           <span>
@@ -71,6 +72,7 @@ export default function Home() {
             <span className="sub">Use your phone as a live interpreter</span>
           </span>
         </Link>
+        )}
       </header>
 
       <div className="scroll" role="list">

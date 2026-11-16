@@ -68,7 +68,7 @@ export default function App() {
           />
           <Route path="/chat/:id" element={<Chat key={pathname} />} />
           <Route path="/group/:id" element={<Chat key={pathname} kind="group" />} />
-          <Route path="/go" element={<Go />} />
+          <Route path="/go" element={user?.mode === 'blind' ? <Navigate to="/home" replace /> : <Go />} />
           <Route path="/calls" element={<Calls />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<Navigate to="/" replace />} />

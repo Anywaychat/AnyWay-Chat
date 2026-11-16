@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom'
 import { ChevronLeft, Ear, EyeOff, Hand, LayoutGrid, MessageCircle, Footprints, UserRound, Vibrate } from 'lucide-react'
 import type { Contact, Mode } from '../state'
-import { MODES } from '../state'
+import { MODES, useAuth } from '../state'
 
 export function ModeIcon({ mode, size = 24 }: { mode: Mode; size?: number }) {
   const p = { size, strokeWidth: 2, 'aria-hidden': true } as const
@@ -65,14 +65,17 @@ export function Wave({ n = 14 }: { n?: number }) {
 }
 
 export function TabBar() {
+  const { user } = useAuth()
+  // Blind users do everything by voice; the face-to-face Go screen isn't for them.
+  const blind = user?.mode === 'blind'
   const tabs = [
     { to: '/home', label: 'Chats', icon: MessageCircle },
-    { to: '/go', label: 'Go', icon: Footprints },
+    ...(blind ? [] : [{ to: '/go', label: 'Go', icon: Footprints }]),
     { to: '/calls', label: 'Calls', icon: Ear },
     { to: '/profile', label: 'Me', icon: UserRound },
   ]
   return (
-    <nav className="tabbar" aria-label="Main">
+    <nav className="tabbar" aria-label="Main" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
       {tabs.map(({ to, label, icon: I }) => (
         <NavLink key={to} to={to} className={({ isActive }) => `tab${isActive ? ' active' : ''}`}>
           <I size={24} strokeWidth={2} aria-hidden="true" />

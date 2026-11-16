@@ -40,6 +40,27 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
   const [editing, setEditing] = useState<ChatMessage | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
+  // Long-press a message (like WhatsApp) to react, reply, edit or delete.
+  const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const holdStart = (id: string) => {
+    clearTimeout(press.current)
+    press.current = setTimeout(() => {
+      setMenu(id)
+      navigator.vibrate?.(15)
+    }, 450)
+  }
+  const holdEnd = () => clearTimeout(press.current)
+  useEffect(() => {
+    if (!menu) return
+    const close = (e: PointerEvent) => {
+      if (!(e.target as Element).closest('.msg-menu')) setMenu(null)
+    }
+    const t = setTimeout(() => document.addEventListener('pointerdown', close), 0)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('pointerdown', close)
+    }
+  }, [menu])
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
   const shown = searching && query.trim() ? messages.filter((m) => m.text.toLowerCase().includes(query.trim().toLowerCase())) : messages
@@ -217,7 +238,9 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
             const mine = m.from === me
             const playing = mode === 'blind' && m === lastIn
             return (
-              <div key={m.id + i} className={`msg ${mine ? 'me' : 'them'}${playing ? ' playing' : ''}${menu === m.id ? ' menu-open' : ''}`}>
+              <div key={m.id + i} className={`msg ${mine ? 'me' : 'them'}${playing ? ' playing' : ''}${menu === m.id ? ' menu-open' : ''}`}
+                onTouchStart={() => holdStart(m.id)} onTouchEnd={holdEnd} onTouchMove={holdEnd}
+                onContextMenu={(e) => { e.preventDefault(); setMenu(m.id) }}>
                 <div className="bubble-wrap">
                 <div className="bubble">
                   {isGroup && !mine && <div className="sender">{contactById(m.from).name}</div>}

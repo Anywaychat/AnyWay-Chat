@@ -374,7 +374,7 @@ select.input { appearance: auto; }
 .msg.me .bubble-wrap { flex-direction: row-reverse; }
 .msg-more { opacity: 0; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; flex-shrink: 0; }
 .msg:hover .msg-more, .msg-more:focus-visible, .msg.menu-open .msg-more { opacity: 1; }
-@media (hover: none) { .msg-more { opacity: .7; } }
+@media (hover: none) { .msg-more { display: none; } .msg .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } }
 .msg-menu { position: absolute; top: calc(100% + 6px); z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(22,22,29,.12); padding: 6px; display: flex; flex-direction: column; min-width: 210px; }
 .msg.them .msg-menu { left: 0; }
 .msg.me .msg-menu { right: 0; }

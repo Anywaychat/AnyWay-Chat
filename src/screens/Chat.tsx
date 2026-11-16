@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Camera, Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, Info, Trash2, Video, Volume2, X } from 'lucide-react'
+import { Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, Info, Trash2, Video, Volume2, X } from 'lucide-react'
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
+import SignCamera from '../components/SignCamera'
 import { startCall } from '../calls'
 import { canListen, listenOnce, speak, type Listening } from '../speech'
 import { registerChatVoice, understand } from '../voice'
@@ -504,28 +505,7 @@ function DeafComposer({ onSend }: { onSend: SendFn }) {
         <button className="pill" aria-pressed={!signing} onClick={() => setSigning(false)}><Keyboard size={14} aria-hidden="true" />Type</button>
       </div>
       {signing ? (
-        <div className="sign-panel">
-          <div className="cam" aria-label="Camera preview">
-            <span className="live-tag">LIVE</span>
-            <svg width="96" height="96" viewBox="0 0 120 120" fill="none" aria-hidden="true">
-              <circle cx="60" cy="34" r="16" stroke="#3A404A" strokeWidth="2" />
-              <path d="M28 112c0-22 14-36 32-36s32 14 32 36" stroke="#3A404A" strokeWidth="2" />
-              <path d="M30 76l8-10 8-5M88 74l-7-10" stroke="#8FA8FF" strokeWidth="2.5" />
-              {[[30, 76], [38, 66], [46, 61], [88, 74], [81, 64]].map(([x, y]) => (
-                <circle key={`${x}${y}`} cx={x} cy={y} r="3.5" fill="#8FA8FF" />
-              ))}
-            </svg>
-            <span className="hint-tag">Hands found</span>
-          </div>
-          <div className="sign-read">
-            <div className="gloss"><b>YES</b><b>8</b><b>COME</b><span className="conf">92% match</span></div>
-            <div className="will-send">Will send <strong>“Yes, I’ll come at 8.”</strong></div>
-            <div className="sign-actions">
-              <button className="btn"><Camera size={16} aria-hidden="true" />Redo</button>
-              <button className="btn primary" onClick={() => onSend('Yes, I’ll come at 8.', { mode: 'deaf', gloss: 'YES · 8 · COME', confidence: 92 })}><Send size={16} aria-hidden="true" />Send</button>
-            </div>
-          </div>
-        </div>
+        <SignCamera onSend={(text, gloss, confidence) => onSend(text, { mode: 'deaf', gloss, confidence })} />
       ) : (
         <TextField onSend={(t) => onSend(t, { mode: 'deaf' })} mode="deaf" />
       )}

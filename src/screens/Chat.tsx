@@ -6,7 +6,7 @@ import { usePresence, useThread } from '../useChat'
 import SignCamera from '../components/SignCamera'
 import SignStrip from '../components/SignStrip'
 import { startCall } from '../calls'
-import { canListen, listenOnce, speak, type Listening } from '../speech'
+import { canListen, listenOnce, preloadNaturalVoice, speak, type Listening } from '../speech'
 import { registerChatVoice, understand } from '../voice'
 import { describePhoto } from '../vision'
 import { sendText } from '../nexconn'
@@ -76,6 +76,11 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
     if (!searching) bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages.length, searching])
   const submit: SendFn = (text, origin) => {
+    // Someone who can't speak gets their words said out loud too, so people nearby hear them.
+    if (origin.mode === 'speech' && !editing) {
+      preloadNaturalVoice()
+      speak(text)
+    }
     if (editing) {
       void edit(editing.id, text)
       setEditing(null)
@@ -203,7 +208,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
             ? `${group?.members.length ?? 0} members: ${group?.members.map((m) => (m.id === me ? 'you' : m.name)).join(', ') ?? ''}`
             : online.has(c.id) ? 'online' : 'offline'
 
-  if (mode === 'deafblind') return <DeafBlindChat name={c.name} />
+  if (mode === 'deafblind') return <DeafBlindChat name={c.name} messages={messages} me={me} send={(t) => void send(t, { mode: 'deafblind' })} />
 
   return (
     <div className="screen">
@@ -549,38 +554,83 @@ function SpeechComposer({ onSend }: { onSend: SendFn }) {
   )
 }
 
-function DeafBlindChat({ name }: { name: string }) {
-  const [dots, setDots] = useState<number[]>([1, 3])
+// Grade 1 braille: which of the 6 dots make each letter.
+const BRAILLE: Record<string, number[]> = {
+  a: [1], b: [1, 2], c: [1, 4], d: [1, 4, 5], e: [1, 5], f: [1, 2, 4], g: [1, 2, 4, 5], h: [1, 2, 5], i: [2, 4], j: [2, 4, 5],
+  k: [1, 3], l: [1, 2, 3], m: [1, 3, 4], n: [1, 3, 4, 5], o: [1, 3, 5], p: [1, 2, 3, 4], q: [1, 2, 3, 4, 5], r: [1, 2, 3, 5], s: [2, 3, 4], t: [2, 3, 4, 5],
+  u: [1, 3, 6], v: [1, 2, 3, 6], w: [2, 4, 5, 6], x: [1, 3, 4, 6], y: [1, 3, 4, 5, 6], z: [1, 3, 5, 6],
+}
+const key = (dots: number[]) => [...dots].sort().join('')
+const FROM_DOTS = Object.fromEntries(Object.entries(BRAILLE).map(([ch, d]) => [key(d), ch]))
+/** Text as Unicode braille cells, so it can be read on screen or by a braille display. */
+const toBraille = (text: string) =>
+  [...text.toLowerCase()].map((ch) => (BRAILLE[ch] ? String.fromCharCode(0x2800 + BRAILLE[ch].reduce((n, d) => n | (1 << (d - 1)), 0)) : ch === ' ' ? '⠀' : ch)).join('')
+/** A buzz pattern for a message: one long buzz, then short ones for each word (up to 4). */
+const buzzFor = (text: string) => [400, ...text.trim().split(/\s+/).slice(0, 4).flatMap(() => [120, 150])]
+
+function DeafBlindChat({ name, messages, me, send }: { name: string; messages: ChatMessage[]; me: string; send: (text: string) => void }) {
+  const incoming = messages.filter((m) => m.from !== me && m.type === 'text')
+  const [at, setAt] = useState(-1)
+  const [dots, setDots] = useState<number[]>([])
+  const [draft, setDraft] = useState('')
+  const last = useRef(0)
+  // Always open on the newest message, and buzz when a new one arrives.
+  useEffect(() => {
+    if (incoming.length > last.current) {
+      if (last.current > 0) navigator.vibrate?.(buzzFor(incoming[incoming.length - 1].text))
+      setAt(incoming.length - 1)
+    }
+    last.current = incoming.length
+  }, [incoming.length])
+  const m = incoming[at]
+  const who = m ? contactById(m.from).name : name
   const toggle = (d: number) => setDots((s) => (s.includes(d) ? s.filter((x) => x !== d) : [...s, d]))
+  const addLetter = () => {
+    const ch = FROM_DOTS[key(dots)]
+    if (ch) setDraft((t) => t + ch)
+    setDots([])
+  }
+  const buzz = m ? buzzFor(m.text) : []
   return (
     <div className="screen db">
       <div className="row-between">
         <BackButton />
-        <strong style={{ fontSize: 18 }}>From {name}</strong>
-        <span className="muted">1 of 3</span>
+        <strong style={{ fontSize: 18 }}>{m ? `From ${who}` : name}</strong>
+        <span className="muted">{incoming.length ? `${at + 1} of ${incoming.length}` : ''}</span>
       </div>
-      <div className="db-card">
-        <div className="big">Are you coming tonight?</div>
-        <p className="muted" style={{ margin: '10px 0 0' }}>Signed at 10:42</p>
+      <div className="db-card" aria-live="polite">
+        <div className="big">{m ? m.text : 'No messages yet.'}</div>
+        {m && <div className="db-braille" aria-hidden="true">{toBraille(m.text)}</div>}
+        {m && <p className="muted" style={{ margin: '10px 0 0' }}>{fmt(m.sentTime)}</p>}
       </div>
-      <div>
-        <p className="muted" style={{ margin: '0 0 8px' }}>Felt as</p>
-        <div className="pulse-row" aria-label="Long, short, short, long">
-          <i style={{ width: 56 }} /><i style={{ width: 16 }} /><i style={{ width: 16 }} /><i style={{ width: 56 }} />
+      {m && (
+        <div>
+          <p className="muted" style={{ margin: '0 0 8px' }}>Felt as</p>
+          <div className="pulse-row" aria-label="Buzz pattern">
+            {buzz.filter((_, i) => i % 2 === 0).map((ms, i) => <i key={i} style={{ width: ms / 7 }} />)}
+          </div>
         </div>
-      </div>
+      )}
       <div className="grid-2">
-        <button className="btn">Previous</button>
-        <button className="btn">Next</button>
+        <button className="btn" disabled={at <= 0} onClick={() => setAt(at - 1)}>Previous</button>
+        <button className="btn" disabled={at >= incoming.length - 1} onClick={() => setAt(at + 1)}>Next</button>
       </div>
       <div style={{ flex: 1 }} />
-      <div className="db-draft">Yes, coming in 5 min_</div>
+      <label className="db-draft">
+        <span className="sr-only">Your reply</span>
+        <input className="db-input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Type with braille keys or a braille display" />
+      </label>
       <div className="braille" role="group" aria-label="Braille keys">
-        {[1, 2, 3, 4, 5, 6].map((d) => (
+        {[1, 4, 2, 5, 3, 6].map((d) => (
           <button key={d} aria-pressed={dots.includes(d)} aria-label={`Dot ${d}`} onClick={() => toggle(d)}>{d}</button>
         ))}
       </div>
-      <button className="btn primary block">Send</button>
+      <div className="grid-3">
+        <button className="btn" onClick={addLetter} disabled={!dots.length}>Add letter {dots.length ? toBraille(FROM_DOTS[key(dots)] ?? '') : ''}</button>
+        <button className="btn" onClick={() => setDraft((t) => t + ' ')}>Space</button>
+        <button className="btn" onClick={() => setDraft((t) => t.slice(0, -1))}>Delete</button>
+      </div>
+      <button className="btn primary block" disabled={!draft.trim()} onClick={() => { send(draft.trim()); setDraft('') }}>Send</button>
     </div>
   )
 }

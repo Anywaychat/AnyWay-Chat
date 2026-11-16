@@ -469,3 +469,5 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; font: inher
 .sign-stage { aspect-ratio: 4 / 3 !important; overflow: hidden; }
 img.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: cover; background: var(--raised); }
 .suggest { width: 82px; }
+.dict .cats { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+.dict .cats .chip-btn { white-space: nowrap; flex-shrink: 0; }

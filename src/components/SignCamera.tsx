@@ -55,7 +55,8 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
         reader = new SignReader(
           v,
           (guesses) => {
-            if (guesses.length) setWords((w) => [...w, { word: guesses[0].word, options: guesses }])
+            // Ignore a repeat of the word just added (one sign read twice), and very unsure guesses.
+            if (guesses.length && guesses[0].score >= 0.2) setWords((w) => (w[w.length - 1]?.word === guesses[0].word ? w : [...w, { word: guesses[0].word, options: guesses }]))
           },
           (s) => {
             setHands(s.hands)

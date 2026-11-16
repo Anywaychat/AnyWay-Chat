@@ -11,7 +11,7 @@ const FPS = 25 // the sign videos the model learned from
 const POINTS = 67 // 25 body + 21 + 21 hand points
 
 type Pt = [number, number]
-type Frame = { t: number; pts: Pt[] }
+export type Frame = { t: number; pts: Pt[] }
 export type Guess = { word: string; score: number }
 
 let ready: Promise<{ hands: HandLandmarker; pose: PoseLandmarker; model: InferenceSession; ort: typeof import('onnxruntime-web'); labels: string[]; allowed: Set<number> }> | null = null
@@ -54,7 +54,13 @@ function assign(hands: Pt[][], pose: Pt[] | null): [Pt[] | null, Pt[] | null] {
 }
 
 /** Recorded frames -> the (1, 200, 134) input the model expects. */
-export function prepare(frames: Frame[]): Float32Array {
+// Where the signer stands in the training videos (measured from them, as fractions of a 1920x1080 frame).
+const TRAIN = { cx: 0.484 * 1920, cy: 0.387 * 1080, shoulders: 0.133 * 1920 }
+
+/** Recorded frames -> the (1, 200, 134) input the model expects. `aspect` = camera width / height.
+ *  Moves and scales the person so their shoulders sit where the training signers' did:
+ *  close to a webcam you look about 3x bigger than they did, which made the model guess nonsense. */
+export function prepare(frames: Frame[], aspect = 16 / 9): Float32Array {
   // Resample to the training frame rate, whatever speed the camera ran at.
   const t0 = frames[0].t
   const n = Math.min(MAX_FRAMES, Math.max(1, Math.round(((frames[frames.length - 1].t - t0) / 1000) * FPS) + 1))
@@ -84,9 +90,32 @@ export function prepare(frames: Frame[]): Float32Array {
         before < 0 ? at(after!) : after === undefined ? at(before) : at(before) + ((at(after) - at(before)) * (i - before)) / (after - before)
     }
   }
+  // Camera picture in pixels (height = 1080), then line the shoulders up with the training signers.
+  const H = 1080
+  const W = H * aspect
+  const xs: number[] = []
+  const ys: number[] = []
+  const ws: number[] = []
+  for (let i = 0; i < n; i++) {
+    const lx = m[i * cols + 22], ly = m[i * cols + 23], rx = m[i * cols + 24], ry = m[i * cols + 25]
+    if ([lx, ly, rx, ry].every(Number.isFinite)) {
+      xs.push(((lx + rx) / 2) * W)
+      ys.push(((ly + ry) / 2) * H)
+      ws.push(Math.hypot((lx - rx) * W, (ly - ry) * H))
+    }
+  }
+  const med = (a: number[]) => [...a].sort((p, q) => p - q)[Math.floor(a.length / 2)]
+  const ok = ws.length > 0 && med(ws) > 1
+  const cx = ok ? med(xs) : W / 2
+  const cy = ok ? med(ys) : H / 2
+  const k = ok ? TRAIN.shoulders / med(ws) : 1920 / W
   const out = new Float32Array(MAX_FRAMES * 134)
   for (let i = 0; i < n; i++)
-    for (let c = 0; c < cols; c++) out[i * 134 + c] = (Number.isNaN(m[i * cols + c]) ? 0 : m[i * cols + c]) * (c % 2 === 0 ? 1920 : 1080)
+    for (let c = 0; c < cols; c++) {
+      const v = m[i * cols + c]
+      if (Number.isNaN(v)) continue
+      out[i * 134 + c] = c % 2 === 0 ? TRAIN.cx + (v * W - cx) * k : TRAIN.cy + (v * H - cy) * k
+    }
   return out
 }
 
@@ -147,35 +176,42 @@ export class SignReader {
     this.frames.push(f)
     if (!this.recording) {
       this.frames = this.frames.slice(-6)
-      if (this.seen >= 3) this.recording = true
+      if (this.seen >= 5) this.recording = true
     } else {
-      const quiet = f.t - this.lastHands > 700
+      // A sign ends when the hands are down for a full second (short flickers no longer split one sign into many).
+      const quiet = f.t - this.lastHands > 1000
       const tooLong = f.t - this.frames[0].t > 6000
       if (quiet || tooLong) {
         const sign = this.frames
         this.frames = []
         this.recording = false
-        if (sign.length >= 10) void this.read(sign)
+        const long = sign[sign.length - 1].t - sign[0].t
+        if (sign.length >= 10 && long >= 700) void this.read(sign)
       }
     }
     this.onState?.({ hands: hasHands, recording: this.recording })
   }
 
   private async read(frames: Frame[]) {
-    const r = await loadSignReader()
-    const input = new r.ort.Tensor('float32', prepare(frames), [1, MAX_FRAMES, 134]) as Tensor
-    const out = await r.model.run({ keypoints: input })
-    const logits = out.logits.data as Float32Array
-    const ids = [...r.allowed]
-    const max = Math.max(...ids.map((i) => logits[i]))
-    const exp = ids.map((i) => [i, Math.exp(logits[i] - max)] as const)
-    const sum = exp.reduce((s, [, e]) => s + e, 0)
-    const guesses = exp
-      .map(([i, e]) => ({ word: r.labels[i], score: e / sum }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
-    this.onSign(guesses)
+    const aspect = this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 4 / 3
+    this.onSign(await classify(frames, aspect))
   }
+}
+
+/** Best 3 guesses for one recorded sign. */
+export async function classify(frames: Frame[], aspect: number): Promise<Guess[]> {
+  const r = await loadSignReader()
+  const input = new r.ort.Tensor('float32', prepare(frames, aspect), [1, MAX_FRAMES, 134]) as Tensor
+  const out = await r.model.run({ keypoints: input })
+  const logits = out.logits.data as Float32Array
+  const ids = [...r.allowed]
+  const max = Math.max(...ids.map((i) => logits[i]))
+  const exp = ids.map((i) => [i, Math.exp(logits[i] - max)] as const)
+  const sum = exp.reduce((s, [, e]) => s + e, 0)
+  return exp
+    .map(([i, e]) => ({ word: r.labels[i], score: e / sum }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
 }
 
 /** Turns signed words (ISL word order, no small words) into a readable sentence. */

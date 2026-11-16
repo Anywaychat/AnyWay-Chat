@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Search, Turtle } from 'lucide-react'
 import { loadSigns, type SignWord } from '../signs'
-import SignAvatar from './SignAvatar'
+import SignClip from './SignClip'
 
 /** Everyday ISL words by category: tap one to see its sign; with onPick, "Add" puts it in your message. */
 export default function SignWordPicker({ onPick, compact = false }: { onPick?: (w: SignWord) => void; compact?: boolean }) {
@@ -32,7 +32,7 @@ export default function SignWordPicker({ onPick, compact = false }: { onPick?: (
 
       {open && (
         <div className="dict-player">
-          <div className={`sign-stage ${compact ? '' : 'big'}`} role="img" aria-label={`Sign for ${open.name}`}><SignAvatar ids={[open.id]} loop speed={slow ? 0.5 : 1} /></div>
+          <div className={`sign-stage ${compact ? '' : 'big'}`} role="img" aria-label={`Sign for ${open.name}`}><SignClip ids={[open.id]} loop slow={slow} /></div>
           <div className="dict-player-side">
             <strong>{open.name}</strong>
             <button className="chip-btn" aria-pressed={slow} onClick={() => setSlow(!slow)}><Turtle size={14} aria-hidden="true" /> Slow</button>

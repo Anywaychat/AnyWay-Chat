@@ -38,3 +38,4 @@ dist-ssr
 # Local account database
 data/
 ml/
+public/preview/

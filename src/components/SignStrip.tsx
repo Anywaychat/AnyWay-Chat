@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Play } from 'lucide-react'
 import { loadSigns, toSigns, type Piece } from '../signs'
-import SignAvatar from './SignAvatar'
+import SignClip from './SignClip'
 
 /** Shows a message in Indian Sign Language: the sign clips play one after another, words without a sign stay as text. */
 export default function SignStrip({ text }: { text: string }) {
@@ -27,7 +27,7 @@ export default function SignStrip({ text }: { text: string }) {
     <div className="sign-strip">
       {at >= 0 ? (
         <button className="sign-stage" onClick={() => setAt(-1)} aria-label="Stop signing">
-          {pieces[at].kind === 'sign' && <SignAvatar key={at} ids={[pieces[at].word.id]} onDone={next} />}
+          {pieces[at].kind === 'sign' && <SignClip key={at} ids={[pieces[at].word.id]} onDone={next} />}
         </button>
       ) : (
         <button className="sign-play" onClick={() => setAt(signs[0])}><Play size={14} aria-hidden="true" />Show in sign</button>

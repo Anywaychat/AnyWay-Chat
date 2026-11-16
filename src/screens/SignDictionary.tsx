@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import SignWordPicker from '../components/SignWordPicker'
 
-/** Common Indian Sign Language words, grouped, drawn from real Deaf signers' movements. */
+/** Common Indian Sign Language words, grouped, signed by real Deaf signers. */
 export default function SignDictionary() {
   const nav = useNavigate()
   return (

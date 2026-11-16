@@ -213,12 +213,15 @@ export function usePresence() {
 
 /** Shows a browser notification for new messages when you aren't looking at that chat. */
 export function useNotifications(openKey: string | null) {
-  const { me } = useProfile()
+  const { me, mode } = useProfile()
   const { groups } = useAuth()
   useEffect(() => {
     if (!me) return
     return onMessage((m) => {
       if (m.from === me) return
+      // Deaf users can't hear a message tone, blind users get a tap to go with the voice. (Deaf-blind has its own patterns.)
+      if (mode === 'deaf') navigator.vibrate?.([250, 120, 250])
+      else if (mode === 'blind') navigator.vibrate?.(120)
       if (!document.hidden && m.key === openKey) return
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
       const sender = contactById(m.from).name
@@ -227,5 +230,5 @@ export function useNotifications(openKey: string | null) {
       const url = m.key.startsWith('group:') ? `/group/${m.key.slice(6)}` : `/chat/${m.key.slice(7)}`
       void showLocalNotification(group ? `${sender} in ${group}` : sender, body, m.key, url)
     })
-  }, [me, openKey, groups])
+  }, [me, mode, openKey, groups])
 }

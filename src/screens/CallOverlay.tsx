@@ -26,6 +26,17 @@ function useTimer(start: number | null) {
 export default function CallOverlay() {
   const s = useCall()
   const timer = useTimer(s.phase === 'connected' ? s.startTime : null)
+  // An incoming call buzzes in a strong repeating pattern, so people who can't hear a ringtone still feel it.
+  useEffect(() => {
+    if (s.phase !== 'incoming') return
+    const ring = () => navigator.vibrate?.([700, 300, 700, 300, 700])
+    ring()
+    const t = setInterval(ring, 3000)
+    return () => {
+      clearInterval(t)
+      navigator.vibrate?.(0)
+    }
+  }, [s.phase])
   const active = s.phase !== 'idle'
   const peer = contactById(s.peer ?? '')
   const showVideo = s.video && (s.phase === 'connected' || s.phase === 'connecting' || s.phase === 'outgoing')

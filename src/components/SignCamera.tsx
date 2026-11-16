@@ -50,8 +50,14 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
         const v = video.current!
         v.srcObject = stream
         await v.play()
-        await loadSignReader()
+        // If the sign reader can't load (old phone, no network), keep the camera and the sign suggestions.
+        const ok = await loadSignReader().then(() => true, () => false)
         if (!alive) return
+        if (!ok) {
+          setStatus('ready')
+          setError('noreader')
+          return
+        }
         reader = new SignReader(
           v,
           (guesses) => {
@@ -87,7 +93,7 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
         <video ref={video} playsInline muted className="cam-video" />
         {status === 'ready' && <span className="live-tag">LIVE</span>}
         <span className="hint-tag">
-          {status === 'loading' ? 'Starting the sign reader…' : status === 'error' ? error : recording ? 'Reading your sign…' : hands ? 'Hands found' : 'Raise your hands to sign'}
+          {status === 'loading' ? 'Starting the sign reader…' : status === 'error' ? error : error === 'noreader' ? 'Pick a sign below to reply' : recording ? 'Reading your sign…' : hands ? 'Hands found' : 'Raise your hands to sign'}
         </span>
       </div>
       <div className="sign-read">

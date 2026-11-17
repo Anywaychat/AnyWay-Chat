@@ -7,7 +7,8 @@ import { Avatar, ModeIcon, TabBar } from '../components/ui'
 import { preloadNaturalVoice } from '../speech'
 import InstallButton from '../components/InstallButton'
 import { SIZES, setDisplay, useDisplay } from '../display'
-import { LANGS, setLang, useLang } from '../lang'
+import { setLang, setUnderstood, useLang, useUnderstood } from '../lang'
+import LangPicker from '../components/LangPicker'
 import { setBlindPrefs, useBlindPrefs, type Announce } from '../blindPrefs'
 import { setRate, speak as say } from '../speech'
 import { contactById } from '../state'
@@ -193,17 +194,15 @@ function Display() {
   )
 }
 
-/** The language you speak: calls hear you in it, and translate the other person into it. */
+/** Languages: the one you speak (calls hear you in it, others are translated into it) and others you understand. */
 function LangRow() {
   const lang = useLang()
+  const und = useUnderstood()
   return (
-    <label className="disp-row">
-      <strong>My language</strong>
-      <select className="input" value={lang} onChange={(e) => setLang(e.target.value)}>
-        {LANGS.map((l) => <option key={l.code} value={l.code}>{l.native}{l.native !== l.name ? ` · ${l.name}` : ''}</option>)}
-      </select>
-      <small className="muted">On calls you can speak in this language. What others say is translated into it, as captions and voice.</small>
-    </label>
+    <div className="disp-row">
+      <strong>Languages</strong>
+      <LangPicker speak={lang} understand={und} onSpeak={setLang} onUnderstand={setUnderstood} />
+    </div>
   )
 }
 

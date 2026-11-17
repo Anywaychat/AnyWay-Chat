@@ -25,6 +25,15 @@ export const getLang = () => cur
 export function setLang(l: string) { cur = l; try { localStorage.setItem(KEY, l) } catch { /* ignore */ } subs.forEach((f) => f()) }
 export const useLang = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f) }, () => cur)
 
+// Languages you understand besides the one you speak. Someone speaking one of these is not translated.
+const UKEY = 'anyway.understand'
+let und: string[] = (() => { try { return JSON.parse(localStorage.getItem(UKEY) ?? '[]') } catch { return [] } })()
+export const getUnderstood = () => und
+export function setUnderstood(l: string[]) { und = l; try { localStorage.setItem(UKEY, JSON.stringify(l)) } catch { /* ignore */ } subs.forEach((f) => f()) }
+export const useUnderstood = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f) }, () => und)
+/** True when this language needs translating for me. */
+export const needsTranslation = (theirs: string) => !!theirs && base(theirs) !== base(cur) && !und.some((u) => base(u) === base(theirs))
+
 /** Say text aloud in a given language: the natural voice for English, the phone's own voice for Indian languages. */
 export function sayIn(text: string, lang: string) {
   if (base(lang) === 'en' || typeof speechSynthesis === 'undefined') return speak(text)

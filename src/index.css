@@ -608,3 +608,5 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .lang-chip strong { font-size: 16px; }
 .lang-chip span { font-size: 12px; color: var(--ink-2); }
 .lang-chip[aria-checked='true'] { border: 2px solid var(--accent); background: var(--accent-soft); }
+.lang-q small { font-weight: 400; font-size: 13px; color: var(--ink-2); }
+.lang-chip[aria-pressed='true'] { border: 2px solid var(--accent); background: var(--accent-soft); }

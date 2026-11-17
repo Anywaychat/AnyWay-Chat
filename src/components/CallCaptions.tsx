@@ -3,7 +3,7 @@ import { Captions, CaptionsOff, Languages, Send } from 'lucide-react'
 import { onCaption, sendCaption, type Caption } from '../nexconn'
 import { listenForCaptions, speak } from '../speech'
 import { contactById, useAuth, useProfile } from '../state'
-import { base, getLang, langName, sayIn, useLang } from '../lang'
+import { base, getLang, langName, needsTranslation, sayIn, useLang, useUnderstood } from '../lang'
 import { REMOTE_VIDEO_ID } from '../calls'
 import { LOCAL_VIDEO_ID } from '../calls'
 import { SignReader } from '../sign'
@@ -54,13 +54,13 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
         if (c.from !== peer) return
         if (!c.text) {
           // A hello: they told us their language and whether they want captions. Reply once so they learn ours too.
-          if (c.lang) { setPeerLang(c.lang); if (base(c.lang) !== base(getLang())) setTheirLang(c.lang) }
+          if (c.lang) { setPeerLang(c.lang); if (needsTranslation(c.lang)) setTheirLang(c.lang) }
           setPeerWants((w) => (c.want === undefined ? w : !!c.want || w))
           if (c.final === false && !helloBack.current) { helloBack.current = true; void sendCaption(peer, { text: '', how: 'spoken', final: true, lang: getLang(), want: showCapsRef.current }) }
           return
         }
         const mine = getLang()
-        if (c.lang && base(c.lang) !== base(mine)) {
+        if (c.lang && needsTranslation(c.lang)) {
           setTheirLang(c.lang)
           void api<{ text: string }>('/translate', { method: 'POST', body: { text: c.text, from: c.lang, to: mine } })
             .then(({ text }) => {
@@ -139,7 +139,8 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
     return () => { alive = false; reader?.stop() }
   }, [deaf, video, camOn, peer, words])
 
-  const translating = !!theirLang && base(theirLang) !== base(myLang)
+  const understood = useUnderstood()
+  const translating = !!theirLang && needsTranslation(theirLang) && understood.length >= 0
   // A call in two languages turns captions on, so you can read the translation (and the original) too.
   const autoOn = useRef(false)
   useEffect(() => { if (translating && !autoOn.current) { autoOn.current = true; setShowCaps(true) } }, [translating])

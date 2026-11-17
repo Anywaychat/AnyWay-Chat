@@ -4,6 +4,7 @@ import { Check, CheckCheck, FileText, Hand, Users, Keyboard, Mic, Paperclip, Pen
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import SignCamera from '../components/SignCamera'
+import { VideoPlayer, VideoRecorder, isVideoName } from '../components/VideoMessage'
 import SignStrip from '../components/SignStrip'
 import PhraseBoard from '../components/PhraseBoard'
 import { FROM_DOTS, key, toBraille } from '../braille'
@@ -105,7 +106,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
     messages.filter((m) => m.type === 'image' && !descriptions[m.id]).slice(-3).forEach((m) => void explain(m))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, mode])
-  const preview = (m: ChatMessage) => (m.type === 'text' ? m.text : m.type === 'image' ? 'Photo' : m.type === 'voice' ? 'Voice message' : m.fileName ?? 'File')
+  const preview = (m: ChatMessage) => (m.type === 'text' ? m.text : m.type === 'image' ? 'Photo' : m.type === 'voice' ? 'Voice message' : isVideoName(m.fileName) ? 'Video message' : m.fileName ?? 'File')
 
   /* ---------- Blind: voice commands, read-back, Space to talk ---------- */
   const say = (m: ChatMessage) => `${m.from === me ? 'You' : contactById(m.from).name} ${m.from === me ? 'said' : 'says'}: ${preview(m)}`
@@ -279,7 +280,8 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                       )}
                     </>
                   )}
-                  {m.type === 'file' && (
+                  {m.type === 'file' && isVideoName(m.fileName) && <VideoPlayer src={m.url ?? ''} label={`Video message from ${mine ? 'you' : contactById(m.from).name}`} />}
+                  {m.type === 'file' && !isVideoName(m.fileName) && (
                     <a href={m.url} target="_blank" rel="noreferrer" className="file-chip">
                       <FileText size={22} aria-hidden="true" />
                       <span><strong>{m.fileName}</strong><small>{kb(m.fileSize)}</small></span>
@@ -508,7 +510,8 @@ function BlindComposer({ name, talk }: { name: string; talk: Talk }) {
 }
 
 function DeafComposer({ onSend }: { onSend: SendFn }) {
-  const { lastIncoming } = useContext(ActionsCtx)
+  const { lastIncoming, sendFile } = useContext(ActionsCtx)
+  const [video, setVideo] = useState(false)
   // Opening a chat starts the camera so they can sign right away; it's off everywhere else.
   // It pauses while the app is in the background and comes back when they return.
   const [signing, setSigning] = useState(true)
@@ -521,10 +524,13 @@ function DeafComposer({ onSend }: { onSend: SendFn }) {
   return (
     <div className="composer">
       <div className="mode-bar">
-        <button className="pill" aria-pressed={signing} onClick={() => setSigning(true)}><Hand size={14} aria-hidden="true" />Sign</button>
-        <button className="pill" aria-pressed={!signing} onClick={() => setSigning(false)}><Keyboard size={14} aria-hidden="true" />Type</button>
+        <button className="pill" aria-pressed={signing && !video} onClick={() => { setSigning(true); setVideo(false) }}><Hand size={14} aria-hidden="true" />Sign</button>
+        <button className="pill" aria-pressed={video} onClick={() => setVideo(true)}><Video size={14} aria-hidden="true" />Video</button>
+        <button className="pill" aria-pressed={!signing && !video} onClick={() => { setSigning(false); setVideo(false) }}><Keyboard size={14} aria-hidden="true" />Type</button>
       </div>
-      {signing ? (
+      {video ? (
+        away ? <p className="hint">Camera paused.</p> : <VideoRecorder onSend={(f) => { sendFile(f); setVideo(false) }} />
+      ) : signing ? (
         away ? <p className="hint">Camera paused.</p> : <SignCamera context={lastIncoming} onSend={(text, gloss, confidence) => onSend(text, { mode: 'deaf', gloss, confidence })} />
       ) : (
         <TextField onSend={(t) => onSend(t, { mode: 'deaf' })} mode="deaf" />

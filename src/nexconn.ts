@@ -303,7 +303,7 @@ export async function sendFile(t: Target, file: File): Promise<ChatMessage | nul
   if (t.kind === 'direct') (made.data as { needReceipt?: boolean }).needReceipt = true
   const { code, data } = await channelFor(t).sendMediaMessage(made.data as never)
   if (code !== 0 || !data) return null
-  notifyPush(t, isImage ? '📷 Photo' : `📎 ${file.name}`)
+  notifyPush(t, isImage ? '📷 Photo' : file.type.startsWith('video/') ? '🎥 Video message' : `📎 ${file.name}`)
   sentListeners.forEach((l) => l())
   return toChat(data as Message)
 }
@@ -372,7 +372,7 @@ export async function loadChannels(): Promise<ChannelSummary[]> {
       const cm = m ? toChat(m) : null
       return {
         key: keyFromIdentifier(c.channelType, c.channelId),
-        lastText: cm ? (cm.type === 'image' ? 'Photo' : cm.type === 'file' ? `File: ${cm.fileName}` : cm.type === 'voice' ? 'Voice message' : cm.text) : m ? 'Message' : '',
+        lastText: cm ? (cm.type === 'image' ? 'Photo' : cm.type === 'file' ? (/\.(mp4|webm|mov|m4v)$/i.test(cm.fileName ?? '') ? 'Video message' : `File: ${cm.fileName}`) : cm.type === 'voice' ? 'Voice message' : cm.text) : m ? 'Message' : '',
         lastFrom: m?.senderUserId ?? '',
         lastTime: m?.sentTime ?? c.operationTime,
         unread: c.unreadCount,

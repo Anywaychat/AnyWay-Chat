@@ -16,6 +16,7 @@ import Admin from './screens/Admin'
 import { useNotifications } from './useChat'
 import { useEffect } from 'react'
 import { enablePush } from './push'
+import { useDisplay } from './display'
 
 const DARK_MODES: Mode[] = ['blind', 'deafblind']
 
@@ -39,6 +40,7 @@ export default function App() {
     if (user) void enablePush()
   }, [user])
 
+  const disp = useDisplay()
   if (pathname === '/') return <Landing />
   if (pathname === '/admin') return <Admin />
   if (!ready) return null
@@ -48,10 +50,10 @@ export default function App() {
   if (user && onboarding) return <Navigate to="/home" replace />
   if (!user && pathname === '/start') return <Navigate to="/signup" replace />
 
-  const dark = !!user && DARK_MODES.includes(user.mode)
+  const dark = disp.theme === 'dark' || (disp.theme === 'auto' && !!user && DARK_MODES.includes(user.mode))
 
   return (
-    <div className={`shell${dark ? ' dark' : ''}${onboarding ? ' onboarding' : ''}`}>
+    <div className={`shell${dark ? ' dark' : ''}${disp.contrast ? ' contrast' : ''}${onboarding ? ' onboarding' : ''}`}>
       {!onboarding && (
         <aside className="side" aria-label="Chats">
           <Home />

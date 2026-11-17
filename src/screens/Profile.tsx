@@ -6,6 +6,7 @@ import { MODES, useAuth, type Mode } from '../state'
 import { Avatar, ModeIcon, TabBar } from '../components/ui'
 import { preloadNaturalVoice } from '../speech'
 import InstallButton from '../components/InstallButton'
+import { SIZES, setDisplay, useDisplay } from '../display'
 import { contactById } from '../state'
 
 export default function Profile() {
@@ -108,6 +109,8 @@ export default function Profile() {
           {modeMsg && <p className="form-ok" role="status">{modeMsg}</p>}
         </div>
 
+        <Display />
+
         <div className="section">
           <h2>Learn</h2>
           <div className="panel">
@@ -159,4 +162,28 @@ async function shrink(file: File): Promise<string> {
   c.width = c.height = 192
   c.getContext('2d')!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 192, 192)
   return c.toDataURL('image/jpeg', 0.82)
+}
+
+/** Text size, light/dark and high contrast, for everyone, saved on this device. */
+function Display() {
+  const d = useDisplay()
+  return (
+    <div className="section">
+      <h2>Display</h2>
+      <div className="panel">
+        <div className="disp-row" role="group" aria-label="Text size">
+          <strong>Text size</strong>
+          <div className="seg">{SIZES.map((s) => <button key={s.v} type="button" aria-pressed={d.size === s.v} onClick={() => setDisplay({ size: s.v })} style={{ fontSize: 13 * s.v }}>{s.label}</button>)}</div>
+        </div>
+        <div className="disp-row" role="group" aria-label="Colours">
+          <strong>Colours</strong>
+          <div className="seg">{([['auto', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={d.theme === v} onClick={() => setDisplay({ theme: v })}>{l}</button>)}</div>
+        </div>
+        <label className="disp-row check-row" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="checkbox" checked={d.contrast} onChange={(e) => setDisplay({ contrast: e.target.checked })} />
+          <span><strong>High contrast</strong><br /><small>Black and white with strong borders</small></span>
+        </label>
+      </div>
+    </div>
+  )
 }

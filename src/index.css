@@ -544,3 +544,17 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .aac-icons { display: flex; flex-wrap: wrap; gap: 4px; }
 .aac-icons button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); font-size: 20px; cursor: pointer; }
 .aac-icons button[aria-checked='true'] { border-color: var(--accent); background: var(--accent-soft); }
+
+/* ---------- Display settings: text size, high contrast ---------- */
+.shell { zoom: var(--fs, 1); }
+.contrast { --bg: #FFF; --panel: #FFF; --raised: #FFF; --hover: #EEE; --line: #000; --ink: #000; --ink-2: #000; --ink-3: #222; --accent: #A3110A; --accent-hover: #7A0C07; --accent-soft: #FFE3E0; --me: #0B1640; --me-sub: #FFF; --them: #FFF; }
+.dark.contrast { --bg: #000; --panel: #000; --raised: #000; --hover: #1A1A1A; --line: #FFF; --ink: #FFF; --ink-2: #FFF; --ink-3: #DDD; --accent: #FFD400; --accent-hover: #FFE45C; --accent-ink: #000; --accent-soft: #332B00; --me: #FFD400; --me-sub: #000; --them: #000; }
+.dark.contrast .bubble.mine, .dark.contrast .msg.mine .bubble { color: #000; }
+.contrast .bubble, .contrast .btn, .contrast .input, .contrast .pill, .contrast .tile, .contrast .chip-btn { border: 2px solid var(--ink); }
+.contrast :focus-visible { outline: 3px solid var(--accent) !important; outline-offset: 2px; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button { flex: 1; min-width: 64px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
+.seg button[aria-pressed='true'] { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 700; }
+.disp-row { display: grid; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.disp-row:last-child { border-bottom: 0; }
+.disp-row > strong { font-size: 14px; }

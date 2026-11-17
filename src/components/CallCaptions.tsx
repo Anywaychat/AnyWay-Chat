@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Languages, Send } from 'lucide-react'
+import { Captions, CaptionsOff, Languages, Send } from 'lucide-react'
 import { onCaption, sendCaption, type Caption } from '../nexconn'
 import { listenForCaptions, speak } from '../speech'
 import { contactById, useAuth, useProfile } from '../state'
@@ -35,6 +35,8 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   const canHear = mode !== 'deaf' && mode !== 'deafblind'
   const add = (c: Caption, mine: boolean, orig?: string) => setLines((l) => [...l.slice(-30), { ...c, mine, orig, id: n.current++ }])
   const voiceOnRef = useRef(true)
+  // Captions are on for people who need them (deaf, can't speak); hearing users turn them on with CC so the face stays clear.
+  const [showCaps, setShowCaps] = useState(mode === 'deaf' || mode === 'deafblind' || mode === 'speech')
   const deaf = mode === 'deaf'
   // The ISL words we have signs for, to show what's said as sign language.
   const [words, setWords] = useState<SignWord[]>([])
@@ -165,16 +167,19 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
           {canHear && <button type="button" className="chip-btn" aria-pressed={voiceOn} onClick={() => setVoiceOn((v) => !v)}>{voiceOn ? 'Translated voice on' : 'Original voice'}</button>}
         </div>
       )}
-      <div className="cap-lines" ref={box} aria-live="polite">
+      <button type="button" className="cap-toggle" aria-pressed={showCaps} onClick={() => setShowCaps((v) => !v)}>
+        {showCaps ? <CaptionsOff size={16} aria-hidden="true" /> : <Captions size={16} aria-hidden="true" />}{showCaps ? 'Hide captions' : 'Captions'}
+      </button>
+      {showCaps && <div className="cap-lines" ref={box} aria-live="polite">
         {lines.length === 0 && !partial && <p className="cap-empty">{canSpeak ? `Captions are on. What you and ${them} say appears here.` : `What ${them} says appears here. Type or tap to answer.`}</p>}
-        {lines.map((l) => (
+        {lines.slice(video ? -3 : -8).map((l) => (
           <p key={l.id} className={`cap-line${l.mine ? ' mine' : ''}`}>
             <b>{l.mine ? 'You' : them}{l.how === 'spoken' ? '' : ` (${l.how})`}:</b> <span dir="auto">{l.text}</span>
             {l.orig && <small className="cap-orig" dir="auto">{langName(l.lang)}: {l.orig}</small>}
           </p>
         ))}
         {partial && <p className="cap-line mine partial"><b>You:</b> {partial}…</p>}
-      </div>
+      </div>}
       {!canSpeak && (
         <>
           <div className="cap-quick" role="group" aria-label="Quick replies">

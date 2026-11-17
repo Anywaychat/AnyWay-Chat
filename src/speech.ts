@@ -97,6 +97,9 @@ let generation = 0
 async function pump() {
   if (busy) return
   busy = true
+  // Stop the "Hey Chat" listener while AnyWay talks, so it doesn't hear its own voice
+  // (the chat greeting itself says "Hey Chat"). It starts fresh as soon as we're quiet.
+  try { wakeRec?.abort() } catch { /* already stopped */ }
   const myGen = generation
   while (queue.length && myGen === generation) {
     const text = queue.shift()!
@@ -142,6 +145,7 @@ async function pump() {
     }
   }
   busy = false
+  if (wakeOn && !wakePaused) setTimeout(runWake, 300)
 }
 
 /** Speaks text. `interrupt` stops whatever is being read first. */
@@ -159,6 +163,7 @@ export function stopSpeaking() {
   playing?.pause()
   playing = null
   if (canSpeak) window.speechSynthesis.cancel()
+  if (wakeOn && !wakePaused) setTimeout(runWake, 300)
 }
 
 /** True while AnyWay is talking, so the wake word ignores its own voice. */
@@ -274,7 +279,7 @@ function resumeWake() {
 }
 
 function runWake() {
-  if (!RecCtor || !wakeOn || wakePaused || wakeRec) return
+  if (!RecCtor || !wakeOn || wakePaused || wakeRec || busy) return
   const rec = new RecCtor()
   wakeRec = rec
   rec.lang = LANG

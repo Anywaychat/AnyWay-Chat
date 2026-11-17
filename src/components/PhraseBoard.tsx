@@ -56,9 +56,9 @@ export default function PhraseBoard({ onPick }: { onPick: (text: string) => void
   const tiles = cat === 'Mine' ? mine : BOARDS[cat]
   return (
     <>
-      <div className="mode-bar" role="tablist" aria-label="Phrase groups">
+      <div className="mode-bar" role="group" aria-label="Phrase groups">
         {[...Object.keys(BOARDS), 'Mine'].map((k) => (
-          <button key={k} role="tab" className="pill" aria-pressed={k === cat} onClick={() => { setCat(k); setAdding(false) }}>{k === 'Mine' ? `⭐ Mine${mine.length ? ` (${mine.length})` : ''}` : k}</button>
+          <button key={k} className="pill" aria-pressed={k === cat} onClick={() => { setCat(k); setAdding(false) }}>{k === 'Mine' ? `⭐ Mine${mine.length ? ` (${mine.length})` : ''}` : k}</button>
         ))}
       </div>
       <div className="phrases aac">

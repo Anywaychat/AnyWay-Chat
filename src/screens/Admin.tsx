@@ -173,9 +173,9 @@ function Manage({ onChange }: { onChange: () => void }) {
         <h2 style={{ margin: 0 }}>Manage</h2>
         {key !== 'open' && <button className="btn" style={{ height: 34 }} onClick={() => { setKey(''); try { sessionStorage.removeItem(KEY) } catch { /* ignore */ } }}>Lock</button>}
       </div>
-      <div className="filters" style={{ margin: '12px 0' }} role="tablist">
+      <div className="filters" style={{ margin: '12px 0' }} role="group" aria-label="Sections">
         {(['users', 'reviews', 'reports'] as const).map((t) => (
-          <button key={t} role="tab" className="chip-btn" aria-pressed={tab === t} onClick={() => setTab(t)}>
+          <button key={t} className="chip-btn" aria-pressed={tab === t} onClick={() => setTab(t)}>
             {t === 'users' ? `People (${users.length})` : t === 'reviews' ? `Reviews (${reviews.length})` : `Reports (${reports.length})`}
           </button>
         ))}

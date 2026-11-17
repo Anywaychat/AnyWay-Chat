@@ -222,12 +222,15 @@ export function useNotifications(openKey: string | null) {
       // Deaf users can't hear a message tone, blind users get a tap to go with the voice. (Deaf-blind has its own patterns.)
       if (mode === 'deaf') navigator.vibrate?.([250, 120, 250])
       else if (mode === 'blind') navigator.vibrate?.(120)
-      if (!document.hidden && m.key === openKey) return
-      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
       const sender = contactById(m.from).name
       const group = m.key.startsWith('group:') ? groups.find((g) => `group:${g.id}` === m.key)?.name : undefined
       const body = m.type === 'text' ? m.text : m.type === 'image' ? 'Sent a photo' : m.type === 'voice' ? 'Sent a voice message' : `Sent a file: ${m.fileName}`
       const url = m.key.startsWith('group:') ? `/group/${m.key.slice(6)}` : `/chat/${m.key.slice(7)}`
+      const here = !document.hidden && m.key === openKey
+      // On-screen flash: the edge glows (deaf users see it even inside the chat), plus a banner for other chats.
+      if (!document.hidden && (!here || mode === 'deaf')) window.dispatchEvent(new CustomEvent('anyway:flash', { detail: { title: group ? `${sender} in ${group}` : sender, body, url: here ? null : url } }))
+      if (here) return
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
       void showLocalNotification(group ? `${sender} in ${group}` : sender, body, m.key, url)
     })
   }, [me, mode, openKey, groups])

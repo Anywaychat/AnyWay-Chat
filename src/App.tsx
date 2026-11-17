@@ -17,6 +17,7 @@ import { useNotifications } from './useChat'
 import { useEffect } from 'react'
 import { enablePush } from './push'
 import { useDisplay } from './display'
+import FlashAlert from './components/FlashAlert'
 
 const DARK_MODES: Mode[] = ['blind', 'deafblind']
 
@@ -83,6 +84,7 @@ export default function App() {
         </Routes>
       </main>
       <CallOverlay />
+      <FlashAlert />
       {user?.mode === 'blind' && <VoiceAssistant />}
     </div>
   )

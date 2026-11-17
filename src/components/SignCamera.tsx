@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Delete, Send, X } from 'lucide-react'
-import { glossToSentence, loadSignReader, setSignBoost, SignReader, type Guess } from '../sign'
+import { glossToSentence, isSure, loadSignReader, setSignBoost, SignReader, type Guess } from '../sign'
 import { loadSigns, type SignWord } from '../signs'
 import { rememberSigns, suggestSigns } from '../signSuggest'
 import SignThumb from './SignThumb'
@@ -66,10 +66,12 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
           v,
           (guesses) => {
             // Sure (clear winner): add it. Unsure: ask "Did you sign…?" with the top 3, instead of guessing wrong.
-            const [a, b] = guesses
+            const [a] = guesses
             if (!a || a.score < 0.15) return
-            const sure = a.score >= 0.45 && (!b || a.score >= b.score * 1.8)
-            if (sure) setWords((w) => (w[w.length - 1]?.word === a.word ? w : [...w, { word: a.word, options: guesses }]))
+            if (isSure(guesses)) {
+              setAsk(null)  // they've moved on: an old "Did you sign…?" no longer applies
+              setWords((w) => (w[w.length - 1]?.word === a.word ? w : [...w, { word: a.word, options: guesses }]))
+            }
             else setAsk(guesses)
           },
           (s) => {

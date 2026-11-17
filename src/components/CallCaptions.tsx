@@ -6,7 +6,7 @@ import { contactById, useAuth, useProfile } from '../state'
 import { base, getLang, langName, needsTranslation, sayIn, useLang, useUnderstood } from '../lang'
 import { REMOTE_VIDEO_ID } from '../calls'
 import { LOCAL_VIDEO_ID } from '../calls'
-import { SignReader } from '../sign'
+import { isSure, SignReader } from '../sign'
 import { loadSigns, toSigns, type SignWord } from '../signs'
 import SignClip from './SignClip'
 
@@ -46,6 +46,7 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   useEffect(() => { if (deaf) void loadSigns().then(setWords) }, [deaf])
   const [interp, setInterp] = useState<{ ids: string[]; text: string; key: number } | null>(null)
   const [reading, setReading] = useState('')
+  const [hint, setHint] = useState('')
 
   // Incoming captions: show them; read typed/tapped ones aloud for people who can hear.
   useEffect(
@@ -126,7 +127,9 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
         el,
         (guesses) => {
           const g = guesses[0]
-          if (!g || g.score < 0.3) return
+          if (!g) return
+          // Only clear signs are spoken to the other person; otherwise ask to sign again (a wrong word is worse than a repeat).
+          if (!isSure(guesses)) { setHint(`Not sure (${guesses.slice(0, 2).map((x) => name(x.word)).join(' or ')}?). Sign it again.`); setTimeout(() => setHint(''), 3500); return }
           const c: Caption = { text: name(g.word), how: 'signed', final: true, lang: 'en-IN' }
           add(c, true)
           setReading('')
@@ -183,7 +186,7 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
           <span>{interp.text}</span>
         </div>
       )}
-      {deaf && video && reading && <p className="cap-reading">{reading}</p>}
+      {deaf && video && (hint || reading) && <p className="cap-reading" role="status">{hint || reading}</p>}
       {translating && (
         <div className="cap-trans" role="status">
           <Languages size={15} aria-hidden="true" />

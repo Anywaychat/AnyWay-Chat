@@ -1,7 +1,10 @@
 /**
  * Indian Sign Language reader, fully on the device.
- * Camera -> MediaPipe hand + body points -> AI4Bharat INCLUDE sign model (ONNX) -> words.
- * The point preparation here must match prep() in ml/finetune.py exactly.
+ * Camera -> MediaPipe hand + body points -> sign model (ONNX) -> words.
+ * Current model (v4, Nov 18): 1D-conv + transformer, 3 combined, trained on all 4,257 INCLUDE clips with laptop/phone
+ * camera simulation (ml/train_v4.py). It takes the raw points and does all preparation inside the model file.
+ * Held-out test: 97.8% laptop view, 97.9% phone view; real-browser test on 44 chat words: 84-89% laptop, 93-96% phone.
+ * prepare() below is only for the older model format (AI4Bharat transformer).
  */
 import type { HandLandmarker, PoseLandmarker } from '@mediapipe/tasks-vision'
 import type { InferenceSession, Tensor } from 'onnxruntime-web'
@@ -265,11 +268,17 @@ export async function classify(frames: Frame[], aspect: number): Promise<Guess[]
 }
 
 /** How likely a word is in a chat: greetings far more than colours or animals. Plus a boost for words that fit this moment. */
-const CAT: Record<string, number> = { Greetings: 3, Pronouns: 2, 'Days and Time': 1.3, People: 1.2, Adjectives: 1, Society: 1, Home: 0.8, Places: 0.8, Jobs: 0.6, 'Means of Transportation': 0.6, Clothes: 0.5, Electronics: 0.5, Seasons: 0.5, Colours: 0.35, Animals: 0.35 }
+// Mild on purpose: with the v4 model a strong boost turned "good" into "good afternoon" (browser test, Nov 18).
+const CAT: Record<string, number> = { Greetings: 1.2, Pronouns: 1.15, 'Days and Time': 1.05, People: 1.05, Adjectives: 1, Society: 1, Home: 0.95, Places: 0.95, Jobs: 0.85, 'Means of Transportation': 0.85, Clothes: 0.75, Electronics: 0.75, Seasons: 0.75, Colours: 0.7, Animals: 0.7 }
 let cats = new Map<string, string>()
 void import('./signs').then(({ loadSigns }) => loadSigns()).then((ws) => { cats = new Map(ws.map((w) => [w.id, w.category])) }).catch(() => {})
 let boost = new Set<string>()
-const prior = (id: string) => (CAT[cats.get(id) ?? ''] ?? 1) * (boost.has(id) ? 2 : 1)
+// Off: with the v4 model this weighting made no measurable difference in the browser test (84-89% either way)
+// and the jury may try any word, not only greetings. The in-conversation boost stays.
+let catOn = false
+const prior = (id: string) => (catOn ? CAT[cats.get(id) ?? ''] ?? 1 : 1) * (boost.has(id) ? 2 : 1)
+/** Turn the chat-word weighting on or off (tests compare both). */
+export function setCategoryWeights(on: boolean) { catOn = on }
 export function setSignBoost(ids: string[]) { boost = new Set(ids) }
 
 /** Turns signed words (ISL word order, no small words) into a readable sentence. */
@@ -277,3 +286,7 @@ export function glossToSentence(words: string[]) {
   const s = words.join(' ').replace(/\s+/g, ' ').trim()
   return s ? s.charAt(0).toUpperCase() + s.slice(1) + '.' : ''
 }
+
+/** Sure enough to use a sign without asking: at least 50% and twice the next guess.
+ *  Browser test (Nov 18, 256 readings): 91% of signs used straight away, 1.3% of those wrong. */
+export const isSure = (g: Guess[]) => !!g[0] && g[0].score >= 0.5 && (!g[1] || g[0].score >= g[1].score * 2)

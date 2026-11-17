@@ -10,6 +10,7 @@ import Go from './screens/Go'
 import Calls from './screens/Calls'
 import Profile from './screens/Profile'
 import SignDictionary from './screens/SignDictionary'
+import Review from './screens/Review'
 import Landing from './screens/Landing'
 import Admin from './screens/Admin'
 import { useNotifications } from './useChat'
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="/calls" element={<Calls />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/signs" element={<SignDictionary />} />
+          <Route path="/review" element={<Review />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

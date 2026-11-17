@@ -26,6 +26,8 @@ interface UserRecord {
   createdAt: number
   /** Last time this user used the app (updated at most once an hour). */
   lastSeen?: number
+  /** Turned off by an admin: can't log in or use the app. */
+  suspended?: boolean
 }
 interface GroupRecord {
   id: string
@@ -49,8 +51,19 @@ interface Report {
   reason: string
   time: number
 }
+interface Review {
+  id: string
+  user: string
+  rating: number
+  text: string
+  lang: string
+  showName: boolean
+  hidden?: boolean
+  time: number
+}
 interface Db {
   reports?: Report[]
+  reviews?: Review[]
   calls?: Record<string, CallLog[]>
   users: Record<string, UserRecord>
   sessions: Record<string, string>
@@ -172,7 +185,8 @@ export function createApi(env: Record<string, string | undefined>) {
     const path = url.pathname.slice(4)
     const db = await load()
     const session = (req.headers.authorization ?? '').replace(/^Bearer /, '')
-    const me = db.sessions[session] ? db.users[db.sessions[session]] : undefined
+    const found = db.sessions[session] ? db.users[db.sessions[session]] : undefined
+    const me = found && !found.suspended ? found : undefined
 
     try {
       if (path === '/signup' && req.method === 'POST') {
@@ -198,10 +212,66 @@ export function createApi(env: Record<string, string | undefined>) {
         const u = db.users[cleanId(b.username)]
         const ok = u && timingSafeEqual(Buffer.from(hashPw(String(b.password ?? ''), u.salt), 'hex'), Buffer.from(u.hash, 'hex'))
         if (!u || !ok) return send(res, 401, { error: 'Wrong username or password.' })
+        if (u.suspended) return send(res, 403, { error: 'This account has been turned off. Contact the AnyWay team.' })
         const token = randomBytes(24).toString('hex')
         db.sessions[token] = u.id
         await save(db)
         return send(res, 200, { session: token, user: pub(u) })
+      }
+
+      // ---------- Admin (needs the ADMIN_KEY secret in the x-admin-key header) ----------
+      if (path.startsWith('/admin/')) {
+        const key = String(req.headers['x-admin-key'] ?? '')
+        const real = env.ADMIN_KEY ?? ''
+        const okKey = real.length >= 12 && key.length === real.length && timingSafeEqual(Buffer.from(key), Buffer.from(real))
+        if (!okKey) return send(res, 401, { error: 'Wrong admin key.' })
+        if (path === '/admin/check') return send(res, 200, { ok: true })
+        if (path === '/admin/users' && req.method === 'GET') {
+          return send(res, 200, {
+            users: Object.values(db.users)
+              .map((u) => ({ id: u.id, name: u.name, mode: u.mode, createdAt: u.createdAt, lastSeen: u.lastSeen ?? null, contacts: u.contacts.length, suspended: !!u.suspended, reviewed: (db.reviews ?? []).some((r) => r.user === u.id) }))
+              .sort((a, b) => (b.lastSeen ?? b.createdAt) - (a.lastSeen ?? a.createdAt)),
+          })
+        }
+        if (path === '/admin/reviews' && req.method === 'GET') {
+          return send(res, 200, { reviews: (db.reviews ?? []).slice().sort((a, b) => b.time - a.time).map((r) => ({ ...r, name: db.users[r.user]?.name ?? r.user, mode: db.users[r.user]?.mode })) })
+        }
+        if (path === '/admin/reports' && req.method === 'GET') {
+          return send(res, 200, { reports: (db.reports ?? []).slice().reverse().map((r) => ({ ...r, fromName: db.users[r.from]?.name, aboutName: db.users[r.about]?.name })) })
+        }
+        const um = path.match(/^\/admin\/users\/([a-z0-9]+)\/(suspend|delete)$/)
+        if (um && req.method === 'POST') {
+          const u = db.users[um[1]]
+          if (!u) return send(res, 404, { error: 'No such user.' })
+          if (um[2] === 'suspend') {
+            u.suspended = !!(await readBody(req)).suspended
+          } else {
+            // Delete: the account, its logins, and every link to it.
+            delete db.users[u.id]
+            for (const [t, id] of Object.entries(db.sessions)) if (id === u.id) delete db.sessions[t]
+            for (const other of Object.values(db.users)) {
+              other.contacts = other.contacts.filter((c) => c !== u.id)
+              if (other.blocked) other.blocked = other.blocked.filter((c) => c !== u.id)
+              if (other.nicknames) delete other.nicknames[u.id]
+            }
+            for (const g of Object.values(db.groups ?? {})) g.members = g.members.filter((m) => m !== u.id)
+            db.reviews = (db.reviews ?? []).filter((r) => r.user !== u.id)
+            if (db.push) delete db.push[u.id]
+            if (db.calls) delete db.calls[u.id]
+          }
+          await save(db)
+          return send(res, 200, { ok: true })
+        }
+        const rm = path.match(/^\/admin\/reviews\/([a-z0-9]+)\/(hide|delete)$/)
+        if (rm && req.method === 'POST') {
+          const r = (db.reviews ?? []).find((x) => x.id === rm[1])
+          if (!r) return send(res, 404, { error: 'No such review.' })
+          if (rm[2] === 'hide') r.hidden = !!(await readBody(req)).hidden
+          else db.reviews = (db.reviews ?? []).filter((x) => x.id !== r.id)
+          await save(db)
+          return send(res, 200, { ok: true })
+        }
+        return send(res, 404, { error: 'Not found' })
       }
 
       // Public usage dashboard (/admin): numbers only, nothing that identifies anyone.
@@ -235,6 +305,18 @@ export function createApi(env: Record<string, string | undefined>) {
           push: Object.values(db.push ?? {}).reduce((n, l) => n + l.length, 0),
           blocks: users.reduce((n, u) => n + (u.blocked?.length ?? 0), 0),
           reports: (db.reports ?? []).length,
+          // Reviews people chose to share (name only if they allowed it).
+          reviews: (() => {
+            const shown = (db.reviews ?? []).filter((r) => !r.hidden && db.users[r.user])
+            return {
+              count: shown.length,
+              average: shown.length ? +(shown.reduce((n, r) => n + r.rating, 0) / shown.length).toFixed(2) : null,
+              list: shown
+                .slice()
+                .sort((a, b) => b.time - a.time)
+                .map((r) => ({ rating: r.rating, text: r.text, lang: r.lang, time: r.time, mode: db.users[r.user].mode, name: r.showName ? db.users[r.user].name : null })),
+            }
+          })(),
           // Open to anyone, so no names, usernames or report text: only how people use the app.
           people: users
             .map((u) => ({ mode: u.mode, createdAt: u.createdAt, lastSeen: u.lastSeen ?? null, contacts: u.contacts.length }))
@@ -359,6 +441,24 @@ export function createApi(env: Record<string, string | undefined>) {
         )
         if (changed) await save(db)
         return send(res, 200, { sent })
+      }
+
+      if (path === '/reviews/mine' && req.method === 'GET') {
+        return send(res, 200, { review: (db.reviews ?? []).find((r) => r.user === me.id) ?? null })
+      }
+
+      if (path === '/reviews' && req.method === 'POST') {
+        const b = await readBody(req)
+        const rating = Math.round(Number(b.rating))
+        const text = String(b.text ?? '').trim().slice(0, 1500)
+        if (!(rating >= 1 && rating <= 5)) return send(res, 400, { error: 'Pick 1 to 5 stars.' })
+        if (!text) return send(res, 400, { error: 'Write a few words about AnyWay.' })
+        db.reviews ??= []
+        const old = db.reviews.find((r) => r.user === me.id)
+        const review: Review = { id: old?.id ?? randomBytes(6).toString('hex'), user: me.id, rating, text, lang: String(b.lang ?? '').trim().slice(0, 40) || 'Not given', showName: !!b.showName, hidden: old?.hidden, time: Date.now() }
+        db.reviews = [...db.reviews.filter((r) => r.user !== me.id), review]
+        await save(db)
+        return send(res, 200, { review })
       }
 
       if (path === '/users/search' && req.method === 'GET') {

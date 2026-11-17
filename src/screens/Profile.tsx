@@ -1,7 +1,7 @@
 import { enablePush } from '../push'
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, BookOpen, Camera, CheckCircle2, LogOut, Pencil } from 'lucide-react'
+import { Bell, BookOpen, Camera, Star, CheckCircle2, LogOut, Pencil } from 'lucide-react'
 import { MODES, useAuth, type Mode } from '../state'
 import { Avatar, ModeIcon, TabBar } from '../components/ui'
 import { preloadNaturalVoice } from '../speech'
@@ -114,6 +114,10 @@ export default function Profile() {
             <button className="panel-row" style={{ width: '100%', border: 0, background: 'none', cursor: 'pointer', textAlign: 'left' }} onClick={() => nav('/signs')}>
               <BookOpen size={18} aria-hidden="true" />
               <span className="grow"><strong>Sign dictionary</strong><span>See everyday words in Indian Sign Language</span></span>
+            </button>
+            <button className="panel-row" style={{ width: '100%', border: 0, background: 'none', cursor: 'pointer', textAlign: 'left' }} onClick={() => nav('/review')}>
+              <Star size={18} aria-hidden="true" />
+              <span className="grow"><strong>Give a review</strong><span>Tell us what you think, in your own language</span></span>
             </button>
           </div>
         </div>

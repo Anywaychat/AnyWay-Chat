@@ -498,3 +498,19 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .admin-table th, .admin-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .admin-table th { color: var(--ink-3); font-weight: 700; }
+.review-form { gap: 16px; }
+.stars { border: 0; padding: 0; margin: 0; display: flex; gap: 6px; }
+.stars legend { font-weight: 700; color: var(--ink-2); margin-bottom: 8px; font-size: 14px; }
+.stars button { border: 0; background: none; color: #E8A317; cursor: pointer; padding: 4px; border-radius: 8px; }
+.stars button[aria-pressed='false'] { color: var(--ink-3); }
+.check-row { display: flex; gap: 10px; align-items: center; font-size: 15px; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--accent); }
+.review-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.review-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--bg); }
+.review-card p { margin: 8px 0; white-space: pre-wrap; line-height: 1.5; }
+.review-stars { color: #E8A317; letter-spacing: 2px; }
+.review-card.off, .admin-table tr.off { opacity: .5; }
+.admin-table .actions, .review-card .actions { display: flex; gap: 6px; }
+.admin-table .actions .btn, .review-card .actions .btn { height: 32px; padding: 0 10px; font-size: 13px; }
+.review-way { display: flex; flex-direction: column; gap: 10px; }
+.braille-pad { display: flex; flex-direction: column; gap: 10px; }

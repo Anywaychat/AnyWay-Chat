@@ -60,6 +60,8 @@ export function Login() {
   )
 }
 
+import { LANGS, base, setLang } from '../lang'
+
 export function Signup() {
   const { signup } = useAuth()
   const nav = useNavigate()
@@ -68,6 +70,8 @@ export function Signup() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<Mode>('standard')
+  // Start from the phone's language when we support it.
+  const [lang, setLangPick] = useState(() => LANGS.find((l) => base(l.code) === base(navigator.language ?? ''))?.code ?? 'en-IN')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -122,12 +126,22 @@ export function Signup() {
           </button>
         ))}
       </div>
+      <h2 className="lang-q">Which language do you speak?</h2>
+      <p className="lede" style={{ marginTop: -6 }}>On calls, others hear and read you in their language, and you get them in yours.</p>
+      <div className="lang-grid" role="radiogroup" aria-label="Language you speak">
+        {LANGS.map((l) => (
+          <button key={l.code} type="button" role="radio" aria-checked={lang === l.code} className="lang-chip" onClick={() => setLangPick(l.code)}>
+            <strong lang={l.code}>{l.native}</strong>{l.native !== l.name && <span>{l.name}</span>}
+          </button>
+        ))}
+      </div>
       {error && <p className="form-error" role="alert">{error}</p>}
       <button
         className="btn primary block"
         disabled={busy}
         onClick={async () => {
           setBusy(true)
+          setLang(lang)
           const err = await signup({ username, name, password, mode })
           setBusy(false)
           if (err) {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react'
 import { LOCAL_VIDEO_ID, REMOTE_VIDEO_ID, acceptCall, endCall, getCall, onCall, toggleCam, toggleMic, type CallState } from '../calls'
-import { contactById } from '../state'
+import { contactById, useProfile } from '../state'
+import { speak, stopSpeaking } from '../speech'
 import { Avatar } from '../components/ui'
 import CallCaptions from '../components/CallCaptions'
 
@@ -27,6 +28,40 @@ function useTimer(start: number | null) {
 export default function CallOverlay() {
   const s = useCall()
   const timer = useTimer(s.phase === 'connected' ? s.startTime : null)
+  const { mode } = useProfile()
+  const canHear = mode !== 'deaf' && mode !== 'deafblind'
+  const blind = mode === 'blind'
+  const who = contactById(s.peer ?? '').name
+  // Ringtone for everyone who can hear, and for blind users the caller's name and how to answer, repeated while it rings.
+  useEffect(() => {
+    if (s.phase !== 'incoming' || !canHear) return
+    let ctx: AudioContext | null = null
+    try { ctx = new AudioContext() } catch { /* no audio */ }
+    const tone = () => {
+      if (!ctx) return
+      void ctx.resume()
+      ;[0, 0.45].forEach((at) => {
+        const o = ctx!.createOscillator(); const g = ctx!.createGain()
+        o.frequency.value = 880; o.connect(g); g.connect(ctx!.destination)
+        const t = ctx!.currentTime + at
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35)
+        o.start(t); o.stop(t + 0.36)
+      })
+    }
+    const say = () => speak(`${who} is calling you. ${s.video ? 'Video call' : 'Voice call'}. Say Hey Chat, answer. Or say Hey Chat, decline.`, true)
+    tone()
+    if (blind) setTimeout(say, 1000)
+    let n = 0
+    const t = setInterval(() => { n++; tone(); if (blind && n % 3 === 0) setTimeout(say, 1000) }, 3000)
+    return () => { clearInterval(t); void ctx?.close(); if (blind) stopSpeaking() }
+  }, [s.phase, canHear, blind, who, s.video])
+  // Blind: say what happens with the call.
+  useEffect(() => {
+    if (!blind || !s.peer) return
+    if (s.phase === 'outgoing') speak(`Calling ${who}.`, true)
+    else if (s.phase === 'connected') speak(`Connected with ${who}. Say Hey Chat, hang up, to end.`, true)
+    else if (s.phase === 'ended') speak(s.endedReason ?? 'Call ended.', true)
+  }, [s.phase, blind]) // eslint-disable-line react-hooks/exhaustive-deps
   // An incoming call buzzes in a strong repeating pattern, so people who can't hear a ringtone still feel it.
   useEffect(() => {
     if (s.phase !== 'incoming') return

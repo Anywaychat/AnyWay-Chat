@@ -229,9 +229,28 @@ export function useNotifications(openKey: string | null) {
       const here = !document.hidden && m.key === openKey
       // On-screen flash: the edge glows (deaf users see it even inside the chat), plus a banner for other chats.
       if (!document.hidden && (!here || mode === 'deaf')) window.dispatchEvent(new CustomEvent('anyway:flash', { detail: { title: group ? `${sender} in ${group}` : sender, body, url: here ? null : url } }))
+      // A message sound for everyone who can hear (blind users also hear it read aloud in the open chat).
+      if (mode !== 'deaf' && mode !== 'deafblind' && !document.hidden) chime()
       if (here) return
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
       void showLocalNotification(group ? `${sender} in ${group}` : sender, body, m.key, url)
     })
   }, [me, mode, openKey, groups])
+}
+
+/** A short two-note chime for a new message. */
+let chimeCtx: AudioContext | null = null
+function chime() {
+  try {
+    chimeCtx ??= new AudioContext()
+    const ctx = chimeCtx
+    void ctx.resume()
+    ;[[660, 0], [990, 0.12]].forEach(([f, at]) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain()
+      o.frequency.value = f; o.connect(g); g.connect(ctx.destination)
+      const t = ctx.currentTime + at
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
+      o.start(t); o.stop(t + 0.26)
+    })
+  } catch { /* no audio */ }
 }

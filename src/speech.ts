@@ -447,7 +447,12 @@ export function listenForCaptions(onLine: (text: string) => void, onPartial: (te
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript.trim()
         if (!t) continue
-        if (e.results[i].isFinal) onLine(t)
+        if (e.results[i].isFinal) {
+          // "Hey Chat, hang up" during a call is a command for AnyWay, not words for the other person.
+          const w = t.match(WAKE)
+          if (w && wakeOn && onWakeCommand) { const cmd = t.slice((w.index ?? 0) + w[0].length).trim(); if (cmd) { beep('stop'); onWakeCommand(cmd) } }
+          else onLine(t)
+        }
         else partial += t + ' '
       }
       onPartial(partial.trim())

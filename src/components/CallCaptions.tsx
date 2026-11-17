@@ -137,6 +137,18 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   }
 
   const them = contactById(peer).name
+  // Blind: nothing to read on screen. Their speech is still sent as captions (for a deaf or other-language person),
+  // and translations are spoken. Only the translation switch is shown, and nothing is announced by the screen reader.
+  if (mode === 'blind')
+    return translating ? (
+      <div className="call-captions">
+        <div className="cap-trans">
+          <Languages size={15} aria-hidden="true" />
+          <span>Translating {langName(theirLang)} → {langName(myLang)}</span>
+          <button type="button" className="chip-btn" aria-pressed={voiceOn} onClick={() => setVoiceOn((v) => !v)}>{voiceOn ? 'Translated voice on' : 'Original voice'}</button>
+        </div>
+      </div>
+    ) : null
   return (
     <div className="call-captions" aria-label="Live captions">
       {deaf && interp && (

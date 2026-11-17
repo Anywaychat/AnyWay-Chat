@@ -198,16 +198,63 @@ export class SignReader {
   }
 }
 
+/**
+ * Raw points for v4 models, which do all their own preparation inside the model file (ml/train_v4.py featurize),
+ * so the app and training can't prepare points differently. Here: even 30 fps timing (nearest frame, "not seen"
+ * stays NaN), drop hand-less frames at the start/end like trim_handless(), at most 192 frames like cap().
+ */
+const RAW_FPS = 30
+const RAW_MAX = 192
+const H1 = 25
+const H2 = 46
+export function rawPoints(frames: Frame[]): { data: Float32Array; n: number } {
+  const t0 = frames[0].t
+  let rows: Pt[][] = []
+  const n0 = Math.max(1, Math.round(((frames[frames.length - 1].t - t0) / 1000) * RAW_FPS) + 1)
+  for (let i = 0, j = 0; i < n0; i++) {
+    const t = t0 + (i * 1000) / RAW_FPS
+    while (j < frames.length - 1 && Math.abs(frames[j + 1].t - t) <= Math.abs(frames[j].t - t)) j++
+    rows.push(frames[j].pts)
+  }
+  const seen = rows.map((r) => Number.isFinite(r[H1][0]) || Number.isFinite(r[H2][0]))
+  const first = seen.indexOf(true)
+  const last = seen.lastIndexOf(true)
+  if (first >= 0) {
+    const lo = Math.max(0, first - 2)
+    const hi = Math.min(rows.length, last + 3)
+    if (hi - lo >= 8) rows = rows.slice(lo, hi)
+  }
+  if (rows.length > RAW_MAX) rows = Array.from({ length: RAW_MAX }, (_, i) => rows[Math.round((i * (rows.length - 1)) / (RAW_MAX - 1))])
+  const data = new Float32Array(rows.length * POINTS * 2)
+  rows.forEach((r, i) => r.forEach(([x, y], p) => { data[(i * POINTS + p) * 2] = x; data[(i * POINTS + p) * 2 + 1] = y }))
+  return { data, n: rows.length }
+}
+
+/** Word probabilities from either model generation, indexed like isl_labels.json. */
+async function wordProbs(r: Awaited<ReturnType<typeof loadSignReader>>, frames: Frame[], aspect: number): Promise<Float32Array> {
+  if (r.model.inputNames.includes('points')) {
+    const { data, n } = rawPoints(frames)
+    const out = await r.model.run({
+      points: new r.ort.Tensor('float32', data, [1, n, POINTS, 2]) as Tensor,
+      aspect: new r.ort.Tensor('float32', new Float32Array([aspect]), [1]) as Tensor,
+    })
+    return out.probs.data as Float32Array
+  }
+  const out = await r.model.run({ keypoints: new r.ort.Tensor('float32', prepare(frames, aspect), [1, MAX_FRAMES, 134]) as Tensor })
+  const logits = out.logits.data as Float32Array
+  const max = Math.max(...logits)
+  const e = logits.map((v) => Math.exp(v - max))
+  const sum = e.reduce((a, b) => a + b, 0)
+  return e.map((v) => v / sum)
+}
+
 /** Best 3 guesses for one recorded sign. */
 export async function classify(frames: Frame[], aspect: number): Promise<Guess[]> {
   const r = await loadSignReader()
-  const input = new r.ort.Tensor('float32', prepare(frames, aspect), [1, MAX_FRAMES, 134]) as Tensor
-  const out = await r.model.run({ keypoints: input })
-  const logits = out.logits.data as Float32Array
+  const probs = await wordProbs(r, frames, aspect)
   const ids = [...r.allowed]
-  const max = Math.max(...ids.map((i) => logits[i]))
-  const exp = ids.map((i) => [i, Math.exp(logits[i] - max)] as const)
-  const sum = exp.reduce((s, [, e]) => s + e, 0)
+  const exp = ids.map((i) => [i, probs[i]] as const)
+  const sum = exp.reduce((s, [, e]) => s + e, 0) || 1
   // Weigh by how likely each word is in a chat (greetings far more than "orange"), then renormalise.
   const weighted = exp.map(([i, e]) => ({ word: r.labels[i], score: (e / sum) * prior(r.labels[i]) }))
   const total = weighted.reduce((t, w) => t + w.score, 0) || 1

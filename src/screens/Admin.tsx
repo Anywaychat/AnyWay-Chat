@@ -119,7 +119,7 @@ export default function Admin() {
 
 /** Managing people and reviews: only with the admin key (ADMIN_KEY on the server). */
 function Manage({ onChange }: { onChange: () => void }) {
-  const [key, setKey] = useState(() => { try { return sessionStorage.getItem(KEY) ?? '' } catch { return '' } })
+  const [key, setKey] = useState(() => { try { return sessionStorage.getItem(KEY) ?? 'open' } catch { return 'open' } })
   const [draft, setDraft] = useState('')
   const [tab, setTab] = useState<'users' | 'reviews' | 'reports'>('users')
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -142,6 +142,7 @@ function Manage({ onChange }: { onChange: () => void }) {
       setUsers(u.users); setReviews(rv.reviews); setReports(rp.reports); setMsg('')
     } catch (e) {
       setMsg((e as Error).message)
+      // The server has a key set: ask for it.
       if ((e as Error).message === 'Wrong admin key.') { setKey(''); try { sessionStorage.removeItem(KEY) } catch { /* ignore */ } }
     }
   }, [key, call])
@@ -170,7 +171,7 @@ function Manage({ onChange }: { onChange: () => void }) {
     <section className="admin-panel">
       <div className="row-between">
         <h2 style={{ margin: 0 }}>Manage</h2>
-        <button className="btn" style={{ height: 34 }} onClick={() => { setKey(''); try { sessionStorage.removeItem(KEY) } catch { /* ignore */ } }}>Lock</button>
+        {key !== 'open' && <button className="btn" style={{ height: 34 }} onClick={() => { setKey(''); try { sessionStorage.removeItem(KEY) } catch { /* ignore */ } }}>Lock</button>}
       </div>
       <div className="filters" style={{ margin: '12px 0' }} role="tablist">
         {(['users', 'reviews', 'reports'] as const).map((t) => (

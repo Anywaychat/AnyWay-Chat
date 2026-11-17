@@ -11,6 +11,7 @@ import Calls from './screens/Calls'
 import Profile from './screens/Profile'
 import SignDictionary from './screens/SignDictionary'
 import Landing from './screens/Landing'
+import Admin from './screens/Admin'
 import { useNotifications } from './useChat'
 import { useEffect } from 'react'
 import { enablePush } from './push'
@@ -38,6 +39,7 @@ export default function App() {
   }, [user])
 
   if (pathname === '/') return <Landing />
+  if (pathname === '/admin') return <Admin />
   if (!ready) return null
 
   const onboarding = ['/start', '/login', '/signup'].includes(pathname)

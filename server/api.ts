@@ -24,6 +24,8 @@ interface UserRecord {
   /** Names this user gave their contacts, only they see them. */
   nicknames?: Record<string, string>
   createdAt: number
+  /** Last time this user used the app (updated at most once an hour). */
+  lastSeen?: number
 }
 interface GroupRecord {
   id: string
@@ -202,7 +204,52 @@ export function createApi(env: Record<string, string | undefined>) {
         return send(res, 200, { session: token, user: pub(u) })
       }
 
+      // Public usage dashboard (/admin): numbers only, nothing that identifies anyone.
+      if (path === '/stats' && req.method === 'GET') {
+        const users = Object.values(db.users)
+        const now = Date.now()
+        const DAY = 86400_000
+        const byMode: Record<string, number> = {}
+        users.forEach((u) => (byMode[u.mode] = (byMode[u.mode] ?? 0) + 1))
+        const signups: { day: string; count: number }[] = []
+        for (let i = 13; i >= 0; i--) {
+          const start = new Date(new Date(now - i * DAY).toDateString()).getTime()
+          signups.push({ day: new Date(start).toISOString().slice(0, 10), count: users.filter((u) => u.createdAt >= start && u.createdAt < start + DAY).length })
+        }
+        const calls = Object.values(db.calls ?? {}).flat()
+        return send(res, 200, {
+          generatedAt: now,
+          users: {
+            total: users.length,
+            activeToday: users.filter((u) => (u.lastSeen ?? 0) > now - DAY).length,
+            activeWeek: users.filter((u) => (u.lastSeen ?? 0) > now - 7 * DAY).length,
+            newWeek: users.filter((u) => u.createdAt > now - 7 * DAY).length,
+            byMode,
+            withContacts: users.filter((u) => u.contacts.length > 0).length,
+            withPhoto: users.filter((u) => u.avatar).length,
+          },
+          signups,
+          groups: { total: Object.keys(db.groups ?? {}).length, members: Object.values(db.groups ?? {}).reduce((n, g) => n + g.members.length, 0) },
+          contacts: users.reduce((n, u) => n + u.contacts.length, 0) / 2,
+          calls: { logged: calls.length, week: calls.filter((c) => c.time > now - 7 * DAY).length, video: calls.filter((c) => c.video).length },
+          push: Object.values(db.push ?? {}).reduce((n, l) => n + l.length, 0),
+          blocks: users.reduce((n, u) => n + (u.blocked?.length ?? 0), 0),
+          reports: (db.reports ?? []).length,
+          // Open to anyone, so no names, usernames or report text: only how people use the app.
+          people: users
+            .map((u) => ({ mode: u.mode, createdAt: u.createdAt, lastSeen: u.lastSeen ?? null, contacts: u.contacts.length }))
+            .sort((a, b) => (b.lastSeen ?? b.createdAt) - (a.lastSeen ?? a.createdAt)),
+        })
+      }
+
       if (!me) return send(res, 401, { error: 'Please log in again.' })
+
+      // Remember when people use the app (for the admin dashboard), at most once an hour per person.
+      if (!me.lastSeen || Date.now() - me.lastSeen > 3600_000) {
+        me.lastSeen = Date.now()
+        await save(db)
+      }
+
 
       if (path === '/logout' && req.method === 'POST') {
         delete db.sessions[session]

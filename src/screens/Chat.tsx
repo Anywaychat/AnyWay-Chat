@@ -6,6 +6,7 @@ import { usePresence, useThread } from '../useChat'
 import SignCamera from '../components/SignCamera'
 import { VideoPlayer, VideoRecorder, isVideoName } from '../components/VideoMessage'
 import VoiceNote from '../components/VoiceNote'
+import { translateForMe, useTranslated } from '../translateMsg'
 import SignStrip from '../components/SignStrip'
 import PhraseBoard from '../components/PhraseBoard'
 import { FROM_DOTS, key, toBraille } from '../braille'
@@ -111,6 +112,12 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
 
   /* ---------- Blind: voice commands, read-back, Space to talk ---------- */
   const say = (m: ChatMessage) => `${m.from === me ? 'You' : contactById(m.from).name} ${m.from === me ? 'said' : 'says'}: ${preview(m)}${m.from === me && !isGroup ? (m.read ? '. Read.' : '. Delivered.') : ''}`
+  // Read others' messages in my language.
+  const sayTr = async (m: ChatMessage) => {
+    if (m.from === me || m.type !== 'text') return say(m)
+    const t = await translateForMe(m.text)
+    return t ? `${contactById(m.from).name} says, in ${t.fromName}: ${t.text}` : say(m)
+  }
   useEffect(() => { if (mode === 'blind' && failed) speak(`Not sent. ${failed}`, true) }, [failed, mode])
   const runVoice = (raw: string) => {
     const it = understand(raw, contacts, true)
@@ -119,10 +126,11 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         return speak('Just talk normally. For example: send Priya I am on my way. Call Meera. Read my messages. Or say your message and it goes to this chat.', true)
       case 'read': {
         const last = messages.slice(-5)
-        return speak(last.length ? last.map(say).join('. ') : 'There are no messages here yet.', true)
+        if (!last.length) return speak('There are no messages here yet.', true)
+        return void Promise.all(last.map(sayTr)).then((ls) => speak(ls.join('. '), true))
       }
       case 'repeat':
-        return speak(lastIn ? say(lastIn) : 'No message to repeat yet.', true)
+        return lastIn ? void sayTr(lastIn).then((l) => speak(l, true)) : speak('No message to repeat yet.', true)
       case 'list':
         return speak(contacts.length ? `Your chats: ${contacts.map((p) => p.name).join(', ')}.` : 'You have no contacts yet.', true)
       case 'next': {
@@ -289,8 +297,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                       <span><strong>{m.fileName}</strong><small>{kb(m.fileSize)}</small></span>
                     </a>
                   )}
-                  {m.type === 'text' && m.text}
-                  {m.type === 'text' && mode === 'deaf' && !mine && <SignStrip text={m.text} autoPlay={m.id === newestIncoming} />}
+                  {m.type === 'text' && (mine ? m.text : <MsgText text={m.text} deaf={mode === 'deaf'} autoPlay={m.id === newestIncoming} />)}
                   <span className="stamp">
                     {m.edited && <span className="edited">edited</span>}
                     {fmt(m.sentTime)}
@@ -631,5 +638,24 @@ function DeafBlindChat({ name, messages, me, send }: { name: string; messages: C
       </div>
       <button className="btn primary block" disabled={!draft.trim()} onClick={() => { send(draft.trim()); setDraft('') }}>Send</button>
     </div>
+  )
+}
+
+/** An incoming text message in your language: the translation first, the original underneath (tap to hide). */
+function MsgText({ text, deaf, autoPlay }: { text: string; deaf: boolean; autoPlay: boolean }) {
+  const tr = useTranslated(text)
+  const [orig, setOrig] = useState(true)
+  const shown = tr?.text ?? text
+  return (
+    <>
+      <span dir="auto">{shown}</span>
+      {tr && (
+        <button type="button" className="tr-orig" onClick={() => setOrig((v) => !v)} aria-expanded={orig}>
+          <span className="tr-tag">Translated from {tr.fromName}</span>
+          {orig && <span className="tr-text" dir="auto">{text}</span>}
+        </button>
+      )}
+      {deaf && <SignStrip key={shown} text={shown} autoPlay={autoPlay} />}
+    </>
   )
 }

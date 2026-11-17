@@ -497,6 +497,7 @@ export function createApi(env: Record<string, string | undefined>) {
         const to = String(b.to ?? 'en').split('-')[0]
         const from = String(b.from ?? 'auto').split('-')[0]
         if (!text.trim()) return send(res, 200, { text: '' })
+        if (from === 'auto') return send(res, 200, await translateAuto(text, to))
         return send(res, 200, { text: await translate(text, from, to) })
       }
 
@@ -641,4 +642,26 @@ async function translate(text: string, from: string, to: string): Promise<string
     } catch { /* try the next one */ }
   }
   return text
+}
+
+/** Detect the language of a chat message and translate it. Returns the detected language too. */
+const acache = new Map<string, { text: string; from: string }>()
+async function translateAuto(text: string, to: string): Promise<{ text: string; from: string }> {
+  const k = `${to}|${text}`
+  const hit = acache.get(k)
+  if (hit) return hit
+  for (let i = 0; i < 2; i++) {
+    try {
+      const j = (await getJson(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=${to}&q=${encodeURIComponent(text)}`, 3500)) as [[string][], unknown, string]
+      const out = { text: j[0].map((x) => x[0]).join('').trim(), from: String(j[2] ?? '') }
+      if (out.text) {
+        if (acache.size > 3000) acache.clear()
+        acache.set(k, out)
+        return out
+      }
+    } catch { /* retry once */ }
+  }
+  // Detection failed: fall back to the plain translator, language unknown.
+  const t = await translate(text, 'auto', to)
+  return { text: t, from: t === text ? to : '' }
 }

@@ -13,6 +13,7 @@ import { describePhoto, preloadVision } from '../vision'
  * For blind users: "Hey Chat" works on every screen, and every new message is read aloud.
  */
 import { getBlindPrefs, setBlindPrefs } from '../blindPrefs'
+import { translateForMe } from '../translateMsg'
 
 export default function VoiceAssistant() {
   const auth = useAuth()
@@ -66,11 +67,12 @@ export default function VoiceAssistant() {
         void describePhoto(m.url).then((d) => speak(d ? `The photo shows: ${d}` : "Sorry, I couldn't describe this photo."))
         return
       }
-      const line = m.type === 'text' ? `${sent}: ${m.text}` : `${sent}.`
       // Privacy: read the whole message, only who sent it, or nothing (the message sound still plays).
       const pref = getBlindPrefs().announce
       if (pref === 'off') return
-      speak(pref === 'sender' ? `${sent}.` : line)
+      if (pref === 'sender' || m.type !== 'text') return speak(`${sent}.`)
+      // In my language: translated when they wrote in one I don't understand.
+      void translateForMe(m.text).then((t) => speak(t ? `${sent}, in ${t.fromName}: ${t.text}` : `${sent}: ${m.text}`))
     })
   }, [user])
 

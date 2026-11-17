@@ -12,6 +12,8 @@ import { describePhoto, preloadVision } from '../vision'
 /**
  * For blind users: "Hey Chat" works on every screen, and every new message is read aloud.
  */
+import { getBlindPrefs, setBlindPrefs } from '../blindPrefs'
+
 export default function VoiceAssistant() {
   const auth = useAuth()
   const { user, contacts, groups } = auth
@@ -28,7 +30,8 @@ export default function VoiceAssistant() {
   }, [])
   const ctx = useRef({ contacts, groups, pathname, auth, online })
   ctx.current = { contacts, groups, pathname, auth, online }
-  const speed = useRef(1)
+  const speed = useRef(getBlindPrefs().rate)
+  useEffect(() => setRate(getBlindPrefs().rate), [])
 
   // Greet the person by name once, with what they've missed.
   const greeted = useRef(false)
@@ -57,14 +60,17 @@ export default function VoiceAssistant() {
       // "Priya sent you a message: are you coming tonight?"
       const thing = m.type === 'text' ? 'a message' : m.type === 'image' ? 'a photo' : m.type === 'voice' ? 'a voice message' : `a file, ${m.fileName}`
       const sent = group ? `${who} sent ${thing} in ${group}` : `${who} sent you ${thing}`
-      if (m.type === 'image' && m.url) {
+      if (m.type === 'image' && m.url && getBlindPrefs().announce === 'full') {
         // Say it arrived straight away, then describe it once the model has looked at it.
         speak(`${sent}. Describing it…`)
         void describePhoto(m.url).then((d) => speak(d ? `The photo shows: ${d}` : "Sorry, I couldn't describe this photo."))
         return
       }
       const line = m.type === 'text' ? `${sent}: ${m.text}` : `${sent}.`
-      speak(line)
+      // Privacy: read the whole message, only who sent it, or nothing (the message sound still plays).
+      const pref = getBlindPrefs().announce
+      if (pref === 'off') return
+      speak(pref === 'sender' ? `${sent}.` : line)
     })
   }, [user])
 
@@ -236,6 +242,7 @@ export default function VoiceAssistant() {
         case 'speed':
           speed.current = Math.min(1.6, Math.max(0.7, speed.current + (it.faster ? 0.15 : -0.15)))
           setRate(speed.current)
+          setBlindPrefs({ rate: speed.current })
           return speak(it.faster ? 'Okay, I will speak faster.' : 'Okay, I will speak slower.', true)
         case 'whoami':
           return speak(`You are ${user.name}. Your username is ${user.id.split('').join(' ')}.`, true)
@@ -264,6 +271,21 @@ export default function VoiceAssistant() {
     return () => setWakeWord(false)
   }, [user, nav])
 
+
+  // Say it out loud when the microphone is blocked, instead of only showing it.
+  const wasOn = useRef(false)
+  useEffect(() => {
+    if (state !== 'off') { wasOn.current = true; return }
+    if (wasOn.current) speak('The microphone is blocked, so Hey Chat is off. Allow the microphone for this site in your browser settings. You can still tap the big button at the bottom to speak.', true)
+  }, [state])
+  // Say when the internet drops and comes back.
+  useEffect(() => {
+    const off = () => speak('No internet connection. Messages will send when you are back online.', true)
+    const on = () => speak('Back online.', true)
+    window.addEventListener('offline', off)
+    window.addEventListener('online', on)
+    return () => { window.removeEventListener('offline', off); window.removeEventListener('online', on) }
+  }, [])
 
   if (!canListen) return <div className="wake-pill off" role="status">Voice needs Chrome or Edge</div>
   return (

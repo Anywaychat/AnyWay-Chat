@@ -110,7 +110,8 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   const preview = (m: ChatMessage) => (m.type === 'text' ? m.text : m.type === 'image' ? 'Photo' : m.type === 'voice' ? 'Voice message' : isVideoName(m.fileName) ? 'Video message' : m.fileName ?? 'File')
 
   /* ---------- Blind: voice commands, read-back, Space to talk ---------- */
-  const say = (m: ChatMessage) => `${m.from === me ? 'You' : contactById(m.from).name} ${m.from === me ? 'said' : 'says'}: ${preview(m)}`
+  const say = (m: ChatMessage) => `${m.from === me ? 'You' : contactById(m.from).name} ${m.from === me ? 'said' : 'says'}: ${preview(m)}${m.from === me && !isGroup ? (m.read ? '. Read.' : '. Delivered.') : ''}`
+  useEffect(() => { if (mode === 'blind' && failed) speak(`Not sent. ${failed}`, true) }, [failed, mode])
   const runVoice = (raw: string) => {
     const it = understand(raw, contacts, true)
     switch (it.kind) {

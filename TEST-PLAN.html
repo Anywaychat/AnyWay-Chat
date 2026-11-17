@@ -1,0 +1,203 @@
+<title>AnyWay Test Run</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:wght@600;800&display=swap">
+<style>
+/* Layout: one narrow column, sticky score bar, sections of test rows with pass / fail / skip toggles */
+:root {
+  --bg: #FFF6F4; --panel: #FFFFFF; --line: #EBE3DF; --ink: #16161D; --ink-2: #5A5B65;
+  --accent: #D7322A; --pass: #157F3D; --fail: #C62828; --skip: #8A6D00; --soft: #FDECEA;
+  --body: 'Atkinson Hyperlegible', -apple-system, system-ui, sans-serif;
+  --display: 'Bricolage Grotesque', 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0E0F12; --panel: #17191E; --line: #2A2D35; --ink: #F3F3F5; --ink-2: #A9ACB6; --accent: #FF6B5E; --pass: #5FD38D; --fail: #FF7A70; --skip: #E8C14A; --soft: #3A1714; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #0E0F12; --panel: #17191E; --line: #2A2D35; --ink: #F3F3F5; --ink-2: #A9ACB6; --accent: #FF6B5E; --pass: #5FD38D; --fail: #FF7A70; --skip: #E8C14A; --soft: #3A1714; color-scheme: dark }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 60px; }
+h1 { font: 800 30px/1.1 var(--display); margin: 6px 0 6px; text-wrap: balance; }
+.lede { color: var(--ink-2); margin: 0 0 14px; max-width: 62ch; }
+.setup { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--ink-2); }
+.setup b { color: var(--ink); }
+.setup ul { margin: 6px 0 0; padding-left: 18px; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); margin: 16px calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 0; padding: 10px max(16px, env(safe-area-inset-left, 0px)); display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.meter { flex: 1 1 160px; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; display: flex; }
+.meter i { display: block; height: 100%; }
+.stat { font-size: 14px; display: flex; gap: 12px; flex-wrap: wrap; }
+.stat b.p { color: var(--pass); } .stat b.f { color: var(--fail); } .stat b.s { color: var(--skip); }
+.bar button { font: 600 13px var(--body); border: 1px solid var(--line); background: none; color: var(--ink-2); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+section { margin-top: 26px; }
+h2 { font: 700 19px/1.2 var(--display); margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; }
+h2 small { font: 400 13px var(--body); color: var(--ink-2); }
+.who { font-size: 13px; color: var(--ink-2); margin: 0 0 10px; }
+.row { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; margin-bottom: 8px; border-left: 4px solid var(--line); }
+.row[data-s="pass"] { border-left-color: var(--pass); }
+.row[data-s="fail"] { border-left-color: var(--fail); background: var(--soft); }
+.row[data-s="skip"] { border-left-color: var(--skip); }
+.row .t { font-weight: 700; }
+.row .steps { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14.5px; }
+.row .exp { font-size: 14px; } .row .exp b { color: var(--pass); font-weight: 700; }
+.ctl { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ctl button { font: 700 13px var(--body); min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.ctl button[aria-pressed="true"].p { background: var(--pass); border-color: var(--pass); color: var(--panel); }
+.ctl button[aria-pressed="true"].f { background: var(--fail); border-color: var(--fail); color: var(--panel); }
+.ctl button[aria-pressed="true"].s { background: var(--skip); border-color: var(--skip); color: var(--panel); }
+.ctl input { flex: 1 1 180px; min-width: 0; min-height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: var(--bg); color: var(--ink); font: 14px var(--body); }
+.tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.report { margin-top: 30px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.report textarea { width: 100%; min-height: 140px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: 13px ui-monospace, Menlo, monospace; padding: 10px; }
+.report button { margin-top: 8px; font: 700 14px var(--body); padding: 9px 14px; border-radius: 8px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+</style>
+
+<div class="wrap">
+  <div class="tag">AnyWay Chat · Completeness &amp; UX (50%)</div>
+  <h1>AnyWay Test Run</h1>
+  <p class="lede">Every flow a judge could try, start to end. Mark each one Pass, Fail or Skip and add a note when something feels off. At the end, copy the report and send it to Claude to fix.</p>
+  <div class="setup">
+    <b>Before you start</b>
+    <ul>
+      <li>Two phones (Chrome on Android is best) plus a laptop, on <b>anywaychat.vercel.app</b>.</li>
+      <li>Make 5 fresh accounts: Talks &amp; types, Blind, Deaf, Can't speak, Deaf-blind. Add each other as contacts.</li>
+      <li>Vercel has the VAPID keys set (for push). Phone volume up, good light for the camera.</li>
+    </ul>
+  </div>
+
+  <div class="bar" role="status" aria-live="polite">
+    <div class="meter" aria-hidden="true"><i id="mp" style="background:var(--pass)"></i><i id="mf" style="background:var(--fail)"></i><i id="ms" style="background:var(--skip)"></i></div>
+    <div class="stat"><span><b class="p" id="np">0</b> pass</span><span><b class="f" id="nf">0</b> fail</span><span><b class="s" id="ns">0</b> skip</span><span><b id="nl">0</b> left</span></div>
+    <button type="button" id="reset">Clear all</button>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="report">
+    <h2>Report for Claude</h2>
+    <p class="who">Fails and notes only. Copy it and paste it into the chat.</p>
+    <textarea id="rep" readonly aria-label="Test report"></textarea>
+    <button type="button" id="copy">Copy report</button>
+  </div>
+</div>
+
+<script>
+const T = [
+ ['First visit & signup', 'Laptop + phone', [
+  ['Landing page loads fast', ['Open anywaychat.vercel.app on phone and laptop'], 'Hero, “One message, every way” hub and Get started show with no layout breaks'],
+  ['Sign up in each mode', ['Sign up 5 accounts, one per mode', 'Pick the mode on the start screen'], 'Each lands on Home with the right look (blind and deaf-blind dark)'],
+  ['Log out and back in', ['Me → Log out', 'Log in again'], 'Chats and contacts are still there'],
+  ['Wrong password', ['Log in with a wrong password'], 'Clear error message, no crash'],
+  ['Install as app', ['Me → Install (or browser menu → Add to home screen)', 'Open from the home screen'], 'Opens full screen with the AnyWay icon'],
+ ]],
+ ['Contacts & profile', 'Any account', [
+  ['Find and add a person', ['Home → add person icon', 'Search a username, send request', 'Accept on the other phone'], 'Both see each other in Chats'],
+  ['Nickname a contact', ['Open a chat → info → set nickname'], 'Nickname shows in the chat list and header'],
+  ['Change name, photo, mode', ['Me → edit name, photo, and how you talk'], 'Changes save and the app switches to the new mode'],
+  ['Block and report', ['Chat info → Block, then Report'], 'Blocked person cannot message you; report shows in /admin'],
+ ]],
+ ['Messages: Talks & types', 'Standard ↔ Standard', [
+  ['Send and receive text', ['Send a message both ways'], 'Arrives instantly, sent tick then double tick when read'],
+  ['Photo, file, voice note', ['Send a photo, a PDF, a voice note'], 'All three arrive and open / play'],
+  ['Reply, edit, delete, react', ['Long-press a message → reply, edit, delete, react'], 'Each action shows on both phones'],
+  ['Typing and online status', ['Type on one phone'], '“typing…” and online dot show on the other'],
+  ['Search', ['Search inside a chat and in the chat list'], 'Finds the right messages'],
+  ['Group chat', ['Create a group with 3 people, send messages'], 'Everyone gets them in their own mode'],
+ ]],
+ ['Blind', 'Blind ↔ Standard', [
+  ['Messages read aloud', ['Standard sends a text to Blind'], 'Blind phone reads it in the natural voice'],
+  ['Reply by voice', ['Blind taps the big talk button and speaks'], 'Text arrives correctly on the other phone'],
+  ['“Hey Chat” assistant', ['Say “Hey Chat, message Priya I am late”'], 'Message goes to the right person'],
+  ['Photo described', ['Standard sends a photo'], 'Blind hears a description'],
+  ['TalkBack / VoiceOver', ['Turn on the screen reader', 'Open a chat, send a message, answer a call'], 'Every button is read with a clear name, nothing unlabeled'],
+ ]],
+ ['Deaf', 'Deaf ↔ Standard', [
+  ['Messages shown as signs', ['Standard sends “thank you, how are you”'], 'Deaf sees text plus real signer clips auto-playing'],
+  ['Sign a message with the camera', ['Open chat, Sign tab, sign 2–3 words', 'Tap Send'], 'Words are recognised and sent; camera turns off when leaving the chat'],
+  ['Sign suggestions', ['Look at the suggestion bar while signing'], 'Top 5 likely signs show as clips'],
+  ['Video message', ['Video tab → Record, sign, Stop, Send', 'Play it on the other phone, try 0.5x'], 'Video arrives and plays, slow motion works'],
+  ['Voice note written out', ['Standard sends a voice note to Deaf'], 'Words appear under the voice note within ~15 s'],
+  ['Flash alert', ['Deaf on chat list, Standard sends a message'], 'Screen edge flashes and a banner shows; tapping it opens the chat'],
+  ['Sign dictionary', ['Me → Sign dictionary, search a word'], 'Clip plays'],
+ ]],
+ ['Can\'t speak', 'Speech ↔ Standard', [
+  ['Picture board', ['Tap tiles in Everyday, Feelings, Health'], 'Phrase is spoken aloud and sent'],
+  ['My phrases', ['⭐ Mine → Add a phrase with an icon', 'Log out and in'], 'Phrase is still there'],
+  ['Send as voice', ['Turn on “Send as voice”, tap a tile or type'], 'Other phone gets a natural-voice voice note'],
+ ]],
+ ['Deaf-blind', 'Deaf-blind ↔ Standard', [
+  ['Braille reading', ['Standard sends a message'], 'Braille cells show and the phone buzzes a pattern'],
+  ['Braille typing', ['Type with the 6 braille keys, send'], 'Correct text arrives'],
+ ]],
+ ['Calls', 'Two phones', [
+  ['Voice call', ['Call, accept, talk, end'], 'Clear audio both ways, call shows in Calls tab'],
+  ['Video call', ['Video call, flip mute / camera, end'], 'Both videos show, controls work'],
+  ['Live captions', ['Speak during a call'], 'Your words show as captions on the other phone'],
+  ['Deaf on a call', ['Deaf taps a quick reply and types one'], 'Other phone hears it spoken'],
+  ['Deaf signs on a video call', ['Deaf signs “thank you” at the camera'], 'Other phone hears “thank you”; speech shows as sign clips for Deaf'],
+  ['Blind on a call', ['Blind answers by voice'], 'Works with no screen needed'],
+  ['Missed / declined call', ['Call and decline; call with phone locked'], 'Shows as missed; push arrives'],
+ ]],
+ ['Call translation', 'Tamil ↔ Hindi', [
+  ['Set languages', ['Phone A: Me → My language → Tamil', 'Phone B → Hindi'], 'Choice is saved'],
+  ['Tamil to Hindi', ['A speaks Tamil on a call'], 'B sees Hindi caption with Tamil below and hears Hindi voice'],
+  ['Hindi to Tamil', ['B replies in Hindi'], 'A sees and hears Tamil'],
+  ['Original voice toggle', ['Tap “Translated voice on”'], 'Switches to the person\'s real voice at full volume'],
+  ['Translation to a Deaf user', ['Tamil speaker calls a Deaf user (English)'], 'English captions and sign clips show'],
+  ['Delay', ['Time from end of sentence to caption'], 'Note the seconds in the note box'],
+ ]],
+ ['Notifications', 'Phone locked', [
+  ['Push when app is closed', ['Allow notifications, close the app', 'Send a message from the other phone'], 'Push arrives; tapping opens the right chat'],
+  ['Vibration', ['Deaf and Blind receive a message'], 'Phone buzzes'],
+ ]],
+ ['Display & access', 'Any account', [
+  ['Text size', ['Me → Display → Huge, then browse every tab'], 'Nothing cut off or overlapping'],
+  ['Dark and high contrast', ['Dark + High contrast on'], 'Everything readable, buttons clearly outlined'],
+  ['Pinch zoom', ['Pinch to zoom a chat'], 'Page zooms'],
+  ['Small phone', ['Try the smallest phone you have'], 'No sideways scrolling'],
+ ]],
+ ['Review & admin', 'Laptop', [
+  ['Give a review', ['Me → Give a review in each mode\'s own way'], 'Saves, shows “how” it was given'],
+  ['Dashboard', ['Open /admin'], 'Numbers and reviews match what you did'],
+  ['Manage', ['Hide a review, turn a test user off'], 'Works; turned-off user cannot log in'],
+ ]],
+ ['Stress & edge cases', 'Any', [
+  ['Bad network', ['Turn on airplane mode, send, turn it off'], 'Message sends or shows a clear failed state with retry'],
+  ['Background and return', ['Switch apps for a minute, come back'], 'Chat reconnects, no missing messages'],
+  ['Long message and emoji', ['Send a 500-character message and emojis'], 'Shows correctly'],
+  ['First load on mobile data', ['Clear site data, open on 4G'], 'Usable within a few seconds; voice models load in the background'],
+ ]],
+];
+const KEY = 'anyway.testrun.v1';
+let st = {}; try { st = JSON.parse(localStorage.getItem(KEY) || '{}') } catch {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)) } catch {} };
+const list = document.getElementById('list');
+let total = 0;
+T.forEach(([sec, who, rows], si) => {
+  const s = document.createElement('section');
+  s.innerHTML = `<h2>${sec} <small>${rows.length} checks</small></h2><p class="who">${who}</p>`;
+  rows.forEach(([t, steps, exp], ri) => {
+    total++;
+    const id = `${si}.${ri}`; const v = st[id] || {};
+    const r = document.createElement('div'); r.className = 'row'; r.dataset.s = v.s || '';
+    r.innerHTML = `<div class="t">${t}</div><ul class="steps">${steps.map(x => `<li>${x}</li>`).join('')}</ul><div class="exp"><b>Expect:</b> ${exp}</div>
+      <div class="ctl"><button type="button" class="p">Pass</button><button type="button" class="f">Fail</button><button type="button" class="s">Skip</button><input id="n${id}" placeholder="Note (what happened?)" aria-label="Note for ${t}"></div>`;
+    const btns = r.querySelectorAll('.ctl button'); const inp = r.querySelector('input'); inp.value = v.n || '';
+    const paint = () => btns.forEach(b => b.setAttribute('aria-pressed', String(st[id]?.s === b.className)));
+    btns.forEach(b => b.onclick = () => { const k = b.className === 'p' ? 'pass' : b.className === 'f' ? 'fail' : 'skip'; st[id] = { ...(st[id] || {}), s: st[id]?.s === b.className ? '' : b.className }; r.dataset.s = st[id].s ? k : ''; paint(); save(); sum(); });
+    inp.oninput = () => { st[id] = { ...(st[id] || {}), n: inp.value }; save(); sum(); };
+    r.dataset.s = v.s === 'p' ? 'pass' : v.s === 'f' ? 'fail' : v.s === 's' ? 'skip' : '';
+    paint(); s.appendChild(r);
+  });
+  list.appendChild(s);
+});
+function sum() {
+  const c = { p: 0, f: 0, s: 0 }; Object.values(st).forEach(v => v.s && c[v.s]++);
+  np.textContent = c.p; nf.textContent = c.f; ns.textContent = c.s; nl.textContent = total - c.p - c.f - c.s;
+  mp.style.width = c.p / total * 100 + '%'; mf.style.width = c.f / total * 100 + '%'; ms.style.width = c.s / total * 100 + '%';
+  const lines = [`AnyWay test run: ${c.p} pass, ${c.f} fail, ${c.s} skip, ${total - c.p - c.f - c.s} not done`];
+  T.forEach(([sec, , rows], si) => rows.forEach(([t], ri) => { const v = st[`${si}.${ri}`]; if (v && (v.s === 'f' || v.n)) lines.push(`${v.s === 'f' ? 'FAIL' : v.s === 'p' ? 'pass' : v.s === 's' ? 'skip' : 'note'} · ${sec} · ${t}${v.n ? ': ' + v.n : ''}`) }));
+  rep.value = lines.join('\n');
+}
+sum();
+reset.onclick = () => { if (reset.dataset.armed) { st = {}; save(); location.reload() } else { reset.dataset.armed = 1; reset.textContent = 'Tap again to clear'; setTimeout(() => { delete reset.dataset.armed; reset.textContent = 'Clear all' }, 3000) } };
+copy.onclick = () => { navigator.clipboard.writeText(rep.value).then(() => { copy.textContent = 'Copied' }).catch(() => { rep.select() }) };
+</script>

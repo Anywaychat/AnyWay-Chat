@@ -1,3 +1,4 @@
+import { getBlindPrefs } from './blindPrefs'
 import { showLocalNotification } from './push'
 import { useEffect, useState } from 'react'
 import {
@@ -230,7 +231,7 @@ export function useNotifications(openKey: string | null) {
       // On-screen flash: the edge glows (deaf users see it even inside the chat), plus a banner for other chats.
       if (!document.hidden && (!here || mode === 'deaf')) window.dispatchEvent(new CustomEvent('anyway:flash', { detail: { title: group ? `${sender} in ${group}` : sender, body, url: here ? null : url } }))
       // A message sound for everyone who can hear (blind users also hear it read aloud in the open chat).
-      if (mode !== 'deaf' && mode !== 'deafblind' && !document.hidden) chime()
+      if (mode !== 'deaf' && mode !== 'deafblind' && !document.hidden && getBlindPrefs().sounds) chime()
       if (here) return
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
       void showLocalNotification(group ? `${sender} in ${group}` : sender, body, m.key, url)

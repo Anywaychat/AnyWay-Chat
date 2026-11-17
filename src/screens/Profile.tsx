@@ -8,6 +8,8 @@ import { preloadNaturalVoice } from '../speech'
 import InstallButton from '../components/InstallButton'
 import { SIZES, setDisplay, useDisplay } from '../display'
 import { LANGS, setLang, useLang } from '../lang'
+import { setBlindPrefs, useBlindPrefs, type Announce } from '../blindPrefs'
+import { setRate, speak as say } from '../speech'
 import { contactById } from '../state'
 
 export default function Profile() {
@@ -110,6 +112,7 @@ export default function Profile() {
           {modeMsg && <p className="form-ok" role="status">{modeMsg}</p>}
         </div>
 
+        {user?.mode === 'blind' && <Listening />}
         <Display />
 
         <div className="section">
@@ -201,5 +204,35 @@ function LangRow() {
       </select>
       <small className="muted">On calls you can speak in this language. What others say is translated into it, as captions and voice.</small>
     </label>
+  )
+}
+
+/** Blind users: how new messages are read out, how fast AnyWay talks, and message sounds. */
+function Listening() {
+  const p = useBlindPrefs()
+  const opts: [Announce, string, string][] = [['full', 'Read the whole message', 'Who sent it and what it says'], ['sender', 'Only who sent it', 'Private: the message is not read out'], ['off', 'Silent', 'Only the message sound']]
+  return (
+    <div className="section">
+      <h2>Listening</h2>
+      <div className="panel">
+        <div className="disp-row" role="radiogroup" aria-label="When a message arrives">
+          <strong>When a message arrives</strong>
+          {opts.map(([v, l, d]) => (
+            <label key={v} className="check-row" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input type="radio" name="announce" checked={p.announce === v} onChange={() => { setBlindPrefs({ announce: v }); say(`${l}.`, true) }} />
+              <span><strong>{l}</strong><br /><small>{d}</small></span>
+            </label>
+          ))}
+        </div>
+        <div className="disp-row" role="group" aria-label="Speaking speed">
+          <strong>Speaking speed</strong>
+          <div className="seg">{([[0.8, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Fastest']] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={p.rate === v} onClick={() => { setBlindPrefs({ rate: v }); setRate(v); say(`${l} speed.`, true) }}>{l}</button>)}</div>
+        </div>
+        <label className="disp-row check-row" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="checkbox" checked={p.sounds} onChange={(e) => setBlindPrefs({ sounds: e.target.checked })} />
+          <span><strong>Message sound</strong><br /><small>A short sound when a message arrives</small></span>
+        </label>
+      </div>
+    </div>
   )
 }

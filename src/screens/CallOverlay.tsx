@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react'
 import { LOCAL_VIDEO_ID, REMOTE_VIDEO_ID, acceptCall, endCall, getCall, onCall, toggleCam, toggleMic, type CallState } from '../calls'
 import { contactById, useProfile } from '../state'
@@ -62,6 +62,16 @@ export default function CallOverlay() {
     else if (s.phase === 'connected') speak(`Connected with ${who}. Say Hey Chat, hang up, to end.`, true)
     else if (s.phase === 'ended') speak(s.endedReason ?? 'Call ended.', true)
   }, [s.phase, blind]) // eslint-disable-line react-hooks/exhaustive-deps
+  const first = useRef(true)
+  useEffect(() => {
+    if (first.current) { first.current = false; return }
+    if (blind && s.phase === 'connected') speak(s.micOn ? 'Microphone on.' : 'Muted.', true)
+  }, [s.micOn]) // eslint-disable-line react-hooks/exhaustive-deps
+  const firstCam = useRef(true)
+  useEffect(() => {
+    if (firstCam.current) { firstCam.current = false; return }
+    if (blind && s.phase === 'connected' && s.video) speak(s.camOn ? 'Camera on.' : 'Camera off.', true)
+  }, [s.camOn]) // eslint-disable-line react-hooks/exhaustive-deps
   // An incoming call buzzes in a strong repeating pattern, so people who can't hear a ringtone still feel it.
   useEffect(() => {
     if (s.phase !== 'incoming') return

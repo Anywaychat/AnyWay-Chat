@@ -10,6 +10,7 @@ import {
   NCEngine,
   SendReferenceMessageParams,
   SendTextMessageParams,
+  SendMessageParams,
   SubscribeType,
   UserHandler,
   type Message,
@@ -157,6 +158,20 @@ export function currentUser() {
   return connectedAs
 }
 
+/* ---------- Live call captions ---------- */
+const CAPTION_TYPE = 'anyway:caption'
+/** One line said or typed during a call. `how`: spoken (speech to text), typed, tapped or signed. */
+export interface Caption { text: string; how: 'spoken' | 'typed' | 'tapped' | 'signed'; final: boolean; from?: string }
+const captionListeners = new Set<(c: Caption) => void>()
+export const onCaption = (l: (c: Caption) => void) => sub(captionListeners, l)
+/** Sends a caption to the other person in the call (direct chat channel, not stored). */
+export async function sendCaption(to: string, c: Caption) {
+  const params = new SendMessageParams({ text: c.text, how: c.how, final: c.final }, CAPTION_TYPE)
+  params.disableNotification = true
+  params.disableUpdateLastMessage = true
+  await new DirectChannel(to).sendMessage(params as never).catch(() => {})
+}
+
 function setupHandlers() {
   NCEngine.addConnectionStatusHandler('anyway', new ConnectionStatusHandler({ onConnectionStatusChanged: () => {} }))
   NCEngine.addMessageHandler(
@@ -164,6 +179,11 @@ function setupHandlers() {
     new MessageHandler({
       onMessageReceived({ messages }) {
         messages.forEach((m) => {
+          if (m.messageType === CAPTION_TYPE) {
+            const c = m.content as unknown as Caption
+            captionListeners.forEach((l) => l({ ...c, from: m.senderUserId }))
+            return
+          }
           const cm = toChat(m)
           if (cm) listeners.forEach((l) => l(cm))
         })
@@ -229,6 +249,8 @@ export async function connectAs(userId: string): Promise<boolean> {
     if (!initialized) {
       installCalls()
       NCEngine.initialize({ appKey: import.meta.env.VITE_NEXCONN_APP_KEY })
+      // Live call captions: delivered instantly, never stored, never counted as unread.
+      NCEngine.registerCustomMessages([{ messageType: CAPTION_TYPE, isPersisted: false, isCounted: false }])
       startCallEngine()
       setupHandlers()
       initialized = true

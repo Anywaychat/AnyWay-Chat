@@ -3,6 +3,7 @@ import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react'
 import { LOCAL_VIDEO_ID, REMOTE_VIDEO_ID, acceptCall, endCall, getCall, onCall, toggleCam, toggleMic, type CallState } from '../calls'
 import { contactById } from '../state'
 import { Avatar } from '../components/ui'
+import CallCaptions from '../components/CallCaptions'
 
 function useCall() {
   const [s, setS] = useState<CallState>(getCall())
@@ -64,6 +65,8 @@ export default function CallOverlay() {
             <div className="call-name">{peer.name}</div>
             <div className="call-status" aria-live="polite">{status}</div>
           </div>
+
+          {s.phase === 'connected' && s.peer && <CallCaptions peer={s.peer} micOn={s.micOn} />}
 
           {s.phase === 'incoming' ? (
             <div className="call-ctrls two">

@@ -529,3 +529,7 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .cap-reply { display: flex; gap: 8px; }
 .cap-reply input { flex: 1; min-width: 0; height: 46px; border-radius: 23px; border: 0; padding: 0 16px; font: inherit; font-size: 16px; }
 .cap-reply button { width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.interp { align-self: flex-end; width: 220px; background: rgba(0,0,0,.6); border-radius: 14px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.interp .sign-clip { aspect-ratio: 4 / 3; height: auto; }
+.interp span { color: #fff; font-size: 13px; padding: 0 4px 2px; }
+.cap-reading { margin: 0; color: #FFB3AC; font-size: 14px; font-weight: 700; text-align: center; }

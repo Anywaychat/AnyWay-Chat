@@ -66,7 +66,7 @@ export default function CallOverlay() {
             <div className="call-status" aria-live="polite">{status}</div>
           </div>
 
-          {s.phase === 'connected' && s.peer && <CallCaptions peer={s.peer} micOn={s.micOn} />}
+          {s.phase === 'connected' && s.peer && <CallCaptions peer={s.peer} micOn={s.micOn} video={s.video} camOn={s.camOn} />}
 
           {s.phase === 'incoming' ? (
             <div className="call-ctrls two">

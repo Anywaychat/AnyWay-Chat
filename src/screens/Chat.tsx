@@ -5,6 +5,7 @@ import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import SignCamera from '../components/SignCamera'
 import { VideoPlayer, VideoRecorder, isVideoName } from '../components/VideoMessage'
+import VoiceNote from '../components/VoiceNote'
 import SignStrip from '../components/SignStrip'
 import PhraseBoard from '../components/PhraseBoard'
 import { FROM_DOTS, key, toBraille } from '../braille'
@@ -265,7 +266,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                       <span>{m.replyTo.text}</span>
                     </div>
                   )}
-                  {m.type === 'voice' && <audio className="voice" controls preload="metadata" src={m.url} />}
+                  {m.type === 'voice' && <VoiceNote src={m.url ?? ''} auto={!mine && mode === 'deaf'} />}
                   {m.type === 'image' && (
                     <>
                       <a href={m.url} target="_blank" rel="noreferrer" className="photo">

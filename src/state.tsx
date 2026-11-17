@@ -1,4 +1,5 @@
 import { disconnect, onMessage } from './nexconn'
+import { setStartToken } from './startToken'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 export type Mode = 'blind' | 'deaf' | 'speech' | 'deafblind' | 'standard'
@@ -179,16 +180,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true)
       return
     }
-    api<{ user: User; blocked: string[] }>('/me')
-      .then(({ user: u, blocked: b }) => {
-        setBlockedList(b ?? [])
-        known.set(u.id, toContact(u))
-        setUser(u)
-        return refreshContacts()
+    // Show the last known chats straight away, then refresh everything in one call.
+    const CK = `anyway.boot.${session.slice(0, 12)}`
+    type Boot = { user: User; blocked: string[]; contacts: User[]; groups: Group[]; token?: string | null }
+    const apply = (b: Boot) => {
+      setBlockedList(b.blocked ?? [])
+      known.set(b.user.id, toContact(b.user))
+      const cs = b.contacts.map(toContact)
+      cs.forEach((c) => known.set(c.id, c))
+      b.groups.forEach((g) => g.members.forEach((m) => known.has(m.id) || known.set(m.id, toContact(m))))
+      setContacts(cs)
+      setGroups(b.groups)
+      setUser(b.user)
+    }
+    try {
+      const cached = JSON.parse(localStorage.getItem(CK) ?? 'null') as Boot | null
+      if (cached?.user) { apply(cached); if (cached.token) setStartToken(cached.token); setReady(true) }
+    } catch { /* no cache */ }
+    api<Boot>('/bootstrap')
+      .then((b) => {
+        apply(b)
+        if (b.token) setStartToken(b.token)
+        try { localStorage.setItem(CK, JSON.stringify(b)) } catch { /* full */ }
       })
-      .catch(() => {
-        writeSession(null)
-        setSession(null)
+      .catch((e: Error) => {
+        // Only a rejected session logs you out; a network hiccup keeps the cached screen.
+        if (/sign in|log in|session|401/i.test(e.message)) {
+          try { localStorage.removeItem(CK) } catch { /* ignore */ }
+          writeSession(null)
+          setSession(null)
+        }
       })
       .finally(() => setReady(true))
   }, [session, api, refreshContacts])

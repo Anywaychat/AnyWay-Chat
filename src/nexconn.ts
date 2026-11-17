@@ -18,6 +18,7 @@ import {
 import type { Mode } from './state'
 import { installCalls, setCallUser, startCallEngine } from './calls'
 import { notifyPush } from './push'
+import { takeStartToken } from './startToken'
 
 /** How a message was originally made, carried alongside the text so each receiver can render it their way. */
 export interface Origin {
@@ -258,11 +259,17 @@ export async function connectAs(userId: string): Promise<boolean> {
     if (connectedAs) await NCEngine.disconnect()
     try {
       const session = sessionStorage.getItem('anyway.session') ?? localStorage.getItem('anyway.session') ?? ''
-      const r = await fetch('/api/nexconn-token', { headers: { Authorization: `Bearer ${session}` } })
-      const { token } = (await r.json()) as { token?: string }
+      const fresh = async () => ((await (await fetch('/api/nexconn-token', { headers: { Authorization: `Bearer ${session}` } })).json()) as { token?: string }).token
+      // Use the token that came with the startup call (or the cached one); fetch a new one only if it's refused.
+      let token = (await takeStartToken()) ?? (await fresh())
       if (!token) throw new Error('no token')
       setCallUser(userId)
-      const res = await NCEngine.connect({ token })
+      let res = await NCEngine.connect({ token })
+      if (res.code !== 0) {
+        token = await fresh()
+        if (!token) throw new Error('no token')
+        res = await NCEngine.connect({ token })
+      }
       if (res.code !== 0) throw new Error(`connect ${res.code}`)
       connectedAs = userId
       setCallUser(userId)

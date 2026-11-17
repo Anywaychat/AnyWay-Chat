@@ -344,6 +344,16 @@ export function createApi(env: Record<string, string | undefined>) {
 
       if (path === '/me' && req.method === 'GET') return send(res, 200, { user: pub(me), blocked: me.blocked ?? [] })
 
+      // Everything the app needs to start, in one round trip (it used to be four calls in a row).
+      if (path === '/bootstrap' && req.method === 'GET') {
+        const contacts = me.contacts.map((id) => db.users[id]).filter(Boolean).map((u) => ({ ...pub(u), nickname: me.nicknames?.[u.id] }))
+        const groups = Object.values(db.groups ?? {})
+          .filter((g) => g.members.includes(me.id))
+          .map((g) => ({ id: g.id, name: g.name, owner: g.owner, members: g.members.map((id) => db.users[id]).filter(Boolean).map(pub) }))
+        const token = url.searchParams.get('token') === '0' ? null : await issueNexconnToken(env, pub(me)).catch(() => null)
+        return send(res, 200, { user: pub(me), blocked: me.blocked ?? [], contacts, groups, token })
+      }
+
       if (path === '/block' && req.method === 'POST') {
         const b = await readBody(req)
         const other = cleanId(b.username)

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Delete, Send, X } from 'lucide-react'
-import { glossToSentence, loadSignReader, SignReader, type Guess } from '../sign'
+import { glossToSentence, loadSignReader, setSignBoost, SignReader, type Guess } from '../sign'
 import { loadSigns, type SignWord } from '../signs'
 import { rememberSigns, suggestSigns } from '../signSuggest'
 import SignThumb from './SignThumb'
@@ -20,6 +20,7 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
   const [recording, setRecording] = useState(false)
   const [words, setWords] = useState<Word[]>([])
   const [picking, setPicking] = useState<number | null>(null)
+  const [ask, setAsk] = useState<{ word: string; score: number }[] | null>(null)
   const [dict, setDict] = useState(false)
   // Sign ids like "goodmorning" -> readable "Good Morning".
   const [names, setNames] = useState<Record<string, string>>({})
@@ -34,6 +35,9 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
   // Like a phone keyboard: the first few are picked for this person and this moment.
   const { top, rest } = suggestSigns(all, { context, last: words[words.length - 1]?.word })
   const say = (id: string) => names[id] ?? id
+  // Words that fit this moment (the conversation and what you usually sign) count double.
+  const topIds = top.map((w) => w.id).join(',')
+  useEffect(() => setSignBoost(topIds.split(',')), [topIds])
 
   useEffect(() => {
     let reader: SignReader | null = null
@@ -61,8 +65,12 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
         reader = new SignReader(
           v,
           (guesses) => {
-            // Ignore a repeat of the word just added (one sign read twice), and very unsure guesses.
-            if (guesses.length && guesses[0].score >= 0.2) setWords((w) => (w[w.length - 1]?.word === guesses[0].word ? w : [...w, { word: guesses[0].word, options: guesses }]))
+            // Sure (clear winner): add it. Unsure: ask "Did you sign…?" with the top 3, instead of guessing wrong.
+            const [a, b] = guesses
+            if (!a || a.score < 0.15) return
+            const sure = a.score >= 0.45 && (!b || a.score >= b.score * 1.8)
+            if (sure) setWords((w) => (w[w.length - 1]?.word === a.word ? w : [...w, { word: a.word, options: guesses }]))
+            else setAsk(guesses)
           },
           (s) => {
             setHands(s.hands)
@@ -113,6 +121,15 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
               </button>
             ))}
             <button className="pill" onClick={() => { setWords((ws) => ws.filter((_, i) => i !== picking)); setPicking(null) }}><X size={13} aria-hidden="true" />Remove</button>
+          </div>
+        )}
+        {ask && (
+          <div className="gloss-options sign-ask" role="group" aria-label="Did you sign">
+            <span className="ask-q">Did you sign…</span>
+            {ask.map((o) => (
+              <button key={o.word} className="pill" onClick={() => { setWords((ws) => [...ws, { word: o.word, options: ask }]); setAsk(null) }}>{say(o.word)}</button>
+            ))}
+            <button className="pill" onClick={() => setAsk(null)}><X size={13} aria-hidden="true" />None, sign again</button>
           </div>
         )}
         {sentence && <div className="will-send">Will send <strong>“{sentence}”</strong></div>}

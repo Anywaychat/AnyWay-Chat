@@ -208,11 +208,22 @@ export async function classify(frames: Frame[], aspect: number): Promise<Guess[]
   const max = Math.max(...ids.map((i) => logits[i]))
   const exp = ids.map((i) => [i, Math.exp(logits[i] - max)] as const)
   const sum = exp.reduce((s, [, e]) => s + e, 0)
-  return exp
-    .map(([i, e]) => ({ word: r.labels[i], score: e / sum }))
+  // Weigh by how likely each word is in a chat (greetings far more than "orange"), then renormalise.
+  const weighted = exp.map(([i, e]) => ({ word: r.labels[i], score: (e / sum) * prior(r.labels[i]) }))
+  const total = weighted.reduce((t, w) => t + w.score, 0) || 1
+  return weighted
+    .map((w) => ({ ...w, score: w.score / total }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
 }
+
+/** How likely a word is in a chat: greetings far more than colours or animals. Plus a boost for words that fit this moment. */
+const CAT: Record<string, number> = { Greetings: 3, Pronouns: 2, 'Days and Time': 1.3, People: 1.2, Adjectives: 1, Society: 1, Home: 0.8, Places: 0.8, Jobs: 0.6, 'Means of Transportation': 0.6, Clothes: 0.5, Electronics: 0.5, Seasons: 0.5, Colours: 0.35, Animals: 0.35 }
+let cats = new Map<string, string>()
+void import('./signs').then(({ loadSigns }) => loadSigns()).then((ws) => { cats = new Map(ws.map((w) => [w.id, w.category])) }).catch(() => {})
+let boost = new Set<string>()
+const prior = (id: string) => (CAT[cats.get(id) ?? ''] ?? 1) * (boost.has(id) ? 2 : 1)
+export function setSignBoost(ids: string[]) { boost = new Set(ids) }
 
 /** Turns signed words (ISL word order, no small words) into a readable sentence. */
 export function glossToSentence(words: string[]) {

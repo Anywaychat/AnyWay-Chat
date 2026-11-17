@@ -615,3 +615,5 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .tr-orig { display: grid; gap: 2px; margin-top: 6px; padding: 6px 0 0; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; width: 100%; }
 .tr-tag { font-size: 11px; font-weight: 700; letter-spacing: .02em; color: var(--ink-3); }
 .tr-text { font-size: 13px; color: var(--ink-2); }
+.sign-ask { align-items: center; }
+.ask-q { font-weight: 700; font-size: 14px; margin-right: 4px; }

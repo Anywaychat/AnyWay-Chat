@@ -599,3 +599,4 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .with-video .cap-lines { max-height: 22vh; background: rgba(0,0,0,.45); padding: 8px 12px; }
 .with-video .cap-line { font-size: 16px; }
 .with-video .cap-line.mine { font-size: 13px; }
+.call-poor { margin-top: 4px; display: inline-block; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #8A6D00; color: #fff; }

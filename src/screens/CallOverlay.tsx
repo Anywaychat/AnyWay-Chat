@@ -67,6 +67,7 @@ export default function CallOverlay() {
     if (first.current) { first.current = false; return }
     if (blind && s.phase === 'connected') speak(s.micOn ? 'Microphone on.' : 'Muted.', true)
   }, [s.micOn]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (blind && s.phase === 'connected' && s.poor) speak('The connection is weak.', true) }, [s.poor]) // eslint-disable-line react-hooks/exhaustive-deps
   const firstCam = useRef(true)
   useEffect(() => {
     if (firstCam.current) { firstCam.current = false; return }
@@ -109,6 +110,7 @@ export default function CallOverlay() {
             {!showVideo && <div className="ring"><Avatar c={peer} size="xl" /></div>}
             <div className="call-name">{peer.name}</div>
             <div className="call-status" aria-live="polite">{status}</div>
+            {s.phase === 'connected' && s.poor && <div className="call-poor" role="status">Weak connection: video may freeze</div>}
           </div>
 
           {s.phase === 'connected' && s.peer && <CallCaptions peer={s.peer} micOn={s.micOn} video={s.video} camOn={s.camOn} />}

@@ -1,4 +1,4 @@
-import { NCCallEngine, NCCallEndReason, NCCallMediaType, NCCallType, NCCallUserState, type NCCallSession } from '@nexconn/call'
+import { NCCallEngine, NCCallEndReason, NCCallMediaType, NCCallType, NCCallUserState, NCCallVideoFrameRate, NCCallVideoResolution, type NCCallSession } from '@nexconn/call'
 
 /**
  * One-to-one voice and video calls on the Nexconn Call SDK.
@@ -16,6 +16,8 @@ export interface CallState {
   micOn: boolean
   camOn: boolean
   endedReason: string | null
+  /** The connection has been losing packets for a few seconds. */
+  poor: boolean
 }
 
 let outgoing = false
@@ -39,7 +41,7 @@ function saveCall(answered: boolean) {
     .catch(() => {})
 }
 
-const IDLE: CallState = { phase: 'idle', callId: null, peer: null, video: false, startTime: null, micOn: true, camOn: true, endedReason: null }
+const IDLE: CallState = { phase: 'idle', callId: null, peer: null, video: false, startTime: null, micOn: true, camOn: true, endedReason: null, poor: false }
 
 let state: CallState = IDLE
 let engine: NCCallEngine | null = null
@@ -113,6 +115,21 @@ export function setCallUser(userId: string) {
 export function startCallEngine() {
   if (engine) return
   engine = NCCallEngine.initialize({})
+  // Phone-friendly video: 640x480 at 24 fps, letting the bitrate drop to 250 kbps on a weak network
+  // instead of freezing. (Higher resolutions only add delay on mobile data.)
+  try {
+    engine.setVideoConfig(engine.createVideoConfigBuilder().setResolution(NCCallVideoResolution.RESOLUTION_640X480).setFrameRate(NCCallVideoFrameRate.FPS_24).setMinBitrate(250).setMaxBitrate(1200).build())
+  } catch { /* keep the default */ }
+  // Watch the connection so people are told when it's weak.
+  let bad = 0
+  engine.setConnectionQualityHandler({
+    onSendQualityChanged(q) {
+      const loss = Math.max(q.audioPacketLostRate ?? 0, q.videoPacketLostRate ?? 0)
+      bad = loss > 8 ? bad + 1 : 0
+      const poor = bad >= 3
+      if (poor !== state.poor) set({ poor })
+    },
+  })
   engine.setCallEventHandler({
     onCallReceived({ session }) {
       if (state.phase !== 'idle' && state.phase !== 'ended') return

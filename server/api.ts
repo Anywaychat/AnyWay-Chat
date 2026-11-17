@@ -611,27 +611,34 @@ export function createApi(env: Record<string, string | undefined>) {
   }
 }
 
-/** Translate a line of speech. Cached in memory, since calls repeat short phrases. */
+/** Translate a line of speech. Cached in memory (only real translations), since calls repeat short phrases. */
 const tcache = new Map<string, string>()
+async function getJson(u: string, ms: number) {
+  const r = await fetch(u, { signal: AbortSignal.timeout(ms), headers: { 'User-Agent': 'Mozilla/5.0' } })
+  if (!r.ok) throw new Error(String(r.status))
+  return r.json()
+}
 async function translate(text: string, from: string, to: string): Promise<string> {
   if (from === to) return text
   const k = `${from}|${to}|${text}`
   const hit = tcache.get(k)
   if (hit) return hit
-  let out = ''
-  try {
-    const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=${from}&tl=${to}&q=${encodeURIComponent(text)}`
-    const j = (await (await fetch(u, { signal: AbortSignal.timeout(4000) })).json()) as [[string][]]
-    out = j[0].map((x) => x[0]).join('')
-  } catch {
+  const q = encodeURIComponent(text)
+  const tries: (() => Promise<string>)[] = [
+    async () => ((await getJson(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=${from}&tl=${to}&q=${q}`, 3500)) as [[string][]])[0].map((x) => x[0]).join(''),
+    async () => { const j = await getJson(`https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${from}&tl=${to}&q=${q}`, 3500); const jj = j as { sentences?: { trans: string }[] } | string[]; const v = Array.isArray(jj) ? jj[0] : jj?.sentences?.map((x: { trans: string }) => x.trans).join(''); return String(Array.isArray(v) ? v[0] : v ?? '') },
+    async () => ((await getJson(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=${to}&q=${q}`, 3500)) as [[string][]])[0].map((x) => x[0]).join(''),
+    async () => String(((await getJson(`https://api.mymemory.translated.net/get?q=${q}&langpair=${from === 'auto' ? 'en' : from}|${to}`, 5000)) as { responseData?: { translatedText?: string } }).responseData?.translatedText ?? ''),
+  ]
+  for (const t of tries) {
     try {
-      const u = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from === 'auto' ? 'en' : from}|${to}`
-      const j = (await (await fetch(u, { signal: AbortSignal.timeout(5000) })).json()) as { responseData?: { translatedText?: string } }
-      out = j.responseData?.translatedText ?? ''
-    } catch { /* give back the original */ }
+      const out = (await t()).trim()
+      if (out && out.toLowerCase() !== text.trim().toLowerCase()) {
+        if (tcache.size > 2000) tcache.clear()
+        tcache.set(k, out)
+        return out
+      }
+    } catch { /* try the next one */ }
   }
-  out = out.trim() || text
-  if (tcache.size > 2000) tcache.clear()
-  tcache.set(k, out)
-  return out
+  return text
 }

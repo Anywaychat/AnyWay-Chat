@@ -37,6 +37,9 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   const voiceOnRef = useRef(true)
   // Captions are on for people who need them (deaf, can't speak); hearing users turn them on with CC so the face stays clear.
   const [showCaps, setShowCaps] = useState(mode === 'deaf' || mode === 'deafblind' || mode === 'speech')
+  const showCapsRef = useRef(showCaps)
+  showCapsRef.current = showCaps
+  const helloBack = useRef(false)
   const deaf = mode === 'deaf'
   // The ISL words we have signs for, to show what's said as sign language.
   const [words, setWords] = useState<SignWord[]>([])
@@ -49,6 +52,13 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
     () =>
       onCaption((c) => {
         if (c.from !== peer) return
+        if (!c.text) {
+          // A hello: they told us their language and whether they want captions. Reply once so they learn ours too.
+          if (c.lang) { setPeerLang(c.lang); if (base(c.lang) !== base(getLang())) setTheirLang(c.lang) }
+          setPeerWants((w) => (c.want === undefined ? w : !!c.want || w))
+          if (c.final === false && !helloBack.current) { helloBack.current = true; void sendCaption(peer, { text: '', how: 'spoken', final: true, lang: getLang(), want: showCapsRef.current }) }
+          return
+        }
         const mine = getLang()
         if (c.lang && base(c.lang) !== base(mine)) {
           setTheirLang(c.lang)
@@ -76,9 +86,19 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
     [peer, canHear, deaf, api],
   )
 
-  // My speech becomes captions for the other person (only when my mic is on).
+  // Tell the other phone my language and whether I need captions; it only turns speech into text when someone needs it.
+  // (Speech-to-text running beside the call competes for the mic and processor, which made calls lag.)
+  const peerMode = contactById(peer).mode
+  const [peerWants, setPeerWants] = useState(peerMode === 'deaf' || peerMode === 'deafblind')
+  const [peerLang, setPeerLang] = useState('')
   useEffect(() => {
-    if (!canSpeak || !micOn) return
+    void sendCaption(peer, { text: '', how: 'spoken', final: false, lang: myLang, want: showCaps })
+  }, [peer, myLang, showCaps])
+  const needMyCaptions = peerWants || (!!peerLang && base(peerLang) !== base(myLang))
+
+  // My speech becomes captions for the other person (only when my mic is on and they need them).
+  useEffect(() => {
+    if (!canSpeak || !micOn || !needMyCaptions) return
     const stop = listenForCaptions(
       (text) => {
         setPartial('')
@@ -90,7 +110,7 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
       myLang,
     )
     return () => stop?.()
-  }, [peer, canSpeak, micOn, myLang])
+  }, [peer, canSpeak, micOn, myLang, needMyCaptions])
 
   // Deaf, on a video call: read their signs from the call camera and send each word (spoken aloud on the other side).
   useEffect(() => {
@@ -120,6 +140,9 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   }, [deaf, video, camOn, peer, words])
 
   const translating = !!theirLang && base(theirLang) !== base(myLang)
+  // A call in two languages turns captions on, so you can read the translation (and the original) too.
+  const autoOn = useRef(false)
+  useEffect(() => { if (translating && !autoOn.current) { autoOn.current = true; setShowCaps(true) } }, [translating])
   useEffect(() => {
     voiceOnRef.current = voiceOn
     const el = document.getElementById(REMOTE_VIDEO_ID) as HTMLMediaElement | null

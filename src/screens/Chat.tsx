@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Check, CheckCheck, FileText, Hand, Users, Keyboard, LayoutGrid, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, Info, Trash2, Video, Volume2, X } from 'lucide-react'
+import { Check, CheckCheck, FileText, Hand, Users, Keyboard, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, Info, Trash2, Video, Volume2, X } from 'lucide-react'
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import SignCamera from '../components/SignCamera'
 import SignStrip from '../components/SignStrip'
+import PhraseBoard from '../components/PhraseBoard'
 import { FROM_DOTS, key, toBraille } from '../braille'
 import { startCall } from '../calls'
 import { canListen, listenOnce, preloadNaturalVoice, speak, type Listening } from '../speech'
@@ -532,24 +533,10 @@ function DeafComposer({ onSend }: { onSend: SendFn }) {
   )
 }
 
-const CATS = ['Everyday', 'Health', 'Shop', 'Travel', 'Mine']
-const TILES = ['Yes', 'No', 'Thank you', 'Please wait', 'I need help', 'Please repeat', 'How much?', 'Emergency']
-
 function SpeechComposer({ onSend }: { onSend: SendFn }) {
-  const [cat, setCat] = useState('Everyday')
   return (
     <div className="composer">
-      <div className="mode-bar" role="group" aria-label="Phrase groups">
-        <LayoutGrid size={14} color="var(--ink-3)" aria-hidden="true" />
-        {CATS.map((k) => (
-          <button key={k} className="pill" aria-pressed={k === cat} onClick={() => setCat(k)}>{k}</button>
-        ))}
-      </div>
-      <div className="phrases">
-        {TILES.map((t) => (
-          <button key={t} className={`tile${t === 'Emergency' ? ' alert' : ''}`} onClick={() => onSend(t, { mode: 'speech' })}>{t}</button>
-        ))}
-      </div>
+      <PhraseBoard onPick={(t) => onSend(t, { mode: 'speech' })} />
       <TextField onSend={onSend} mode="speech" placeholder="Or type, and AnyWay will say it" />
     </div>
   )

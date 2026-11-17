@@ -28,6 +28,8 @@ interface UserRecord {
   lastSeen?: number
   /** Turned off by an admin: can't log in or use the app. */
   suspended?: boolean
+  /** Saved phrase tiles (non-speaking users), private to the user. */
+  phrases?: { text: string; icon: string }[]
 }
 interface GroupRecord {
   id: string
@@ -442,6 +444,19 @@ export function createApi(env: Record<string, string | undefined>) {
         )
         if (changed) await save(db)
         return send(res, 200, { sent })
+      }
+
+      if (path === '/phrases' && req.method === 'GET') return send(res, 200, { phrases: me.phrases ?? [] })
+
+      if (path === '/phrases' && req.method === 'POST') {
+        const b = await readBody(req)
+        const list = Array.isArray(b.phrases) ? b.phrases : []
+        me.phrases = list
+          .map((x: { text?: unknown; icon?: unknown }) => ({ text: String(x?.text ?? '').trim().slice(0, 80), icon: String(x?.icon ?? '💬').slice(0, 8) }))
+          .filter((x: { text: string }) => x.text)
+          .slice(0, 60)
+        await save(db)
+        return send(res, 200, { phrases: me.phrases })
       }
 
       if (path === '/reviews/mine' && req.method === 'GET') {

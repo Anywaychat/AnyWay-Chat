@@ -459,3 +459,12 @@ export function listenForCaptions(onLine: (text: string) => void, onPartial: (te
     resumeWake()
   }
 }
+
+/** Turns typed words into a recorded voice (the natural Kokoro voice), to send as a voice message. */
+export async function voiceClip(text: string): Promise<Blob | null> {
+  preloadNaturalVoice()
+  await naturalVoiceSettled()
+  if (!kokoro) return null
+  const audio = await kokoro.generate(text, { voice: 'af_heart', speed: 1 })
+  return audio.toBlob()
+}

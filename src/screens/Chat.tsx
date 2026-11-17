@@ -10,7 +10,7 @@ import SignStrip from '../components/SignStrip'
 import PhraseBoard from '../components/PhraseBoard'
 import { FROM_DOTS, key, toBraille } from '../braille'
 import { startCall } from '../calls'
-import { canListen, listenOnce, preloadNaturalVoice, speak, type Listening } from '../speech'
+import { canListen, listenOnce, preloadNaturalVoice, speak, voiceClip, type Listening } from '../speech'
 import { registerChatVoice, understand } from '../voice'
 import { describePhoto } from '../vision'
 import { sendText } from '../nexconn'
@@ -541,10 +541,24 @@ function DeafComposer({ onSend }: { onSend: SendFn }) {
 }
 
 function SpeechComposer({ onSend }: { onSend: SendFn }) {
+  const { sendVoice } = useContext(ActionsCtx)
+  // Send as text (read aloud on their side), or as a real voice message in the natural voice.
+  const [asVoice, setAsVoice] = useState(false)
+  const [making, setMaking] = useState(false)
+  const send: SendFn = (t, o) => {
+    if (!asVoice) return onSend(t, o)
+    setMaking(true)
+    void voiceClip(t).then((b) => { if (b) sendVoice(b); else onSend(t, o) }).finally(() => setMaking(false))
+  }
   return (
     <div className="composer">
-      <PhraseBoard onPick={(t) => onSend(t, { mode: 'speech' })} />
-      <TextField onSend={onSend} mode="speech" placeholder="Or type, and AnyWay will say it" />
+      <div className="mode-bar" role="group" aria-label="Send as">
+        <button className="pill" aria-pressed={!asVoice} onClick={() => setAsVoice(false)}><Keyboard size={14} aria-hidden="true" />Send as text</button>
+        <button className="pill" aria-pressed={asVoice} onClick={() => { setAsVoice(true); preloadNaturalVoice() }}><Volume2 size={14} aria-hidden="true" />Send as voice</button>
+        {making && <span className="hint" role="status" style={{ margin: 0 }}>Making the voice…</span>}
+      </div>
+      <PhraseBoard onPick={(t) => send(t, { mode: 'speech' })} />
+      <TextField onSend={send} mode="speech" placeholder={asVoice ? 'Type, and it goes as a voice message' : 'Or type, and AnyWay will say it'} />
     </div>
   )
 }

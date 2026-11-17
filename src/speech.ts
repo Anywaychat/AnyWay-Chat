@@ -425,7 +425,7 @@ export async function recordVoiceNote(): Promise<Blob | null> {
  * Live captions for calls: keeps turning what you say into text until stopped.
  * "Hey Chat" is paused meanwhile (a browser can only listen with one recogniser at a time).
  */
-export function listenForCaptions(onLine: (text: string) => void, onPartial: (text: string) => void): (() => void) | null {
+export function listenForCaptions(onLine: (text: string) => void, onPartial: (text: string) => void, lang = LANG): (() => void) | null {
   if (!RecCtor) return null
   pauseWake()
   let stopped = false
@@ -434,7 +434,7 @@ export function listenForCaptions(onLine: (text: string) => void, onPartial: (te
     if (stopped) return
     const r = new RecCtor()
     rec = r
-    r.lang = LANG
+    r.lang = lang
     r.interimResults = true
     r.continuous = true
     r.onresult = (e) => {

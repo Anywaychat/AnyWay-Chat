@@ -491,6 +491,15 @@ export function createApi(env: Record<string, string | undefined>) {
         return send(res, 200, { contacts: me.contacts.map((id) => db.users[id]).filter(Boolean).map((u) => ({ ...pub(u), nickname: me.nicknames?.[u.id] })) })
       }
 
+      if (path === '/translate' && req.method === 'POST') {
+        const b = await readBody(req)
+        const text = String(b.text ?? '').slice(0, 1000)
+        const to = String(b.to ?? 'en').split('-')[0]
+        const from = String(b.from ?? 'auto').split('-')[0]
+        if (!text.trim()) return send(res, 200, { text: '' })
+        return send(res, 200, { text: await translate(text, from, to) })
+      }
+
       if (path === '/nickname' && req.method === 'POST') {
         const b = await readBody(req)
         const other = cleanId(b.username)
@@ -600,4 +609,29 @@ export function createApi(env: Record<string, string | undefined>) {
       return send(res, 500, { error: 'Something went wrong. Try again.' })
     }
   }
+}
+
+/** Translate a line of speech. Cached in memory, since calls repeat short phrases. */
+const tcache = new Map<string, string>()
+async function translate(text: string, from: string, to: string): Promise<string> {
+  if (from === to) return text
+  const k = `${from}|${to}|${text}`
+  const hit = tcache.get(k)
+  if (hit) return hit
+  let out = ''
+  try {
+    const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=${from}&tl=${to}&q=${encodeURIComponent(text)}`
+    const j = (await (await fetch(u, { signal: AbortSignal.timeout(4000) })).json()) as [[string][]]
+    out = j[0].map((x) => x[0]).join('')
+  } catch {
+    try {
+      const u = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from === 'auto' ? 'en' : from}|${to}`
+      const j = (await (await fetch(u, { signal: AbortSignal.timeout(5000) })).json()) as { responseData?: { translatedText?: string } }
+      out = j.responseData?.translatedText ?? ''
+    } catch { /* give back the original */ }
+  }
+  out = out.trim() || text
+  if (tcache.size > 2000) tcache.clear()
+  tcache.set(k, out)
+  return out
 }

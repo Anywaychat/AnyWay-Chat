@@ -585,3 +585,9 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .vnote { display: grid; gap: 4px; }
 .vnote .link-btn { display: inline-flex; align-items: center; gap: 4px; justify-self: start; font-size: 13px; }
 .vnote-text { margin: 0; font-size: 15px; max-width: 280px; }
+
+/* ---------- Call translation ---------- */
+.cap-trans { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.12); color: inherit; margin-bottom: 6px; }
+.cap-trans span { flex: 1; font-weight: 600; }
+.cap-trans .chip-btn { height: 28px; font-size: 12px; }
+.cap-orig { display: block; opacity: .7; font-size: .85em; margin-top: 2px; }

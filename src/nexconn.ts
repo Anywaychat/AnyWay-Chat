@@ -161,12 +161,12 @@ export function currentUser() {
 /* ---------- Live call captions ---------- */
 const CAPTION_TYPE = 'anyway:caption'
 /** One line said or typed during a call. `how`: spoken (speech to text), typed, tapped or signed. */
-export interface Caption { text: string; how: 'spoken' | 'typed' | 'tapped' | 'signed'; final: boolean; from?: string }
+export interface Caption { text: string; how: 'spoken' | 'typed' | 'tapped' | 'signed'; final: boolean; from?: string; lang?: string }
 const captionListeners = new Set<(c: Caption) => void>()
 export const onCaption = (l: (c: Caption) => void) => sub(captionListeners, l)
 /** Sends a caption to the other person in the call (direct chat channel, not stored). */
 export async function sendCaption(to: string, c: Caption) {
-  const params = new SendMessageParams({ text: c.text, how: c.how, final: c.final }, CAPTION_TYPE)
+  const params = new SendMessageParams({ text: c.text, how: c.how, final: c.final, lang: c.lang }, CAPTION_TYPE)
   params.disableNotification = true
   params.disableUpdateLastMessage = true
   await new DirectChannel(to).sendMessage(params as never).catch(() => {})

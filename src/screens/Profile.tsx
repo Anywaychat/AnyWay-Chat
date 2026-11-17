@@ -7,6 +7,7 @@ import { Avatar, ModeIcon, TabBar } from '../components/ui'
 import { preloadNaturalVoice } from '../speech'
 import InstallButton from '../components/InstallButton'
 import { SIZES, setDisplay, useDisplay } from '../display'
+import { LANGS, setLang, useLang } from '../lang'
 import { contactById } from '../state'
 
 export default function Profile() {
@@ -179,11 +180,26 @@ function Display() {
           <strong>Colours</strong>
           <div className="seg">{([['auto', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={d.theme === v} onClick={() => setDisplay({ theme: v })}>{l}</button>)}</div>
         </div>
+        <LangRow />
         <label className="disp-row check-row" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <input type="checkbox" checked={d.contrast} onChange={(e) => setDisplay({ contrast: e.target.checked })} />
           <span><strong>High contrast</strong><br /><small>Black and white with strong borders</small></span>
         </label>
       </div>
     </div>
+  )
+}
+
+/** The language you speak: calls hear you in it, and translate the other person into it. */
+function LangRow() {
+  const lang = useLang()
+  return (
+    <label className="disp-row">
+      <strong>My language</strong>
+      <select className="input" value={lang} onChange={(e) => setLang(e.target.value)}>
+        {LANGS.map((l) => <option key={l.code} value={l.code}>{l.native}{l.native !== l.name ? ` · ${l.name}` : ''}</option>)}
+      </select>
+      <small className="muted">On calls you can speak in this language. What others say is translated into it, as captions and voice.</small>
+    </label>
   )
 }

@@ -282,7 +282,7 @@ export default function SignLab() {
               <button className="link-btn" onClick={() => { if (confirm('Forget every sign you taught on this device?')) forgetSign() }}><Trash2 size={14} aria-hidden="true" />Forget all</button>
             </p>
           )}
-          <p className="lab-sum">{done.length ? `${right} of ${done.length} right · ${top3} in the top 3 · asked "Did you sign…?" ${asked} times` : 'No attempts yet.'}{tooShort ? ` · ${tooShort} too short` : ''}</p>
+          <p className="lab-sum">{done.length ? `${right} of ${done.length} right · ${top3} in the top 3 · asked "Did you sign…?" ${asked} times` : attempts.length ? 'No tests yet. Switch to Test to try the signs you taught.' : 'No attempts yet.'}{tooShort ? ` · ${tooShort} too short` : ''}</p>
           <div className="lab-list">
             {attempts.map((a) => (
               <div key={a.id} className={`lab-row ${verdict(a).replace(/\s/g, '').toLowerCase()}`}>

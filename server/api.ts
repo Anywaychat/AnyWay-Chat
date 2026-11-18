@@ -296,6 +296,19 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
+/** The raw request body, for the Sign lab's uploads (larger than the usual JSON limit). */
+async function readRaw(req: IncomingMessage, limit: number): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const c of req) {
+    size += (c as Buffer).length
+    if (size > limit) throw new Stop(413, { error: 'Too big.' })
+    chunks.push(c as Buffer)
+  }
+  return Buffer.concat(chunks)
+}
+const LAB_DIR = resolve(process.cwd(), 'data/signlab')
+
 /** Signed call to the Nexconn Platform Chat API (Singapore, with backup domain). */
 async function nexconnPost<T>(env: Record<string, string | undefined>, path: string, body: unknown): Promise<(T & { code: number }) | null> {
   const appKey = env.VITE_NEXCONN_APP_KEY
@@ -606,6 +619,22 @@ export function createApi(env: Record<string, string | undefined>) {
       }
 
       if (path === '/me' && req.method === 'GET') return send(res, 200, { user: pub(me), blocked: me.blocked ?? [] })
+
+      // Sign lab (testing only): each attempt's points, readings and a short video, saved on this computer.
+      // Never on the live site: there is no local disk there, and camera video shouldn't leave the person's computer.
+      if (path.startsWith('/signlab') && req.method === 'POST') {
+        if (redis) return send(res, 404, { error: 'Not found' })
+        const id = String(url.searchParams.get('id') ?? '').replace(/[^a-z0-9-]/gi, '').slice(0, 80)
+        if (!id) return send(res, 400, { error: 'Missing id.' })
+        mkdirSync(LAB_DIR, { recursive: true })
+        if (path === '/signlab/video') {
+          writeFileSync(resolve(LAB_DIR, `${id}.webm`), await readRaw(req, 25_000_000))
+          return send(res, 200, { ok: true })
+        }
+        const body = JSON.parse((await readRaw(req, 10_000_000)).toString('utf8') || '{}') as Record<string, unknown>
+        writeFileSync(resolve(LAB_DIR, `${id}.json`), JSON.stringify({ ...body, user: me.id, savedAt: Date.now() }))
+        return send(res, 200, { ok: true })
+      }
 
       // Everything the app needs to start (or refresh), in one round trip. ?token=0 skips the chat token.
       if (path === '/bootstrap' && req.method === 'GET') {

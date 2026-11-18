@@ -13,7 +13,7 @@ const MAX_FRAMES = 200
 const FPS = 25 // the sign videos the model learned from
 const POINTS = 67 // 25 body + 21 + 21 hand points
 
-type Pt = [number, number]
+export type Pt = [number, number]
 export type Frame = { t: number; pts: Pt[] }
 export type Guess = { word: string; score: number }
 
@@ -138,10 +138,19 @@ export class SignReader {
   private onSign: (guesses: Guess[]) => void
   private onState?: (s: { hands: boolean; recording: boolean }) => void
   private minGap: number
+  private onSegment?: (s: Segment) => void
+  private onFrame?: (pts: Pt[], hands: number, pose: boolean) => void
 
   /** `maxFps` limits how often the camera is read: on a video call, reading every screen refresh took processing power
    *  the call needed (video dropped from 26 to 20 frames a second on a fast laptop, more on phones). */
-  constructor(video: HTMLVideoElement, onSign: (guesses: Guess[]) => void, onState?: (s: { hands: boolean; recording: boolean }) => void, { maxFps = 60 } = {}) {
+  constructor(
+    video: HTMLVideoElement,
+    onSign: (guesses: Guess[]) => void,
+    onState?: (s: { hands: boolean; recording: boolean }) => void,
+    { maxFps = 60, onSegment, onFrame }: { maxFps?: number; onSegment?: (s: Segment) => void; onFrame?: (pts: Pt[], hands: number, pose: boolean) => void } = {},
+  ) {
+    this.onSegment = onSegment
+    this.onFrame = onFrame
     this.video = video
     this.onSign = onSign
     this.onState = onState
@@ -162,6 +171,7 @@ export class SignReader {
           const hands = hr.landmarks.map((h) => h.map((p) => [p.x, p.y] as Pt))
           const [h1, h2] = assign(hands, pose)
           const pts = [...(pose ?? Array(25).fill(NAN)), ...(h1 ?? Array(21).fill(NAN)), ...(h2 ?? Array(21).fill(NAN))] as Pt[]
+          this.onFrame?.(pts, hands.length, !!pose)
           this.step({ t: now, pts }, hands.length > 0)
         }
       }
@@ -194,14 +204,22 @@ export class SignReader {
         this.recording = false
         const long = sign[sign.length - 1].t - sign[0].t
         if (sign.length >= 10 && long >= 700) void this.read(sign)
+        // Too short to be a sign: the Sign lab still wants to know it happened.
+        else this.onSegment?.({ frames: sign, guesses: [], aspect: this.aspect(), skipped: `too short (${(long / 1000).toFixed(1)} s)` })
       }
     }
     this.onState?.({ hands: hasHands, recording: this.recording })
   }
 
+  private aspect() {
+    return this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 4 / 3
+  }
+
   private async read(frames: Frame[]) {
     const aspect = this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 4 / 3
-    this.onSign(await classify(frames, aspect))
+    const guesses = await classify(frames, aspect)
+    this.onSign(guesses)
+    this.onSegment?.({ frames, guesses, aspect })
   }
 }
 
@@ -294,3 +312,18 @@ export function glossToSentence(words: string[]) {
 /** Sure enough to use a sign without asking: at least 50% and twice the next guess.
  *  Browser test (Nov 18, 256 readings): 91% of signs used straight away, 1.3% of those wrong. */
 export const isSure = (g: Guess[]) => !!g[0] && g[0].score >= 0.5 && (!g[1] || g[0].score >= g[1].score * 2)
+
+/** One attempt the reader saw: its points, what it read, and why it was skipped (if it was). For the Sign lab. */
+export type Segment = { frames: Frame[]; guesses: Guess[]; aspect: number; skipped?: string }
+
+/** The model's own top guesses, before any chat weighting, for the Sign lab. */
+export async function topWords(frames: Frame[], aspect: number, k = 10): Promise<Guess[]> {
+  const r = await loadSignReader()
+  const probs = await wordProbs(r, frames, aspect)
+  const ids = [...r.allowed]
+  const sum = ids.reduce((t, i) => t + probs[i], 0) || 1
+  return ids
+    .map((i) => ({ word: r.labels[i], score: probs[i] / sum }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k)
+}

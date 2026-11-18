@@ -10,6 +10,7 @@ import Go from './screens/Go'
 import Calls from './screens/Calls'
 import Profile from './screens/Profile'
 import SignDictionary from './screens/SignDictionary'
+import SignLab from './screens/SignLab'
 import Review from './screens/Review'
 import Landing from './screens/Landing'
 import Admin from './screens/Admin'
@@ -34,7 +35,7 @@ function EmptyPane() {
   )
 }
 
-const TITLES: Record<string, string> = { '/home': 'Chats', '/calls': 'Calls', '/profile': 'Profile', '/go': 'Face to face', '/signs': 'Sign dictionary', '/review': 'Review AnyWay', '/login': 'Log in', '/signup': 'Create your account', '/admin': 'Dashboard' }
+const TITLES: Record<string, string> = { '/home': 'Chats', '/calls': 'Calls', '/profile': 'Profile', '/go': 'Face to face', '/signs': 'Sign dictionary', '/signlab': 'Sign lab', '/review': 'Review AnyWay', '/login': 'Log in', '/signup': 'Create your account', '/admin': 'Dashboard' }
 
 /**
  * Screen readers announce the page title, and every screen used to share one ("AnyWay Chat · talk your way"), so moving
@@ -158,6 +159,7 @@ export default function App() {
           <Route path="/calls" element={<Calls />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/signs" element={<SignDictionary />} />
+          <Route path="/signlab" element={<SignLab />} />
           <Route path="/review" element={<Review />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

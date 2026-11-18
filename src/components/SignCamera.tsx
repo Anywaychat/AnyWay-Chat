@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Delete, Send, X } from 'lucide-react'
-import { glossToSentence, isSure, loadSignReader, setSignBoost, SignReader, type Guess } from '../sign'
+import { framingHint, glossToSentence, isSure, loadSignReader, setSignBoost, SignReader, type Guess } from '../sign'
 import { loadSigns, type SignWord } from '../signs'
 import { rememberSigns, suggestSigns } from '../signSuggest'
 import SignThumb from './SignThumb'
@@ -16,6 +16,7 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
   const video = useRef<HTMLVideoElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
+  const [tip, setTip] = useState('')
   const [hands, setHands] = useState(false)
   const [recording, setRecording] = useState(false)
   const [words, setWords] = useState<Word[]>([])
@@ -62,6 +63,7 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
           setError('noreader')
           return
         }
+        let lastTip = 0
         reader = new SignReader(
           v,
           (guesses) => {
@@ -77,6 +79,14 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
           (s) => {
             setHands(s.hands)
             setRecording(s.recording)
+          },
+          {
+            onFrame: (pts, _n, pose) => {
+              const now = performance.now()
+              if (now - lastTip < 500) return
+              lastTip = now
+              setTip(framingHint(pts, pose))
+            },
           },
         )
         await reader.start()
@@ -103,12 +113,12 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
         <video ref={video} playsInline muted className="cam-video" />
         {status === 'ready' && <span className="live-tag">LIVE</span>}
         <span className="hint-tag">
-          {status === 'loading' ? 'Starting the sign reader…' : status === 'error' ? error : error === 'noreader' ? 'Pick a sign below to reply' : recording ? 'Reading your sign…' : hands ? 'Hands found' : 'Raise your hands to sign'}
+          {status === 'loading' ? 'Starting the sign reader…' : status === 'error' ? error : error === 'noreader' ? 'Pick a sign below to reply' : recording ? 'Reading your sign…' : tip ? tip : hands ? 'Hands found' : 'Raise your hands to sign'}
         </span>
       </div>
       <div className="sign-read">
         <div className="gloss" aria-live="polite">
-          {words.length === 0 && <span className="muted">Sign one word at a time. Lower your hands between words.</span>}
+          {words.length === 0 && <span className="muted">Sign one word at a time. Lower your hands or hold still between words.</span>}
           {words.map((w, i) => (
             <button key={i} className="gloss-word" aria-label={`${say(w.word)}, tap to change`} onClick={() => setPicking(picking === i ? null : i)}>
               {say(w.word).toUpperCase()}

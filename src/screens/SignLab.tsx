@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Shuffle } from 'lucide-react'
-import { isSure, loadSignReader, setSignBoost, SignReader, topWords, type Guess, type Pt, type Segment } from '../sign'
+import { framingHint, isSure, loadSignReader, setSignBoost, SignReader, topWords, type Guess, type Pt, type Segment } from '../sign'
 import { loadSigns, type SignWord } from '../signs'
 import SignClip from '../components/SignClip'
 import { readSession } from '../state'
@@ -89,17 +89,7 @@ export default function SignLab() {
         frameCount = 0
         lastFps = now
       }
-      // Framing hints from the shoulders (body points 11 and 12) and the hands' positions.
-      let hint = ''
-      const [l, r] = [pts[11], pts[12]]
-      if (!pose) hint = 'Make sure your head and shoulders are in the picture.'
-      else if (Number.isFinite(l[0]) && Number.isFinite(r[0])) {
-        const span = Math.abs(l[0] - r[0])
-        if (span > 0.55) hint = 'Move back a little: your shoulders fill most of the picture, so raised hands go out of view.'
-        else if (span < 0.15) hint = 'Come a bit closer: you look small in the picture.'
-      }
-      const handPts = pts.slice(25).filter(([x]) => Number.isFinite(x))
-      if (!hint && handPts.some(([x, y]) => x < 0.02 || x > 0.98 || y < 0.02 || y > 0.98)) hint = 'A hand is at the edge of the picture.'
+      const hint = framingHint(pts, pose)
       setLive({ fps: Math.round(fps), hands, pose, hint })
     }
 

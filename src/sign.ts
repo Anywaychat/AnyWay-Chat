@@ -198,7 +198,10 @@ export class SignReader {
       // A sign ends when the hands are down for a full second (short flickers no longer split one sign into many).
       const quiet = f.t - this.lastHands > 1000
       const tooLong = f.t - this.frames[0].t > 6000
-      if (quiet || tooLong) {
+      // Hands that stay in view but stop moving also end a sign (laptop cameras often keep resting hands in the
+      // picture, which made every attempt run to the 6 s limit and mix signing with resting).
+      const still = f.t - this.frames[0].t > 1200 && this.stillFor(f.t) > 900
+      if (quiet || tooLong || still) {
         const sign = this.frames
         this.frames = []
         this.recording = false
@@ -211,6 +214,22 @@ export class SignReader {
     this.onState?.({ hands: hasHands, recording: this.recording })
   }
 
+  /** How long (ms) both wrists have stayed within a small distance, relative to the shoulder width. */
+  private stillFor(now: number) {
+    const fr = this.frames
+    const last = fr[fr.length - 1].pts
+    const l = last[11], r = last[12]
+    const span = Number.isFinite(l[0]) && Number.isFinite(r[0]) ? Math.max(0.08, Math.abs(l[0] - r[0])) : 0.25
+    for (let i = fr.length - 2; i >= 0; i--) {
+      const moved = [H1, H2].some((h) => {
+        const a = fr[i].pts[h], b = last[h]
+        return Number.isFinite(a[0]) !== Number.isFinite(b[0]) || (Number.isFinite(a[0]) && Math.hypot(a[0] - b[0], a[1] - b[1]) > 0.12 * span)
+      })
+      if (moved) return now - fr[i + 1].t
+    }
+    return now - fr[0].t
+  }
+
   private aspect() {
     return this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 4 / 3
   }
@@ -221,6 +240,21 @@ export class SignReader {
     this.onSign(guesses)
     this.onSegment?.({ frames, guesses, aspect })
   }
+}
+
+/** A framing tip for signing from the body points, or '' when the picture is fine. */
+export function framingHint(pts: Pt[], pose: boolean): string {
+  if (!pose) return 'Make sure your head and shoulders are in the picture.'
+  const [l, r] = [pts[11], pts[12]]
+  if (Number.isFinite(l[0]) && Number.isFinite(r[0])) {
+    const span = Math.abs(l[0] - r[0])
+    const y = (l[1] + r[1]) / 2
+    if (y > 0.62) return 'Tilt the screen back or sit up: your shoulders are near the bottom, so your hands leave the picture. Show your chest too.'
+    if (span > 0.45) return 'Move back a little: your shoulders fill most of the picture, so your hands go out of view.'
+    if (span < 0.15) return 'Come a bit closer: you look small in the picture.'
+  }
+  if (pts.slice(25).some(([x, y]) => Number.isFinite(x) && (x < 0.02 || x > 0.98 || y < 0.02 || y > 0.98))) return 'A hand is at the edge of the picture.'
+  return ''
 }
 
 /**

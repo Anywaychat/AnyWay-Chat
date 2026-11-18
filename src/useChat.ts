@@ -131,7 +131,7 @@ export function useThread(target: Target) {
     if (sent) {
       retries.current.delete(id)
       setFailed(null)
-      setMessages((list) => (list.some((m) => m.id === sent.id) ? list.filter((m) => m.id !== id) : list.map((m) => (m.id === id ? sent : m))))
+      setMessages((list) => (list.some((m) => m.id === sent.id) ? list.filter((m) => m.id !== id) : list.map((m) => (m.id === id ? { ...sent, from: me } : m))))
     } else {
       setFailed('Not sent. Your message is kept in the chat: tap Retry.')
       setTimeout(() => setFailed(null), 6000)

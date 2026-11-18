@@ -7,6 +7,7 @@ import {
   DirectChannel,
   GroupChannel,
   Helper,
+  MessageDirection,
   MessageHandler,
   NCEngine,
   SendReferenceMessageParams,
@@ -110,7 +111,8 @@ function toChat(m: Message): ChatMessage | null {
   const base = {
     id: m.messageId || `${m.sentTime}-${m.senderUserId}`,
     key: keyFromIdentifier(m.channelIdentifier.channelType, m.channelIdentifier.channelId),
-    from: m.senderUserId,
+    // Messages you sent always count as yours (a missing sender put them on the other side of the chat).
+    from: m.senderUserId || (m.direction === MessageDirection.SEND ? connectedAs ?? '' : ''),
     sentTime: m.sentTime,
     edited: m.hasChanged || undefined,
     reactions: reactionsOf(m),

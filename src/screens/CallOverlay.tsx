@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react'
 import { LOCAL_VIDEO_ID, REMOTE_VIDEO_ID, acceptCall, endCall, getCall, onCall, toggleCam, toggleMic, type CallState } from '../calls'
 import { contactById, useProfile } from '../state'
-import { speak, stopSpeaking } from '../speech'
+import { announce, stopSpeaking } from '../speech'
 import { Avatar } from '../components/ui'
 import CallCaptions from '../components/CallCaptions'
 
@@ -48,7 +48,7 @@ export default function CallOverlay() {
         o.start(t); o.stop(t + 0.36)
       })
     }
-    const say = () => speak(`${who} is calling you. ${s.video ? 'Video call' : 'Voice call'}. Say Hey Chat, answer. Or say Hey Chat, decline.`, true)
+    const say = () => announce(`${who} is calling you. ${s.video ? 'Video call' : 'Voice call'}. Say Hey Chat, answer. Or say Hey Chat, decline.`, true)
     tone()
     if (blind) setTimeout(say, 1000)
     let n = 0
@@ -58,20 +58,20 @@ export default function CallOverlay() {
   // Blind: say what happens with the call.
   useEffect(() => {
     if (!blind || !s.peer) return
-    if (s.phase === 'outgoing') speak(`Calling ${who}.`, true)
-    else if (s.phase === 'connected') speak(`Connected with ${who}. Say Hey Chat, hang up, to end.`, true)
-    else if (s.phase === 'ended') speak(s.endedReason ?? 'Call ended.', true)
+    if (s.phase === 'outgoing') announce(`Calling ${who}.`, true)
+    else if (s.phase === 'connected') announce(`Connected with ${who}. Say Hey Chat, hang up, to end.`, true)
+    else if (s.phase === 'ended') announce(s.endedReason ?? 'Call ended.', true)
   }, [s.phase, blind]) // eslint-disable-line react-hooks/exhaustive-deps
   const first = useRef(true)
   useEffect(() => {
     if (first.current) { first.current = false; return }
-    if (blind && s.phase === 'connected') speak(s.micOn ? 'Microphone on.' : 'Muted.', true)
+    if (blind && s.phase === 'connected') announce(s.micOn ? 'Microphone on.' : 'Muted.', true)
   }, [s.micOn]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (blind && s.phase === 'connected' && s.poor) speak('The connection is weak.', true) }, [s.poor]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (blind && s.phase === 'connected' && s.poor) announce('The connection is weak.', true) }, [s.poor]) // eslint-disable-line react-hooks/exhaustive-deps
   const firstCam = useRef(true)
   useEffect(() => {
     if (firstCam.current) { firstCam.current = false; return }
-    if (blind && s.phase === 'connected' && s.video) speak(s.camOn ? 'Camera on.' : 'Camera off.', true)
+    if (blind && s.phase === 'connected' && s.video) announce(s.camOn ? 'Camera on.' : 'Camera off.', true)
   }, [s.camOn]) // eslint-disable-line react-hooks/exhaustive-deps
   // An incoming call buzzes in a strong repeating pattern, so people who can't hear a ringtone still feel it.
   useEffect(() => {
@@ -85,6 +85,18 @@ export default function CallOverlay() {
     }
   }, [s.phase])
   const active = s.phase !== 'idle'
+  // Screen-reader and keyboard users land on Accept when a call comes in, and go back where they were afterwards.
+  const acceptBtn = useRef<HTMLButtonElement>(null)
+  const before = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (s.phase === 'incoming') {
+      before.current = document.activeElement as HTMLElement | null
+      setTimeout(() => acceptBtn.current?.focus(), 50)
+    } else if (s.phase === 'idle' && before.current) {
+      before.current.focus?.()
+      before.current = null
+    }
+  }, [s.phase])
   const peer = contactById(s.peer ?? '')
   const showVideo = s.video && (s.phase === 'connected' || s.phase === 'connecting' || s.phase === 'outgoing')
 
@@ -100,7 +112,7 @@ export default function CallOverlay() {
             : (s.endedReason ?? 'Call ended')
 
   return (
-    <div className={`call-overlay${active ? ' open' : ''}${showVideo ? ' with-video' : ''}`} aria-hidden={!active} role="dialog" aria-label="Call">
+    <div className={`call-overlay${active ? ' open' : ''}${showVideo ? ' with-video' : ''}`} aria-hidden={!active} role="dialog" aria-modal={active} aria-label={active ? `Call with ${peer.name}` : 'Call'}>
       <video id={REMOTE_VIDEO_ID} className="remote-video" autoPlay playsInline />
       <video id={LOCAL_VIDEO_ID} className="local-video" autoPlay playsInline muted />
 
@@ -118,7 +130,7 @@ export default function CallOverlay() {
           {s.phase === 'incoming' ? (
             <div className="call-ctrls two">
               <button className="ctrl end" onClick={() => endCall()}><i><PhoneOff size={24} aria-hidden="true" /></i>Decline</button>
-              <button className="ctrl accept" onClick={() => acceptCall()}><i>{s.video ? <Video size={24} aria-hidden="true" /> : <Phone size={24} aria-hidden="true" />}</i>Accept</button>
+              <button ref={acceptBtn} className="ctrl accept" onClick={() => acceptCall()}><i>{s.video ? <Video size={24} aria-hidden="true" /> : <Phone size={24} aria-hidden="true" />}</i>Accept</button>
             </div>
           ) : s.phase === 'ended' ? null : (
             <div className="call-ctrls">

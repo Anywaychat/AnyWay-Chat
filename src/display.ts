@@ -16,3 +16,10 @@ export function setDisplay(p: Partial<Display>) {
 function apply() { document.documentElement.style.setProperty('--fs', String(cur.size)) }
 apply()
 export const useDisplay = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f) }, () => cur)
+
+export const getDisplay = () => cur
+/** Called on every change (used to save settings to the account). */
+export const onDisplayChange = (f: () => void) => {
+  subs.add(f)
+  return () => subs.delete(f)
+}

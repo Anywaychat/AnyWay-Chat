@@ -38,3 +38,9 @@ export const needsTranslation = (theirs: string) => !!theirs && base(theirs) !==
 export function sayIn(text: string, lang: string) {
   speak(text, false, lang)
 }
+
+/** Called when the language or understood languages change (used to save settings to the account). */
+export const onLangChange = (f: () => void) => {
+  subs.add(f)
+  return () => subs.delete(f)
+}

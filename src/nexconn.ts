@@ -2,6 +2,7 @@ import {
   BaseChannel,
   ChannelHandler,
   ChannelType,
+  ConnectionStatus,
   ConnectionStatusHandler,
   DirectChannel,
   GroupChannel,
@@ -57,6 +58,9 @@ export interface ChatMessage {
   read?: boolean
   /** Arrived while you were away and was delivered when you connected: shown in the chat, but not announced one by one. */
   catchUp?: boolean
+  /** Shown straight away while it is being sent (local id), or kept with Retry if sending failed. */
+  pending?: boolean
+  failed?: boolean
 }
 
 export const keyOf = (t: Target) => `${t.kind}:${t.id}`
@@ -187,8 +191,52 @@ function startCatchUp() {
   catchUpTimer = setTimeout(() => (catchingUp = false), 8000) // in case the "sync finished" event never comes
 }
 
+/* ---------- Connection state, shown to everyone (it used to be invisible after the first connect) ---------- */
+export type Link = 'online' | 'connecting' | 'offline'
+let link: Link = 'online'
+const linkListeners = new Set<(l: Link) => void>()
+export const onLink = (l: (l: Link) => void) => sub(linkListeners, l)
+export const getLink = () => link
+let linkTimer: ReturnType<typeof setInterval> | undefined
+function setLink(l: Link) {
+  if (l === link) return
+  link = l
+  linkListeners.forEach((f) => f(l))
+  // While not online, check the chat connection's real state every few seconds: the service doesn't always report
+  // coming back (when the connection never really dropped), which left "Reconnecting…" on screen.
+  clearInterval(linkTimer)
+  if (l !== 'online') linkTimer = setInterval(syncLink, 3000)
+}
+function syncLink() {
+  if (!initialized || !connectedAs) return
+  if (!navigator.onLine) return setLink('offline')
+  let st: ConnectionStatus | undefined
+  try {
+    st = NCEngine.getConnectionStatus()
+  } catch {
+    return
+  }
+  setLink(st === ConnectionStatus.CONNECTED ? 'online' : 'connecting')
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('offline', () => setLink('offline'))
+  window.addEventListener('online', () => {
+    if (link === 'offline') setLink('connecting')
+    setTimeout(syncLink, 800)
+  })
+}
+
 function setupHandlers() {
-  NCEngine.addConnectionStatusHandler('anyway', new ConnectionStatusHandler({ onConnectionStatusChanged: () => {} }))
+  NCEngine.addConnectionStatusHandler(
+    'anyway',
+    new ConnectionStatusHandler({
+      onConnectionStatusChanged({ status }) {
+        if (status === ConnectionStatus.CONNECTED) setLink('online')
+        else if (!navigator.onLine) setLink('offline')
+        else setLink(status === ConnectionStatus.DISCONNECTED ? 'offline' : 'connecting')
+      },
+    }),
+  )
   NCEngine.addMessageHandler(
     'anyway',
     new MessageHandler({
@@ -201,6 +249,7 @@ function setupHandlers() {
           }
           const cm = toChat(m)
           if (!cm) return
+          setLink('online')
           if (catchingUp) cm.catchUp = true
           listeners.forEach((l) => l(cm))
         })
@@ -318,6 +367,7 @@ export async function sendText(t: Target, text: string, origin: Origin): Promise
   params.needReceipt = t.kind === 'direct'
   const { code, data } = await channelFor(t).sendMessage(params)
   if (code !== 0 || !data) return null
+  setLink('online')
   notifyPush(t, text)
   sentListeners.forEach((l) => l())
   return toChat(data)

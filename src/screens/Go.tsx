@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowUpDown, Hand, Keyboard, LayoutGrid, Mic, RotateCcw, Send, Volume2, X } from 'lucide-react'
 import { useAuth, useProfile, type Mode } from '../state'
 import { base, getLang, LANGS, langName } from '../lang'
-import { canListen, listenOnce, speak, stopSpeaking, type Listening } from '../speech'
+import { announce, canListen, listenOnce, speak, stopSpeaking, type Listening } from '../speech'
 import SignCamera from '../components/SignCamera'
 import SignStrip from '../components/SignStrip'
 import PhraseBoard from '../components/PhraseBoard'
@@ -43,7 +43,7 @@ export default function Go() {
   }
   const blind = mode === 'blind'
   useEffect(() => {
-    if (blind) speak('Face to face. Put the phone between you. Tap Speak at the bottom to talk. The other person can tap Speak at the top, or type. I will read their words to you.', true)
+    if (blind) announce('Face to face. Put the phone between you. Tap Speak at the bottom to talk. The other person can tap Speak at the top, or type. I will read their words to you.', true)
     return () => stopSpeaking()
   }, [blind])
 
@@ -62,7 +62,7 @@ export default function Go() {
     const mine = await translate(t, theirLang, myLang)
     setTurns((l) => [...l.slice(-30), { id: n.current++, who: 'them', text: t, mine, theirs: t, lang: theirLang, how }])
     navigator.vibrate?.(mode === 'deaf' ? [200, 80, 200] : 60)
-    if (blind) speak(`They said: ${mine}`, true, myLang)
+    if (blind) announce(`They said: ${mine}`, true)
   }
 
   const lastMe = [...turns].reverse().find((x) => x.who === 'me')
@@ -70,6 +70,7 @@ export default function Go() {
 
   return (
     <div className={`screen go2${flip ? ' flip' : ''}`}>
+      <h1 className="sr-only">Face to face</h1>
       {/* Their half: faces the other person */}
       <section className="go2-them" aria-label="For the person you are talking to">
         <div className="go2-row">
@@ -105,7 +106,7 @@ export default function Go() {
         </div>
         {lastThem && base(lastThem.lang) !== base(myLang) && <p className="go2-small" dir="auto">{langName(lastThem.lang)}: {lastThem.text}</p>}
         {lastThem && mode === 'deaf' && <SignStrip key={lastThem.id} text={lastThem.mine} autoPlay />}
-        {lastThem && blind && <button type="button" className="btn" onClick={() => speak(`They said: ${lastThem.mine}`, true, myLang)}><Volume2 size={16} aria-hidden="true" />Hear it again</button>}
+        {lastThem && blind && <button type="button" className="btn" onClick={() => announce(`They said: ${lastThem.mine}`, true)}><Volume2 size={16} aria-hidden="true" />Hear it again</button>}
 
         <div className="mode-bar" role="group" aria-label="How you answer">
           {mode === 'deaf' && <button className="pill" aria-pressed={way === 'sign'} onClick={() => setWay('sign')}><Hand size={14} aria-hidden="true" />Sign</button>}

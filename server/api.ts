@@ -42,6 +42,8 @@ interface UserRecord {
   phrases?: { text: string; icon: string }[]
   /** A demo friend that answers by itself (not a real person, never counted as a user). */
   demo?: boolean
+  /** Settings that follow the person to any device: languages, voice, speed, text size, alerts. */
+  prefs?: Record<string, unknown>
 }
 interface GroupRecord {
   id: string
@@ -612,7 +614,7 @@ export function createApi(env: Record<string, string | undefined>) {
           .filter((g) => g.members.includes(me.id))
           .map((g) => ({ id: g.id, name: g.name, owner: g.owner, members: g.members.map((id) => db.users[id]).filter(Boolean).map(pub) }))
         const token = url.searchParams.get('token') === '0' ? null : await issueNexconnToken(env, pub(me)).catch(() => null)
-        return send(res, 200, { user: pub(me), blocked: me.blocked ?? [], contacts, groups, token })
+        return send(res, 200, { user: pub(me), blocked: me.blocked ?? [], contacts, groups, token, prefs: me.prefs ?? null })
       }
 
       if (path === '/block' && req.method === 'POST') {
@@ -649,9 +651,11 @@ export function createApi(env: Record<string, string | undefined>) {
       if (path === '/me' && req.method === 'PATCH') {
         const b = await readBody(req)
         if (typeof b.avatar === 'string' && !(/^data:image\/(jpeg|png|webp);base64,/.test(b.avatar) && b.avatar.length < 120_000)) return send(res, 400, { error: 'That photo could not be used.' })
+        const prefs = b.prefs && typeof b.prefs === 'object' && !Array.isArray(b.prefs) && JSON.stringify(b.prefs).length < 6000 ? (b.prefs as Record<string, unknown>) : null
         const user = await mutate(async (d) => {
           const u = d.users[me.id]
           if (MODES.includes(b.mode as Mode)) u.mode = b.mode as Mode
+          if (prefs) u.prefs = prefs
           if (typeof b.name === 'string' && b.name.trim()) u.name = b.name.trim().slice(0, 40)
           if (b.avatar === null) {
             await putAvatar(d, u.id, null)
@@ -996,7 +1000,7 @@ async function translate(text: string, from: string, to: string): Promise<string
 
 /** Detect the language of a chat message and translate it. Returns the detected language too. */
 const acache = new Map<string, { text: string; from: string }>()
-async function translateAuto(text: string, to: string): Promise<{ text: string; from: string }> {
+async function translateAuto(text: string, to: string): Promise<{ text: string; from: string; failed?: boolean }> {
   const k = `${to}|${text}`
   const hit = acache.get(k)
   if (hit) return hit
@@ -1011,7 +1015,7 @@ async function translateAuto(text: string, to: string): Promise<{ text: string; 
       }
     } catch { /* retry once */ }
   }
-  // Detection failed: fall back to the plain translator, language unknown.
+  // Detection failed: fall back to the plain translator, language unknown. Unchanged text means it couldn't translate.
   const t = await translate(text, 'auto', to)
-  return { text: t, from: t === text ? to : '' }
+  return t === text ? { text, from: '', failed: true } : { text: t, from: '' }
 }

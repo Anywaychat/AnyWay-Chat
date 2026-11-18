@@ -29,6 +29,16 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Signed out because the login ended (logged out on another device, or removed): say why.
+  const [expired] = useState(() => {
+    try {
+      const e = sessionStorage.getItem('anyway.expired') === '1'
+      sessionStorage.removeItem('anyway.expired')
+      return e
+    } catch {
+      return false
+    }
+  })
 
   return (
     <form
@@ -44,6 +54,7 @@ export function Login() {
     >
       <Brand />
       <h1>Log in</h1>
+      {expired && <p className="form-error" role="alert">You were signed out because your login ended. Please log in again.</p>}
       <p className="lede">Welcome back. Your chats and contacts are waiting.</p>
       <label className="field-label">Username
         <input className="input" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required />

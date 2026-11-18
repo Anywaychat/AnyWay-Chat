@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Pencil, Plus, X } from 'lucide-react'
 import { useAuth } from '../state'
 
 type Tile = { text: string; icon: string }
@@ -26,14 +26,42 @@ const BOARDS: Record<string, Tile[]> = {
     { text: 'Which platform?', icon: '🚉' }, { text: 'I am lost', icon: '❓' }, { text: 'Call an auto', icon: '🛺' }, { text: 'I reached home', icon: '🏠' },
   ],
 }
+// How often each phrase is tapped, on this device, for the "Most used" board.
+const USED_KEY = 'anyway.phrases.used'
+const readUsed = (): Record<string, number> => {
+  try {
+    return JSON.parse(localStorage.getItem(USED_KEY) ?? '{}') as Record<string, number>
+  } catch {
+    return {}
+  }
+}
+function countUse(text: string) {
+  const u = readUsed()
+  u[text] = (u[text] ?? 0) + 1
+  try {
+    localStorage.setItem(USED_KEY, JSON.stringify(u))
+  } catch {
+    /* storage full */
+  }
+}
+
 const ICONS = ['💬', '👍', '🙏', '❤️', '😊', '🍛', '🏠', '📞', '🚌', '💊', '🏫', '⏰', '👪', '🎉', '⚽', '📚']
 
 /** Picture-based phrase board for people who can't speak: tap a tile and it's sent and said aloud. "Mine" holds saved phrases. */
 export default function PhraseBoard({ onPick }: { onPick: (text: string) => void }) {
   const { api } = useAuth()
-  const [cat, setCat] = useState('Everyday')
+  const [used, setUsed] = useState(readUsed)
   const [mine, setMine] = useState<Tile[]>([])
+  // The phrases this person taps most, first: like a phone keyboard's suggestions.
+  const all = [...Object.values(BOARDS).flat(), ...mine]
+  const most = Object.entries(used)
+    .sort((a, b) => b[1] - a[1])
+    .map(([t]) => all.find((x) => x.text === t))
+    .filter((x): x is Tile => !!x)
+    .slice(0, 8)
+  const [cat, setCat] = useState(() => (Object.keys(readUsed()).length >= 4 ? 'Most used' : 'Everyday'))
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<number | null>(null)
   const [text, setText] = useState('')
   const [icon, setIcon] = useState('💬')
   const [err, setErr] = useState('')
@@ -53,21 +81,28 @@ export default function PhraseBoard({ onPick }: { onPick: (text: string) => void
     }
   }
 
-  const tiles = cat === 'Mine' ? mine : BOARDS[cat]
+  const tiles = cat === 'Mine' ? mine : cat === 'Most used' ? most : BOARDS[cat]
+  const pick = (t: string) => {
+    countUse(t)
+    setUsed(readUsed())
+    onPick(t)
+  }
+  const boards = [...(most.length ? ['Most used'] : []), ...Object.keys(BOARDS), 'Mine']
   return (
     <>
       <div className="mode-bar" role="group" aria-label="Phrase groups">
-        {[...Object.keys(BOARDS), 'Mine'].map((k) => (
-          <button key={k} className="pill" aria-pressed={k === cat} onClick={() => { setCat(k); setAdding(false) }}>{k === 'Mine' ? `⭐ Mine${mine.length ? ` (${mine.length})` : ''}` : k}</button>
+        {boards.map((k) => (
+          <button key={k} className="pill" aria-pressed={k === cat} onClick={() => { setCat(k); setAdding(false); setEditing(null) }}>{k === 'Mine' ? `⭐ Mine${mine.length ? ` (${mine.length})` : ''}` : k}</button>
         ))}
       </div>
       <div className="phrases aac">
         {tiles.map((t, i) => (
           <div key={t.text + i} className="aac-cell">
-            <button className={`tile${t.text === 'Emergency' ? ' alert' : ''}`} onClick={() => onPick(t.text)}>
+            <button className={`tile${t.text === 'Emergency' ? ' alert' : ''}`} onClick={() => pick(t.text)}>
               <span className="aac-icon" aria-hidden="true">{t.icon}</span>{t.text}
             </button>
             {cat === 'Mine' && <button className="aac-del" aria-label={`Remove ${t.text}`} onClick={() => void save(mine.filter((_, j) => j !== i))}><X size={14} aria-hidden="true" /></button>}
+            {cat === 'Mine' && <button className="aac-edit" aria-label={`Change ${t.text}`} onClick={() => { setEditing(i); setText(t.text); setIcon(t.icon); setAdding(true) }}><Pencil size={13} aria-hidden="true" /></button>}
           </div>
         ))}
         {cat === 'Mine' && !adding && (
@@ -81,10 +116,12 @@ export default function PhraseBoard({ onPick }: { onPick: (text: string) => void
           onSubmit={(e) => {
             e.preventDefault()
             if (!text.trim()) return
-            void save([...mine, { text: text.trim(), icon }])
+            const tile = { text: text.trim(), icon }
+            void save(editing === null ? [...mine, tile] : mine.map((x, j) => (j === editing ? tile : x)))
             setText('')
             setIcon('💬')
             setAdding(false)
+            setEditing(null)
           }}
         >
           <div className="aac-icons" role="radiogroup" aria-label="Picture for this phrase">
@@ -93,7 +130,7 @@ export default function PhraseBoard({ onPick }: { onPick: (text: string) => void
           <div className="name-edit">
             <input className="input" autoFocus aria-label="New phrase" placeholder="For example: My name is Meera" value={text} onChange={(e) => setText(e.target.value)} maxLength={80} />
             <button className="btn primary" style={{ height: 40 }}>Save</button>
-            <button type="button" className="btn" style={{ height: 40 }} onClick={() => setAdding(false)}>Cancel</button>
+            <button type="button" className="btn" style={{ height: 40 }} onClick={() => { setAdding(false); setEditing(null); setText(''); setIcon('💬') }}>Cancel</button>
           </div>
         </form>
       )}

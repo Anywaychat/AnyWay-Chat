@@ -9,7 +9,7 @@ export default function SignDictionary() {
     <div className="screen">
       <header className="topbar">
         <button className="icon-btn back-btn" style={{ display: 'grid' }} aria-label="Back" onClick={() => nav(-1)}><ArrowLeft size={20} aria-hidden="true" /></button>
-        <div className="topbar-title"><strong>Sign dictionary</strong><span>Everyday words in Indian Sign Language</span></div>
+        <div className="topbar-title"><h1 className="topbar-name">Sign dictionary</h1><span>Everyday words in Indian Sign Language</span></div>
       </header>
       <div className="scroll">
         <div className="section">

@@ -10,7 +10,7 @@ import { translateForMe, useTranslated } from '../translateMsg'
 import SignStrip from '../components/SignStrip'
 import PhraseBoard from '../components/PhraseBoard'
 import { startCall } from '../calls'
-import { canListen, listenOnce, preloadVoiceClip, speak, voiceClip, voiceClipReady, type Listening } from '../speech'
+import { announce, canListen, listenOnce, preloadVoiceClip, screenReaderMode, speak, stopSpeaking, voiceClip, voiceClipReady, whenQuiet, type Listening } from '../speech'
 import { registerChatVoice, runAssistant, understand, type Intent } from '../voice'
 import { howLabel } from '../origin'
 import { describePhoto, visionReady } from '../vision'
@@ -33,6 +33,16 @@ const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 const kb = (n = 0) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 const fmt = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+/** "today at 3:45 PM", "yesterday at 9:10 AM", "on 12 November at 6:00 PM": for reading message times aloud. */
+const whenSaid = (t: number) => {
+  const d = new Date(t)
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const today = new Date()
+  const y = new Date(today.getTime() - 86400000)
+  if (d.toDateString() === today.toDateString()) return `today at ${time}`
+  if (d.toDateString() === y.toDateString()) return `yesterday at ${time}`
+  return `on ${d.toLocaleDateString([], { day: 'numeric', month: 'long' })} at ${time}`
+}
 import { Avatar, BackButton } from '../components/ui'
 
 export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' }) {
@@ -45,7 +55,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   const c = isGroup ? { ...contactById(id), name: group?.name ?? 'Group', initial: (group?.name ?? 'G').charAt(0).toUpperCase(), hue: 'slate' as const } : contactById(id)
   const { mode } = useProfile()
   const online = usePresence()
-  const { messages, send, sendFile, sendVoice, reply, edit, remove, react, notifyTyping, status, loading, me, typing, failed } = useThread({ kind, id })
+  const { messages, send, sendFile, sendVoice, reply, edit, remove, react, retry, discard, notifyTyping, status, loading, me, typing, failed } = useThread({ kind, id })
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
   const [editing, setEditing] = useState<ChatMessage | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
@@ -97,7 +107,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
     setDescriptions((d) => ({ ...d, [m.id]: d[m.id] ?? (visionReady() ? 'Describing…' : 'Describing… (the first photo takes about a minute)') }))
     const text = (await describePhoto(m.url)) ?? "Couldn't describe this photo."
     setDescriptions((d) => ({ ...d, [m.id]: text }))
-    if (aloud) speak(`The photo shows: ${text}`, true)
+    if (aloud) announce(`The photo shows: ${text}`, true)
   }
   // Blind users get every photo in the chat described automatically.
   useEffect(() => {
@@ -108,46 +118,74 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   const preview = (m: ChatMessage) => (m.type === 'text' ? m.text : m.type === 'image' ? 'Photo' : m.type === 'voice' ? 'Voice message' : isVideoName(m.fileName) ? 'Video message' : m.fileName ?? 'File')
 
   /* ---------- Blind: voice commands, read-back, Space to talk ---------- */
-  const say = (m: ChatMessage) => `${m.from === me ? 'You' : contactById(m.from).name} ${m.from === me ? 'said' : 'says'}: ${preview(m)}${m.from === me && !isGroup ? (m.read ? '. Read.' : '. Delivered.') : ''}`
+  const say = (m: ChatMessage) => `${m.from === me ? 'You' : contactById(m.from).name} ${m.from === me ? 'said' : 'says'}: ${preview(m)}${m.from === me ? (m.failed ? '. Not sent.' : m.pending ? '. Sending.' : isGroup ? '' : m.read ? '. Read.' : '. Not read yet.') : ''}`
   // Read others' messages in my language.
   const sayTr = async (m: ChatMessage) => {
     if (m.from === me || m.type !== 'text') return say(m)
     const t = await translateForMe(m.text)
-    return t ? `${contactById(m.from).name} says, in ${t.fromName}: ${t.text}` : say(m)
+    return t && !t.failed ? `${contactById(m.from).name} says, in ${t.fromName}: ${t.text}` : `${say(m)}${t?.failed ? ' (not translated)' : ''}`
   }
-  useEffect(() => { if (mode === 'blind' && failed) speak(`Not sent. ${failed}`, true) }, [failed, mode])
+  useEffect(() => { if (mode === 'blind' && failed) announce(`Not sent. ${failed}`, true) }, [failed, mode])
   const runVoice = (raw: string, understood?: Intent) => {
     const it = understood ?? understand(raw, contacts, true)
     switch (it.kind) {
       case 'help':
-        return speak('Just talk normally. For example: send Priya I am on my way. Call Meera. Read my messages. Or say your message and it goes to this chat.', true)
+        return announce('Just talk normally. For example: send Priya I am on my way. Call Meera. Read my messages. Or say your message and it goes to this chat.', true)
+      case 'when': {
+        const m = lastIn ?? messages[messages.length - 1]
+        if (!m) return announce('There are no messages here yet.', true)
+        return announce(`${m.from === me ? 'Your' : `${contactById(m.from).name}'s`} last message came ${whenSaid(m.sentTime)}.`, true)
+      }
+      case 'readMore': {
+        readBack.current += 5
+        const end = messages.length - readBack.current
+        const chunk = messages.slice(Math.max(0, end - 5), Math.max(0, end))
+        if (!chunk.length) {
+          readBack.current -= 5
+          return announce('That is the start of this chat.', true)
+        }
+        return void Promise.all(chunk.map(sayTr)).then((ls) => announce(`Older messages. ${ls.join('. ')}`, true))
+      }
+      case 'playVoice': {
+        const notes = messages.filter((m) => m.type === 'voice')
+        const note = notes[notes.length - 1]
+        const el = [...document.querySelectorAll<HTMLAudioElement>('.msg audio')].pop()
+        if (!note || !el) return announce('There is no voice message in this chat.', true)
+        announce(`${note.from === me ? 'Your' : `${contactById(note.from).name}'s`} voice message, from ${whenSaid(note.sentTime)}.`, true)
+        return void whenQuiet().then(() => el.play())
+      }
+      case 'pauseVoice':
+        document.querySelectorAll('audio').forEach((a) => a.pause())
+        stopSpeaking()
+        return announce('Paused.', true)
       case 'read': {
+        readBack.current = 0
         const last = messages.slice(-5)
-        if (!last.length) return speak('There are no messages here yet.', true)
-        return void Promise.all(last.map(sayTr)).then((ls) => speak(ls.join('. '), true))
+        if (!last.length) return announce('There are no messages here yet.', true)
+        return void Promise.all(last.map(sayTr)).then((ls) => announce(ls.join('. '), true))
       }
       case 'repeat':
-        return lastIn ? void sayTr(lastIn).then((l) => speak(l, true)) : speak('No message to repeat yet.', true)
+        return lastIn ? void sayTr(lastIn).then((l) => announce(l, true)) : announce('No message to repeat yet.', true)
       case 'list':
-        return speak(contacts.length ? `Your chats: ${contacts.map((p) => p.name).join(', ')}.` : 'You have no contacts yet.', true)
+        return announce(contacts.length ? `Your chats: ${contacts.map((p) => p.name).join(', ')}.` : 'You have no contacts yet.', true)
       case 'next': {
-        if (!contacts.length) return speak('You have no other chats yet.', true)
+        if (!contacts.length) return announce('You have no other chats yet.', true)
         const i = contacts.findIndex((p) => p.id === id)
         return nav(`/chat/${contacts[(i + 1) % contacts.length].id}`)
       }
       case 'call':
-        speak(`Calling ${it.who.name}`, true)
+        announce(`Calling ${it.who.name}`, true)
         return void startCall(it.who.id, it.video)
       case 'open':
-        return it.who.id === id ? speak(lastIn ? say(lastIn) : `You're already in ${it.who.name}'s chat.`, true) : nav(`/chat/${it.who.id}`)
+        return it.who.id === id ? announce(lastIn ? say(lastIn) : `You're already in ${it.who.name}'s chat.`, true) : nav(`/chat/${it.who.id}`)
       case 'describe': {
         const photo = [...messages].reverse().find((m) => m.type === 'image')
-        if (!photo) return speak('There are no photos in this chat yet.', true)
-        speak('Looking at the photo…', true)
+        if (!photo) return announce('There are no photos in this chat yet.', true)
+        announce('Looking at the photo…', true)
         return void explain(photo, true)
       }
       case 'previous': {
-        if (!contacts.length) return speak('You have no other chats yet.', true)
+        if (!contacts.length) return announce('You have no other chats yet.', true)
         const i = contacts.findIndex((p) => p.id === id)
         return nav(`/chat/${contacts[(i - 1 + contacts.length) % contacts.length].id}`)
       }
@@ -156,37 +194,38 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         const found = messages.filter((m) => matches(m, q))
         setSearching(true)
         setQuery(it.query)
-        return speak(found.length ? `Found ${found.length}. ${found.slice(-3).map(say).join('. ')}` : `Nothing here mentions ${it.query}.`, true)
+        return announce(found.length ? `Found ${found.length}. ${found.slice(-3).map(say).join('. ')}` : `Nothing here mentions ${it.query}.`, true)
       }
       case 'react':
-        if (!lastIn) return speak('There is no message to react to yet.', true)
+        if (!lastIn) return announce('There is no message to react to yet.', true)
         void react(lastIn.id, it.emoji)
-        return speak(`Reacted to ${contactById(lastIn.from).name}'s message.`, true)
+        return announce(`Reacted to ${contactById(lastIn.from).name}'s message.`, true)
       case 'deleteLast': {
         const mineLast = [...messages].reverse().find((m) => m.from === me)
-        if (!mineLast) return speak("You haven't sent anything here yet.", true)
+        if (!mineLast) return announce("You haven't sent anything here yet.", true)
         void remove(mineLast.id)
-        return speak('Deleted your last message.', true)
+        return announce('Deleted your last message.', true)
       }
       case 'editLast': {
         const mineLast = [...messages].reverse().find((m) => m.from === me && m.type === 'text')
-        if (!mineLast) return speak("You haven't sent a message here yet.", true)
+        if (!mineLast) return announce("You haven't sent a message here yet.", true)
         void edit(mineLast.id, it.text)
-        return speak('Edited.', true)
+        return announce('Edited.', true)
       }
       case 'send':
         if (!isGroup && it.who.id === id) {
           submit(it.text, { mode: 'blind', how: 'spoken' })
-          return speak(`Sent to ${it.who.name}.`, true)
+          return announce(`Sent to ${it.who.name}.`, true)
         }
-        return void sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind', how: 'spoken' }).then((m) => speak(m ? `Sent to ${it.who.name}.` : `Sorry, I couldn't send that to ${it.who.name}.`, true))
+        return void sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind', how: 'spoken' }).then((m) => announce(m ? `Sent to ${it.who.name}.` : `Sorry, I couldn't send that to ${it.who.name}.`, true))
       default: {
         const words = it.kind === 'say' ? it.text : raw
         submit(words.trim(), { mode: 'blind', how: 'spoken' })
-        return speak('Sent.', false)
+        return announce('Sent.', false)
       }
     }
   }
+  const readBack = useRef(0)
   const runRef = useRef(runVoice)
   useEffect(() => {
     runRef.current = runVoice
@@ -199,7 +238,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
     const down = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat && !typing(e)) { e.preventDefault(); talk.start() }
       if (e.code === 'Escape') talk.stop()
-      if (e.key.toLowerCase() === 'r' && e.altKey) { e.preventDefault(); speak(lastIn ? say(lastIn) : 'No message yet.', true) }
+      if (e.key.toLowerCase() === 'r' && e.altKey) { e.preventDefault(); announce(lastIn ? say(lastIn) : 'No message yet.', true) }
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
@@ -208,9 +247,18 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   useEffect(() => {
     if (mode !== 'blind' || loading || announced.current) return
     announced.current = true
-    speak(`Chat with ${c.name}. ${lastIn ? `Last message, ${say(lastIn)}` : 'No messages yet.'} Say Hey Chat, or press Space, to talk.`, true)
+    announce(`Chat with ${c.name}. ${lastIn ? `Last message, ${say(lastIn)}` : 'No messages yet.'} Say Hey Chat, or press Space, to talk.`, true)
   })
   const lastIn = [...messages].reverse().find((m) => m.from !== me)
+  // The newest incoming message, once it has arrived live (not the history shown on opening the chat).
+  const [newest, setNewest] = useState<ChatMessage | null>(null)
+  const seenCount = useRef(-1)
+  useEffect(() => {
+    const incoming = messages.filter((m) => m.from !== me)
+    if (loading) return
+    if (seenCount.current >= 0 && incoming.length > seenCount.current) setNewest(incoming[incoming.length - 1])
+    seenCount.current = incoming.length
+  }, [messages, loading, me])
   const subtitle =
     status === 'error'
       ? 'offline, check your connection'
@@ -230,7 +278,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         <BackButton />
         {isGroup ? <span className="avatar sm hue-slate" aria-hidden="true"><Users size={18} /></span> : <Avatar c={c} size="sm" online={online.has(c.id)} />}
         <div className="topbar-title">
-          <strong>{c.name}</strong>
+          <h1 className="topbar-name">{c.name}</h1>
           <span className={typing.length || (!isGroup && online.has(c.id)) ? 'online' : ''}>{subtitle}</span>
         </div>
         {!isGroup && <button className="icon-btn" aria-label={`Voice call ${c.name}`} onClick={() => startCall(c.id, false)}><Phone size={19} aria-hidden="true" /></button>}
@@ -248,7 +296,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
       )}
 
       {mode === 'blind' && lastIn && (
-        <div className="readout" role="status">
+        <div className="readout">
           <Volume2 size={18} aria-hidden="true" />
           Latest from {contactById(lastIn.from).name}: “{lastIn.text}”
         </div>
@@ -276,7 +324,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                       <span>{m.replyTo.text}</span>
                     </div>
                   )}
-                  {m.type === 'voice' && <VoiceNote src={m.url ?? ''} auto={!mine && mode === 'deaf'} />}
+                  {m.type === 'voice' && <VoiceNote src={m.url ?? ''} auto={!mine && mode === 'deaf'} label={`Voice message from ${mine ? 'you' : contactById(m.from).name}${m.duration ? `, ${Math.round(m.duration)} seconds` : ''}`} />}
                   {m.type === 'image' && (
                     <>
                       <a href={m.url} target="_blank" rel="noreferrer" className="photo">
@@ -303,10 +351,10 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                   <span className="stamp">
                     {m.edited && <span className="edited">edited</span>}
                     {fmt(m.sentTime)}
-                    {mine && !isGroup && (m.read ? <CheckCheck size={14} className="read" aria-label="Read" /> : <Check size={14} aria-label="Sent" />)}
+                    {m.pending ? <span className="sending">Sending…</span> : mine && !isGroup && !m.failed && (m.read ? <CheckCheck size={14} className="read" aria-label="Read" /> : <Check size={14} aria-label="Sent, not read yet" />)}
                   </span>
                 </div>
-                <button className="msg-more" aria-label="Message options" onClick={() => setMenu(menu === m.id ? null : m.id)}><SmilePlus size={16} aria-hidden="true" /></button>
+                {!m.pending && !m.failed && <button className="msg-more" aria-label="Message options" onClick={() => setMenu(menu === m.id ? null : m.id)}><SmilePlus size={16} aria-hidden="true" /></button>}
                 {menu === m.id && (
                   <div className="msg-menu" role="menu">
                     <div className="emoji-row">
@@ -320,6 +368,13 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                   </div>
                 )}
                 </div>
+                {m.failed && (
+                  <div className="msg-failed" role="alert">
+                    Not sent.
+                    <button type="button" onClick={() => retry(m.id)}>Retry</button>
+                    <button type="button" onClick={() => discard(m.id)}>Delete</button>
+                  </div>
+                )}
                 {m.reactions && (
                   <div className="reactions">
                     {Object.entries(m.reactions).map(([e, ids]) => (
@@ -336,6 +391,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         </div>
       </div>
 
+      {mode !== 'blind' && <div className="sr-only" aria-live="polite">{newest && !newest.catchUp ? `${isGroup ? contactById(newest.from).name : c.name}: ${preview(newest)}` : ''}</div>}
       {typing.length > 0 && <div className="typing-row" aria-live="polite"><span className="dots"><i /><i /><i /></span>{isGroup ? `${contactById(typing[0]).name} is typing` : `${c.name} is typing`}</div>}
       {failed && <div className="send-failed" role="alert">{failed}</div>}
       {info && <ChatInfo kind={kind} id={id} onClose={() => setInfo(false)} />}
@@ -473,7 +529,7 @@ function useTapToTalk(onDone: (text: string) => void): Talk {
     setSofar('')
     if (!canListen) {
       setError('This browser cannot listen. Use Chrome or Edge, or type below.')
-      speak('This browser cannot listen. Please use Chrome.', true)
+      announce('This browser cannot listen. Please use Chrome.', true)
       return
     }
     ref.current = listenOnce(
@@ -483,13 +539,13 @@ function useTapToTalk(onDone: (text: string) => void): Talk {
         setListening(false)
         setSofar('')
         if (text) doneRef.current(text)
-        else speak("I didn't catch that. Tap and try again.", true)
+        else announce("I didn't catch that. Tap and try again.", true)
       },
       (msg) => {
         ref.current = null
         setListening(false)
         setError(msg)
-        speak(msg, true)
+        announce(msg, true)
       },
     )
     setListening(!!ref.current)
@@ -514,7 +570,7 @@ function BlindComposer({ name, talk }: { name: string; talk: Talk }) {
         {talk.listening ? (talk.sofar || 'Listening…') : 'Tap to speak'}
       </button>
       <p className="hint" style={{ margin: 0 }} aria-live="polite">
-        {talk.error ?? 'Or just say “Hey Chat” and then your message. It sends when you pause.'}
+        {talk.error ?? (screenReaderMode() ? 'Press Space or this button, then say your message. It sends when you pause.' : 'Or just say “Hey Chat” and then your message. It sends when you pause.')}
       </p>
     </div>
   )
@@ -578,11 +634,12 @@ function SpeechComposer({ onSend }: { onSend: SendFn }) {
 function MsgText({ text, deaf, autoPlay }: { text: string; deaf: boolean; autoPlay: boolean }) {
   const tr = useTranslated(text)
   const [orig, setOrig] = useState(true)
-  const shown = tr?.text ?? text
+  const shown = tr && !tr.failed ? tr.text : text
   return (
     <>
       <span dir="auto">{shown}</span>
-      {tr && (
+      {tr?.failed && <span className="tr-failed">Couldn't translate this message right now.</span>}
+      {tr && !tr.failed && (
         <button type="button" className="tr-orig" onClick={() => setOrig((v) => !v)} aria-expanded={orig}>
           <span className="tr-tag">Translated from {tr.fromName}</span>
           {orig && <span className="tr-text" dir="auto">{text}</span>}

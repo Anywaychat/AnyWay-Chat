@@ -656,3 +656,23 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
   .go2.flip .go2-them { transform: none; }
   .go2-seam .chip-btn { display: none; }
 }
+
+/* Connection state and messages that are sending or failed */
+.conn-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 90; padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px)); text-align: center; font-size: 14px; font-weight: 700; background: var(--ink); color: var(--bg); }
+.conn-bar.connecting { background: var(--raised); color: var(--ink); border-bottom: 1px solid var(--line); }
+.stamp .sending { font-style: italic; }
+.msg-failed { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 13px; font-weight: 700; color: var(--danger); justify-content: flex-end; }
+.msg-failed button { font: inherit; border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 8px; padding: 3px 10px; cursor: pointer; }
+.msg.them .msg-failed { justify-content: flex-start; }
+
+/* Screen-reader basics */
+.topbar-title h1.topbar-name { display: block; font: 700 15px var(--font); margin: 0; letter-spacing: normal; }
+.skip-link { position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 14px; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 700; text-decoration: none; }
+.skip-link:focus { top: calc(12px + env(safe-area-inset-top, 0px)); }
+main.app:focus, main h1:focus, main h2:focus { outline: none; }
+main h1:focus-visible, main h2:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.tr-failed { display: block; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.aac-edit { position: absolute; top: -6px; right: 22px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; }
+/* Room for the connection bar while it shows (--conn is set to its height) */
+.shell { margin-top: var(--conn, 0px); height: calc(100% - var(--conn, 0px)); }
+@media (max-width: 900px) { .shell { height: calc(100dvh - var(--conn, 0px)); } }

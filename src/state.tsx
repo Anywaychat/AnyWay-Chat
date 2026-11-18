@@ -1,6 +1,8 @@
 import { disconnect, onMessage } from './nexconn'
 import { setStartToken } from './startToken'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { announce } from './speech'
+import { applyPrefs, collectPrefs, startPrefsSync, type Prefs } from './prefsSync'
 
 export type Mode = 'blind' | 'deaf' | 'speech' | 'standard'
 const MODE_IDS: Mode[] = ['blind', 'deaf', 'speech', 'standard']
@@ -148,6 +150,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [blocked, setBlockedList] = useState<string[]>([])
+  const expire = useRef<() => void>(() => {})
+  useEffect(() => {
+    expire.current = () => {
+      try {
+        sessionStorage.setItem('anyway.expired', '1')
+      } catch {
+        /* storage unavailable */
+      }
+      if (user?.mode === 'blind') announce('You were signed out of AnyWay. Please log in again.', true)
+      void disconnect().catch(() => {})
+      writeSession(null)
+      setSession(null)
+      setUser(null)
+      setContacts([])
+      setGroups([])
+    }
+  })
 
   const api = useCallback(
     async <T,>(path: string, init?: { method?: string; body?: unknown }): Promise<T> => {
@@ -156,7 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json', ...(session ? { Authorization: `Bearer ${session}` } : {}) },
         body: init?.body ? JSON.stringify(init.body) : undefined,
       })
-      const j = (await r.json()) as T & { error?: string }
+      const j = (await r.json().catch(() => ({}))) as T & { error?: string }
+      // The server no longer accepts this login (logged out elsewhere, or removed): say so and go to Log in,
+      // instead of leaving every action quietly failing until a reload.
+      if (r.status === 401 && session && !/^\/(login|signup)$/.test(path)) expire.current()
       if (!r.ok) throw new Error(j.error ?? 'Something went wrong.')
       return j
     },
@@ -182,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // Show the last known chats straight away, then refresh everything in one call.
     const CK = `anyway.boot.${session.slice(0, 12)}`
-    type Boot = { user: User; blocked: string[]; contacts: User[]; groups: Group[]; token?: string | null }
+    type Boot = { user: User; blocked: string[]; contacts: User[]; groups: Group[]; token?: string | null; prefs?: Prefs | null }
     const apply = (b: Boot) => {
       setBlockedList(b.blocked ?? [])
       known.set(b.user.id, toContact(b.user))
@@ -201,7 +223,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((b) => {
         apply(b)
         if (b.token) setStartToken(b.token)
-        try { localStorage.setItem(CK, JSON.stringify(b)) } catch { /* full */ }
+        // Settings saved on the account win (signing in on a new phone); an account without any gets this phone's.
+        if (b.prefs) applyPrefs(b.prefs)
+        else void api('/me', { method: 'PATCH', body: { prefs: collectPrefs() } }).catch(() => {})
+        try { localStorage.setItem(CK, JSON.stringify({ ...b, prefs: undefined })) } catch { /* full */ }
       })
       .catch((e: Error) => {
         // Only a rejected session logs you out; a network hiccup keeps the cached screen.
@@ -213,6 +238,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .finally(() => setReady(true))
   }, [session, api, refreshContacts])
+
+  // Any settings change is saved to the account a moment later.
+  const userId = user?.id
+  useEffect(() => {
+    if (!userId) return
+    return startPrefsSync((p) => api('/me', { method: 'PATCH', body: { prefs: p } }))
+  }, [userId, api])
 
   // Someone new may add you, message you or put you in a group at any time: pick that up without a refresh.
   useEffect(() => {

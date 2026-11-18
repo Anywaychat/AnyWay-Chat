@@ -1,6 +1,6 @@
 import { getBlindPrefs } from './blindPrefs'
 import { showLocalNotification } from './push'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   connectAs,
   keyOf,
@@ -19,6 +19,9 @@ import {
   onSent,
   onStatus,
   onTyping,
+  onLink,
+  getLink,
+  type Link,
   sendFile,
   sendText,
   sendTyping,
@@ -54,6 +57,7 @@ export function useThread(target: Target) {
   const [loading, setLoading] = useState(true)
   const [typing, setTyping] = useState<string[]>([])
   const [failed, setFailed] = useState<string | null>(null)
+  const retries = useRef(new Map<string, { text: string; origin: Origin; to?: ChatMessage }>())
 
   useEffect(() => {
     if (status !== 'connected') return
@@ -62,7 +66,8 @@ export function useThread(target: Target) {
     setMessages([])
     loadHistory(target).then((h) => {
       if (!alive) return
-      setMessages(h)
+      // Messages still being sent, or kept after failing, stay on screen.
+      setMessages((list) => [...h, ...list.filter((m) => m.key === key && (m.pending || m.failed))])
       setLoading(false)
       void markRead(target, h)
     })
@@ -106,12 +111,32 @@ export function useThread(target: Target) {
 
   const add = (m: ChatMessage | null) => {
     if (!m) {
-      setFailed("Couldn't send that message. Check your connection, or this person may not be accepting messages.")
+      setFailed("Couldn't send that. Check your connection, or this person may not be accepting messages.")
       setTimeout(() => setFailed(null), 6000)
       return
     }
     setFailed(null)
     setMessages((list) => [...list, m])
+  }
+  /**
+   * Text appears straight away as "Sending…" and is swapped for the real message once it's sent. If sending fails,
+   * it stays with Retry instead of disappearing (typed words used to be lost when the connection dropped).
+   */
+  const sendNow = async (text: string, origin: Origin, to?: ChatMessage, localId?: string) => {
+    const id = localId ?? `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const draft: ChatMessage = { id, key, from: me, text, type: 'text', origin, sentTime: Date.now(), pending: true, replyTo: to ? { id: to.id, from: to.from, text: to.text } : undefined }
+    retries.current.set(id, { text, origin, to })
+    setMessages((list) => (list.some((m) => m.id === id) ? list.map((m) => (m.id === id ? draft : m)) : [...list, draft]))
+    const sent = await (to ? sendReply(target, text, origin, to) : sendText(target, text, origin)).catch(() => null)
+    if (sent) {
+      retries.current.delete(id)
+      setFailed(null)
+      setMessages((list) => (list.some((m) => m.id === sent.id) ? list.filter((m) => m.id !== id) : list.map((m) => (m.id === id ? sent : m))))
+    } else {
+      setFailed('Not sent. Your message is kept in the chat: tap Retry.')
+      setTimeout(() => setFailed(null), 6000)
+      setMessages((list) => list.map((m) => (m.id === id ? { ...m, pending: false, failed: true } : m)))
+    }
   }
 
   return {
@@ -122,12 +147,20 @@ export function useThread(target: Target) {
     typing,
     failed,
     send: async (text: string, origin: Origin) => {
-      if (text.trim()) add(await sendText(target, text.trim(), origin))
+      if (text.trim()) await sendNow(text.trim(), origin)
+    },
+    retry: (id: string) => {
+      const r = retries.current.get(id)
+      if (r) void sendNow(r.text, r.origin, r.to, id)
+    },
+    discard: (id: string) => {
+      retries.current.delete(id)
+      setMessages((list) => list.filter((m) => m.id !== id))
     },
     sendFile: async (file: File) => add(await sendFile(target, file)),
     sendVoice: async (blob: Blob) => add(await sendVoice(target, blob)),
     reply: async (text: string, origin: Origin, to: ChatMessage) => {
-      if (text.trim()) add(await sendReply(target, text.trim(), origin, to))
+      if (text.trim()) await sendNow(text.trim(), origin, to)
     },
     edit: async (id: string, text: string) => {
       if (await editMessage(id, text.trim())) setMessages((list) => list.map((m) => (m.id === id ? { ...m, text: text.trim(), edited: true } : m)))
@@ -254,4 +287,11 @@ function chime() {
       o.start(t); o.stop(t + 0.26)
     })
   } catch { /* no audio */ }
+}
+
+/** The chat connection: online, reconnecting, or offline. */
+export function useLink(): Link {
+  const [l, setL] = useState<Link>(getLink())
+  useEffect(() => onLink(setL), [])
+  return l
 }

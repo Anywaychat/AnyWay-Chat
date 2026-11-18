@@ -228,6 +228,10 @@ function Listening() {
           <input type="checkbox" checked={p.sounds} onChange={(e) => setBlindPrefs({ sounds: e.target.checked })} />
           <span><strong>Message sound</strong><br /><small>A short sound when a message arrives</small></span>
         </label>
+        <label className="disp-row check-row" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="checkbox" checked={p.screenReader} onChange={(e) => setBlindPrefs({ screenReader: e.target.checked })} />
+          <span><strong>I use a screen reader (TalkBack or VoiceOver)</strong><br /><small>Your screen reader reads messages and updates, so nothing is said twice. "Hey Chat" turns off; use Tap to speak or the Space key.</small></span>
+        </label>
       </div>
     </div>
   )

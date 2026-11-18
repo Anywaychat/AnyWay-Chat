@@ -107,6 +107,7 @@ export function voiceFor(lang: string): SpeechSynthesisVoice | undefined {
 /** Remembers the voice picked for a language ('' = automatic). */
 export function chooseVoice(lang: string, name: string) {
   chosen = { ...chosen, [baseOf(lang)]: name }
+  voiceSubs.forEach((f) => f())
   try {
     localStorage.setItem('anyway.voices', JSON.stringify(chosen))
   } catch {
@@ -114,6 +115,21 @@ export function chooseVoice(lang: string, name: string) {
   }
 }
 export const chosenVoice = (lang: string) => chosen[baseOf(lang)] ?? ''
+const voiceSubs = new Set<() => void>()
+/** All picked voices, by language (saved to the account so they follow the person). */
+export const chosenVoices = () => chosen
+export function setChosenVoices(v: Record<string, string>) {
+  chosen = { ...v }
+  try {
+    localStorage.setItem('anyway.voices', JSON.stringify(chosen))
+  } catch {
+    /* storage full */
+  }
+}
+export const onVoicesChange = (f: () => void) => {
+  voiceSubs.add(f)
+  return () => voiceSubs.delete(f)
+}
 
 // The natural voice runs in a background thread (on the page's own thread it froze every tap while it worked).
 const kokoro = workerClient<{ text?: string; speed?: number; live?: boolean }, { blob?: Blob; fast?: boolean; slowness?: number }>(
@@ -312,6 +328,37 @@ export function stopSpeaking() {
 
 /** True while AnyWay is talking, so the wake word ignores its own voice. */
 export const isSpeaking = () => busy || !!playing || (canSpeak && window.speechSynthesis.speaking)
+
+/* ---------- Screen-reader mode ---------- */
+// A blind person using TalkBack or VoiceOver heard everything twice: once from the screen reader, once from AnyWay.
+// In screen-reader mode AnyWay's announcements go to the screen reader instead (a live region), in its own voice.
+// Speaking FOR someone (a non-speaking person's words, Face to face) still uses speak(), since others need to hear it.
+let srMode = false
+export function setScreenReaderMode(on: boolean) {
+  srMode = on
+}
+export const screenReaderMode = () => srMode
+let live: HTMLElement | null = null
+function liveRegion() {
+  if (live?.isConnected) return live
+  live = document.createElement('div')
+  live.className = 'sr-only'
+  live.setAttribute('role', 'log')
+  live.setAttribute('aria-live', 'assertive')
+  document.body.appendChild(live)
+  return live
+}
+/** Tells a blind person something: said by AnyWay, or handed to their screen reader so it isn't said twice. */
+export function announce(text: string, interrupt = false) {
+  if (!srMode) return speak(text, interrupt)
+  if (!text.trim()) return
+  const el = liveRegion()
+  if (interrupt) el.textContent = ''
+  const p = document.createElement('p')
+  p.textContent = text
+  el.appendChild(p)
+  setTimeout(() => p.remove(), 15000)
+}
 
 /* ---------- Listening ---------- */
 export interface Listening {
@@ -619,8 +666,10 @@ export function whenQuiet(): Promise<void> {
  * Resolves with what was said, or '' if nothing was heard.
  */
 export async function ask(question: string): Promise<string> {
-  speak(question, true)
+  announce(question, true)
   await whenQuiet()
+  // With a screen reader, wait while it reads the question, so the microphone doesn't hear it.
+  if (srMode) await new Promise((r) => setTimeout(r, 900 + question.length * 65))
   return new Promise((done) => {
     const l = listenOnce(
       () => {},

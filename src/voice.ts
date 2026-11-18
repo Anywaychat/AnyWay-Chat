@@ -153,6 +153,10 @@ export type Intent =
   | { kind: 'time' }
   | { kind: 'describe' }
   | { kind: 'callWho'; video: boolean }
+  | { kind: 'when' }
+  | { kind: 'readMore' }
+  | { kind: 'playVoice' }
+  | { kind: 'pauseVoice' }
 
 const POLITE = /^(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|go ahead and|just|now|ok|okay|hey)\s+)+/
 
@@ -238,6 +242,11 @@ export function understand(spoken: string, people: Person[], inChat: boolean): I
   if (short && /^((list|read)( out)? (my |all )?(chats|contacts|people)|who are my (chats|contacts|friends))$/.test(t)) return { kind: 'list' }
   if (short && /^(next|next chat|next one|go next)$/.test(t)) return { kind: 'next' }
   if (short && /^(previous|previous chat|last chat|go back a chat)$/.test(t)) return { kind: 'previous' }
+  // Message times, older messages and voice messages, inside a chat
+  if (inChat && short && /^(when (was|did) (that|it|this|the last message|that message) (sent|come|arrive|come in)|what time (was|did) (that|it|this) (sent|come|arrive)?|when did (he|she|they|it) (send|write) (it|that|this)|what time was that( sent)?|when was it sent)$/.test(t)) return { kind: 'when' }
+  if (inChat && short && /^(read (more|older|earlier|previous)( messages)?|(older|earlier|more|previous) messages|go back( further)?)$/.test(t)) return { kind: 'readMore' }
+  if (inChat && short && /^((play|listen to|open)( the| that| this| her| his| their| last)? (voice (message|note)|audio( message)?|recording)|play it)$/.test(t)) return { kind: 'playVoice' }
+  if (inChat && short && /^(pause( it| that)?|(pause|stop) the (voice (message|note)|audio|recording))$/.test(t)) return { kind: 'pauseVoice' }
   if (inChat && short && /^(read|read (it|this|out|aloud|the chat|this chat|my messages|messages|the messages|the last messages?)|what did they say|play messages)$/.test(t)) return { kind: 'read' }
 
   if (mention) {

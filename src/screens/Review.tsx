@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Grid2x2, Hand, Keyboard, Mic, Star } from 'lucide-react'
 import { useAuth, useProfile, type Mode } from '../state'
-import { canListen, listenOnce, speak, type Listening } from '../speech'
+import { announce, canListen, listenOnce, speak, type Listening } from '../speech'
 import SignCamera from '../components/SignCamera'
 
 type Way = 'speak' | 'sign' | 'tap' | 'type'
@@ -47,7 +47,7 @@ export default function Review() {
       setText(review.text)
       setShowName(review.showName)
     }).catch(() => {})
-    if (mode === 'blind') speak('Review AnyWay. Choose stars from 1 to 5, then tap Speak and say your review.')
+    if (mode === 'blind') announce('Review AnyWay. Choose stars from 1 to 5, then tap Speak and say your review.')
   }, [api, mode])
 
   const add = (words: string, how: Way) => {
@@ -65,7 +65,7 @@ export default function Review() {
         setHeard('')
         if (final.trim()) {
           add(final.trim(), 'speak')
-          if (mode === 'blind') speak(`I heard: ${final.trim()}. Tap Send review when you're ready.`)
+          if (mode === 'blind') announce(`I heard: ${final.trim()}. Tap Send review when you're ready.`)
         }
       },
       (e) => { setIsListening(false); setMsg({ ok: false, text: e }) },
@@ -81,7 +81,7 @@ export default function Review() {
     try {
       await api('/reviews', { method: 'POST', body: { rating, text, lang: how, showName } })
       setMsg({ ok: true, text: 'Thank you! Your review is saved. You can change it any time.' })
-      if (mode === 'blind') speak('Thank you. Your review is saved.')
+      if (mode === 'blind') announce('Thank you. Your review is saved.')
       navigator.vibrate?.([120, 80, 120])
     } catch (err) {
       setMsg({ ok: false, text: (err as Error).message })
@@ -93,14 +93,14 @@ export default function Review() {
     <div className="screen">
       <header className="topbar">
         <button className="icon-btn back-btn" style={{ display: 'grid' }} aria-label="Back" onClick={() => nav(-1)}><ArrowLeft size={20} aria-hidden="true" /></button>
-        <div className="topbar-title"><strong>Review AnyWay</strong><span>In your own way: speak, sign, tap or type</span></div>
+        <div className="topbar-title"><h1 className="topbar-name">Review AnyWay</h1><span>In your own way: speak, sign, tap or type</span></div>
       </header>
       <div className="scroll">
         <form className="section review-form" onSubmit={(e) => { e.preventDefault(); void send() }}>
           <fieldset className="stars">
             <legend>How would you rate AnyWay?</legend>
             {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} type="button" aria-pressed={rating >= n} aria-label={`${n} star${n > 1 ? 's' : ''}`} onClick={() => { setRating(n); if (mode === 'blind') speak(`${n} star${n > 1 ? 's' : ''}`, true) }}>
+              <button key={n} type="button" aria-pressed={rating >= n} aria-label={`${n} star${n > 1 ? 's' : ''}`} onClick={() => { setRating(n); if (mode === 'blind') announce(`${n} star${n > 1 ? 's' : ''}`, true) }}>
                 <Star size={34} fill={rating >= n ? 'currentColor' : 'none'} aria-hidden="true" />
               </button>
             ))}

@@ -1,3 +1,4 @@
+import { notifyCall } from './push'
 import { NCCallEngine, NCCallEndReason, NCCallMediaType, NCCallType, NCCallUserState, NCCallVideoFrameRate, NCCallVideoResolution, type NCCallSession } from '@nexconn/call'
 
 /**
@@ -171,6 +172,12 @@ export function startCallEngine() {
 
 export async function startCall(peer: string, video: boolean): Promise<string | null> {
   if (!engine) return 'Calls are still connecting. Try again in a moment.'
+  // Demo friends are answered by a script, which can't pick up a call.
+  if (peer.startsWith('demo')) {
+    set({ ...IDLE, phase: 'ended', peer, video, endedReason: 'Demo friends can’t take calls. Call a real friend to try live captions.' })
+    setTimeout(() => state.phase === 'ended' && set(IDLE), 4000)
+    return 'demo'
+  }
   if (state.phase !== 'idle' && state.phase !== 'ended') return 'You are already in a call.'
   outgoing = true
   connectedAt = null
@@ -195,6 +202,8 @@ export async function startCall(peer: string, video: boolean): Promise<string | 
     return `code ${code}`
   }
   set({ callId })
+  // Their app may be closed: a notification tells them who is calling.
+  notifyCall(peer, video)
   return null
 }
 

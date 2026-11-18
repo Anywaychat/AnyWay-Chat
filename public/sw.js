@@ -1,6 +1,6 @@
 // AnyWay service worker: makes the app installable and opens it even on a flaky connection.
 // It never caches the API or chat traffic, so messages are always live.
-const SHELL = 'anyway-shell-v2'
+const SHELL = 'anyway-shell-v3'
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(['/index.html', '/icons/icon-192.png'])))
@@ -37,13 +37,15 @@ self.addEventListener('push', (e) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       // If the person is looking at the app right now, the app itself handles it.
       if (wins.some((w) => w.focused && w.visibilityState === 'visible')) return
+      // A call stays on screen until it's answered or dismissed, and buzzes like a ringing phone.
       return self.registration.showNotification(d.title || 'AnyWay Chat', {
         body: d.body || 'New message',
         tag: d.tag,
         renotify: true,
+        requireInteraction: !!d.call,
         icon: '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
-        vibrate: [200, 100, 200],
+        vibrate: d.call ? [800, 400, 800, 400, 800, 400, 800, 400, 800] : [200, 100, 200],
         data: { url: d.url || '/home' },
       })
     }),

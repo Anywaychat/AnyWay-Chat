@@ -1,7 +1,7 @@
 import { enablePush } from '../push'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Bell, BookOpen, Footprints, Search, UserPlus, Users, X } from 'lucide-react'
+import { Bell, BookOpen, Footprints, Search, Sparkles, UserPlus, Users, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { contactById, useAuth, toContact, type Contact, type User } from '../state'
 import { Avatar, TabBar } from '../components/ui'
@@ -17,6 +17,29 @@ function timeLabel(t: number) {
   if (d.toDateString() === today.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const diff = (today.getTime() - t) / 86400000
   return diff < 7 ? d.toLocaleDateString([], { weekday: 'short' }) : d.toLocaleDateString([], { day: 'numeric', month: 'short' })
+}
+
+/** Priya (deaf), Arjun (blind) and Meera (can't speak) answer by themselves, so anyone can try AnyWay alone. */
+function DemoInvite({ big = false }: { big?: boolean }) {
+  const { startDemo } = useAuth()
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const go = async () => {
+    setBusy(true)
+    setErr(await startDemo())
+    setBusy(false)
+  }
+  return (
+    <div className={big ? 'demo-invite big' : 'demo-invite'}>
+      <span className="go-ico"><Sparkles size={18} aria-hidden="true" /></span>
+      <span>
+        <strong>Try it now with 3 demo friends</strong>
+        <span className="sub">Priya is deaf and signs, Arjun is blind and talks, Meera can’t speak and taps. Each one answers in their own way.</span>
+        {err && <span className="form-error" role="alert">{err}</span>}
+      </span>
+      <button className="btn primary" disabled={busy} onClick={() => void go()}>{busy ? 'Adding…' : 'Add them'}</button>
+    </div>
+  )
 }
 
 export default function Home() {
@@ -58,6 +81,7 @@ export default function Home() {
             <button key={f} className="pill" aria-pressed={f === filter} onClick={() => setFilter(f)}>{f}</button>
           ))}
         </div>
+        {contacts.length > 0 && !contacts.some((c) => c.demo) && contacts.length < 3 && <DemoInvite />}
         {notif === 'default' && (
           <button className="notif-card" onClick={() => Notification.requestPermission().then((p) => { setNotif(p); if (p === 'granted') void enablePush() })}>
             <Bell size={16} aria-hidden="true" />Turn on notifications for new messages
@@ -73,7 +97,7 @@ export default function Home() {
             </span>
           </Link>
         )}
-        {user?.mode !== 'blind' && (
+        {(
         <Link to="/go" className="go-card">
           <span className="go-ico"><Footprints size={18} aria-hidden="true" /></span>
           <span>
@@ -87,8 +111,9 @@ export default function Home() {
       <div className="scroll" role="list">
         {contacts.length === 0 && (
           <div className="empty-list">
-            <p>No contacts yet.</p>
-            <button className="btn primary" onClick={() => setAdding(true)}><UserPlus size={16} aria-hidden="true" />Add a contact</button>
+            <DemoInvite big />
+            <p>Or add someone you know.</p>
+            <button className="btn" onClick={() => setAdding(true)}><UserPlus size={16} aria-hidden="true" />Add a contact</button>
             <p className="hint">Ask a friend for their AnyWay username. You are <strong>@{user?.id}</strong>.</p>
           </div>
         )}
@@ -97,7 +122,7 @@ export default function Home() {
             {group ? <span className="avatar hue-slate" aria-hidden="true"><Users size={20} /></span> : <Avatar c={c} online={online.has(c.id)} />}
             <div className="chat-row-main">
               <div className="chat-row-top">
-                <span className="name">{c.name}</span>
+                <span className="name">{c.name}{'demo' in c && c.demo && <span className="demo-tag">Demo</span>}</span>
                 <time className={ch?.unread ? 'new' : ''}>{timeLabel(ch?.lastTime ?? 0)}</time>
               </div>
               <div className="chat-row-bottom">

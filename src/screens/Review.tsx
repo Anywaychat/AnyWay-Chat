@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Delete, Grid2x2, Hand, Keyboard, Mic, Star } from 'lucide-react'
+import { ArrowLeft, Grid2x2, Hand, Keyboard, Mic, Star } from 'lucide-react'
 import { useAuth, useProfile, type Mode } from '../state'
 import { canListen, listenOnce, speak, type Listening } from '../speech'
 import SignCamera from '../components/SignCamera'
-import BrailleKeys from '../components/BrailleKeys'
 
-type Way = 'speak' | 'sign' | 'tap' | 'braille' | 'type'
+type Way = 'speak' | 'sign' | 'tap' | 'type'
 const WAYS: Record<Way, { label: string; icon: typeof Mic; saved: string }> = {
   speak: { label: 'Speak', icon: Mic, saved: 'Spoken' },
   sign: { label: 'Sign', icon: Hand, saved: 'Signed (ISL)' },
   tap: { label: 'Tap', icon: Grid2x2, saved: 'Tapped' },
-  braille: { label: 'Braille', icon: Delete, saved: 'Braille' },
   type: { label: 'Type', icon: Keyboard, saved: 'Typed' },
 }
 // Each person starts in their own way of talking, and can switch.
@@ -19,14 +17,13 @@ const FIRST: Record<Mode, Way[]> = {
   blind: ['speak', 'type'],
   deaf: ['sign', 'type'],
   speech: ['tap', 'type'],
-  deafblind: ['braille', 'type'],
   standard: ['type', 'speak'],
 }
 const PHRASES = ['I love AnyWay', 'Easy to use', 'It helps me talk to my family', 'It helps me talk to my friends', 'I can chat on my own now', 'Please add more signs', 'Please make it faster', 'Thank you']
 
 type Mine = { rating: number; text: string; lang: string; showName: boolean } | null
 
-/** Review AnyWay in your own way: speak, sign, tap, braille or type. One review per person. */
+/** Review AnyWay in your own way: speak, sign, tap or type. One review per person. */
 export default function Review() {
   const { api } = useAuth()
   const { mode } = useProfile()
@@ -96,7 +93,7 @@ export default function Review() {
     <div className="screen">
       <header className="topbar">
         <button className="icon-btn back-btn" style={{ display: 'grid' }} aria-label="Back" onClick={() => nav(-1)}><ArrowLeft size={20} aria-hidden="true" /></button>
-        <div className="topbar-title"><strong>Review AnyWay</strong><span>In your own way: speak, sign, tap, braille or type</span></div>
+        <div className="topbar-title"><strong>Review AnyWay</strong><span>In your own way: speak, sign, tap or type</span></div>
       </header>
       <div className="scroll">
         <form className="section review-form" onSubmit={(e) => { e.preventDefault(); void send() }}>
@@ -138,7 +135,6 @@ export default function Review() {
             </div>
           )}
 
-          {way === 'braille' && <BrailleKeys onText={(update) => { used.current.add('braille'); setText(update) }} />}
 
           <label className="field-label">Your review
             <textarea className="input" dir="auto" rows={5} value={text} onChange={(e) => setText(e.target.value)} maxLength={1500} required placeholder="What did AnyWay help you do? What should we make better?" />

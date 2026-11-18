@@ -19,7 +19,8 @@ export default function ChatInfo({ kind, id, onClose }: { kind: 'direct' | 'grou
 }
 
 function PersonInfo({ id }: { id: string }) {
-  const { blocked, setBlocked, report, setNickname, contacts } = useAuth()
+  const { blocked, setBlocked, report, setNickname, contacts, removeContact } = useAuth()
+  const nav = useNavigate()
   const c = contacts.find((x) => x.id === id) ?? contactById(id)
   const [naming, setNaming] = useState(false)
   const [nick, setNick] = useState('')
@@ -57,6 +58,11 @@ function PersonInfo({ id }: { id: string }) {
       <button className={`btn block${isBlocked ? '' : ' danger-btn'}`} onClick={async () => setMsg((await setBlocked(id, !isBlocked)) ?? (isBlocked ? `${c.name} is unblocked.` : `${c.name} is blocked. They can't message or call you.`))}>
         <Ban size={16} aria-hidden="true" />{isBlocked ? `Unblock ${c.name}` : `Block ${c.name}`}
       </button>
+      {c.demo && (
+        <button className="btn block" onClick={async () => { const err = await removeContact(id); if (err) setMsg(err); else nav('/home') }}>
+          <UserMinus size={16} aria-hidden="true" />Remove this demo friend
+        </button>
+      )}
       {!reporting ? (
         <button className="btn block" onClick={() => setReporting(true)}><Flag size={16} aria-hidden="true" />Report {c.name}</button>
       ) : (

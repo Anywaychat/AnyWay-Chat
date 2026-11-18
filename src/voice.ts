@@ -1,7 +1,9 @@
-/** Where "Hey Chat" commands go: the open chat if there is one, otherwise the app-wide handler. */
-let chatHandler: ((text: string) => void) | null = null
+/** Where "Hey Chat" commands go: the open chat if there is one, otherwise the app-wide handler.
+ *  The assistant passes what it already understood (with any "which one?" answered), so the chat doesn't guess again. */
+type ChatVoice = (text: string, intent?: Intent) => void
+let chatHandler: ChatVoice | null = null
 
-export function registerChatVoice(fn: (text: string) => void) {
+export function registerChatVoice(fn: ChatVoice) {
   chatHandler = fn
   return () => {
     if (chatHandler === fn) chatHandler = null
@@ -10,8 +12,23 @@ export function registerChatVoice(fn: (text: string) => void) {
 
 export const hasChat = () => !!chatHandler
 
-export function routeVoice(text: string, fallback: (text: string) => void) {
-  if (chatHandler) chatHandler(text)
+export function routeVoice(text: string, fallback: (text: string) => void, intent?: Intent) {
+  if (chatHandler) chatHandler(text, intent)
+  else fallback(text)
+}
+
+/** The app-wide voice assistant (blind mode). Everything spoken goes through it, however listening was started:
+ *  "Hey Chat", the big Tap to speak button or the Space key. Before, the button and Space skipped it, so commands
+ *  like "go to my profile" were sent to the open chat as messages. */
+let assistant: ((text: string) => void) | null = null
+export function registerAssistant(fn: (text: string) => void) {
+  assistant = fn
+  return () => {
+    if (assistant === fn) assistant = null
+  }
+}
+export function runAssistant(text: string, fallback: (text: string) => void) {
+  if (assistant) assistant(text)
   else fallback(text)
 }
 
@@ -45,27 +62,58 @@ function distance(a: string, b: string) {
 }
 const similar = (a: string, b: string) => (a === b ? 1 : 1 - distance(a, b) / Math.max(a.length, b.length))
 
-/** Finds which contact is mentioned anywhere in what was said, allowing for spacing, spoken numbers and small mishearings. */
-export function findMentioned(spoken: string, people: Person[]): { who: Person; start: number; end: number } | null {
+export interface Mention {
+  who: Person
+  start: number
+  end: number
+  /** Everyone who matches equally well (a first name two contacts share): ask which one instead of guessing. */
+  ambiguous?: Person[]
+}
+
+/**
+ * Finds which contact is mentioned anywhere in what was said, allowing for spacing, spoken numbers and small mishearings.
+ * A whole name beats a first name: "send to test deafblind" used to go to "Test Talk", because both start with "Test"
+ * and an exact first name outscored a slightly misheard whole name. A first name that several contacts share no longer
+ * picks one of them: the caller asks which one.
+ */
+export function findMentioned(spoken: string, people: Person[]): Mention | null {
   const w = words(spoken)
-  let best: { who: Person; start: number; end: number; score: number } | null = null
+  if (!w.length || !people.length) return null
+  const realOf = (p: Person) => (p as { realName?: string }).realName ?? ''
+  const firstsOf = (p: Person) => [...new Set([compact(p.name.split(' ')[0]), compact(realOf(p).split(' ')[0])])].filter((k) => k.length >= 2)
+  const shared = new Map<string, number>()
+  for (const p of people) for (const k of firstsOf(p)) shared.set(k, (shared.get(k) ?? 0) + 1)
+  type Cand = { who: Person; start: number; end: number; rank: number; weak: boolean; key: string }
+  const cands: Cand[] = []
   for (const p of people) {
-    const real = (p as { realName?: string }).realName ?? ''
-    // Match the nickname you gave them, their own name, or their username.
-    const keys = [compact(p.name), compact(p.name.split(' ')[0]), compact(real), compact(real.split(' ')[0]), compact(p.id)].filter((k) => k.length >= 2)
+    const whole = [...new Set([compact(p.name), compact(realOf(p)), compact(p.id)])].filter((k) => k.length >= 2)
+    const firsts = firstsOf(p).filter((k) => !whole.includes(k))
+    let best: Cand | null = null
     for (let i = 0; i < w.length; i++) {
-      for (let n = 1; n <= 3 && i + n <= w.length; n++) {
+      for (let n = 1; n <= 4 && i + n <= w.length; n++) {
         const spokenRaw = w.slice(i, i + n).join('')
         const spokenNum = w.slice(i, i + n).map((x) => NUMBERS[x] ?? x).join('')
-        for (const k of keys) {
+        const consider = (k: string, first: boolean) => {
           const score = Math.max(similar(spokenRaw, k), similar(spokenNum, k))
-          const need = k.length <= 4 ? 1 : 0.8
-          if (score >= need && (!best || score > best.score || (score === best.score && n > best.end - best.start))) best = { who: p, start: i, end: i + n, score }
+          if (score < (k.length <= 4 ? 1 : 0.8)) return
+          const weak = first && (shared.get(k) ?? 0) > 1
+          const rank = score + (first ? (weak ? 0 : 0.1) : 0.3) + n * 0.01
+          if (!best || rank > best.rank) best = { who: p, start: i, end: i + n, rank, weak, key: k }
         }
+        whole.forEach((k) => consider(k, false))
+        firsts.forEach((k) => consider(k, true))
       }
     }
+    if (best) cands.push(best)
   }
-  return best ? { who: best.who, start: best.start, end: best.end } : null
+  if (!cands.length) return null
+  cands.sort((a, b) => b.rank - a.rank)
+  const top = cands[0]
+  if (top.weak) {
+    const same = cands.filter((c) => c.weak && c.key === top.key && top.rank - c.rank < 0.05)
+    if (same.length > 1) return { who: top.who, start: top.start, end: top.end, ambiguous: same.map((c) => c.who) }
+  }
+  return { who: top.who, start: top.start, end: top.end }
 }
 
 export type Intent =
@@ -106,103 +154,122 @@ export type Intent =
   | { kind: 'describe' }
   | { kind: 'callWho'; video: boolean }
 
-const POLITE = /^(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|go ahead and|just)\s+)+/
+const POLITE = /^(?:(?:please|can you|could you|would you|will you|i want to|i'd like to|go ahead and|just|now|ok|okay|hey)\s+)+/
+
+// Command words must come first ("tell Priya …"), so an ordinary sentence that mentions someone
+// ("did you tell Ravi about it") stays a message to the open chat instead of going to Ravi.
+const LEAD_VIDEO = /^(?:(?:start|make|do|place)\s+(?:a\s+)?)?(?:video call|video chat|facetime|video)(?:\s+(?:with|to))?$/
+const LEAD_CALL = /^(?:(?:start|make|do|place)\s+(?:a\s+)?)?(?:call|ring|phone|dial|voice call|audio call)(?:\s+(?:with|to))?$/
+const LEAD_SEND = /^(?:send|tell|message|text|let|inform|ask|reply to|reply|write to|write|msg|whatsapp)(?:\s+(?:a\s+|the\s+)?(?:message|text|msg))?(?:\s+to)?$/
+const LEAD_OPEN = /^(?:open|go to|switch to|chat with|show|talk to|talk with|open (?:my )?chat with|open (?:my )?messages (?:with|from))$/
+const LEAD_ASK = /^(?:what did|what has|any messages from|messages from|read messages from|read|did)$/
 
 /**
  * Understands everyday phrasing instead of fixed commands:
  * "can you tell test two I'm on my way", "let Priya know I'll be late", "ring Meera", "what did Priya say".
- * Inside a chat, anything that isn't a command is the message itself.
+ * Inside a chat, anything that isn't clearly a command is the message itself.
+ * When only a shared first name was heard ("send Ravi …" with two Ravis), the intent carries `ambiguous`.
  */
-export function understand(spoken: string, people: Person[], inChat: boolean): Intent {
+export function understand(spoken: string, people: Person[], inChat: boolean): Intent & { ambiguous?: Person[] } {
   const raw = spoken.trim().replace(/[.!?]+$/, '')
-  const t = raw.toLowerCase().replace(POLITE, '')
+  const t = raw.toLowerCase().replace(/[,]/g, '').replace(POLITE, '')
   const mention = findMentioned(raw, people)
-  const short = t.split(/\s+/).length <= 6
+  const n = t.split(/\s+/).filter(Boolean).length
+  const short = n <= 6
+  const ambiguous = mention?.ambiguous
+  const withWho = <T extends Intent>(i: T): T & { ambiguous?: Person[] } => (ambiguous ? { ...i, ambiguous } : i)
 
   if (/^(help|what can i say|what can you do)\b/.test(t)) return { kind: 'help' }
 
-  if (/\b(describe|what'?s in|what is in|what does)\b.*\b(photo|picture|image|pic)\b|^describe( it| that)?$/.test(t)) return { kind: 'describe' }
+  if (/^(describe|what'?s in|what is in|what does)\b.*\b(photo|picture|image|pic)\b|^describe( it| that| the photo)?$/.test(t)) return { kind: 'describe' }
 
   // Starting something without saying who or what: the assistant will ask.
-  if (/\b(new message|send (a |an )?(message|text)|write (a |an )?(message|text)?|type (a |an )?(new )?(message|text)?|compose|text someone|message someone|send something|write to someone)\b/.test(t) && !/\bsaying\b|\bthat\b/.test(t)) {
-    const who = findMentioned(raw, people)?.who
-    return { kind: 'compose', who }
+  if (/^(new message|(send|write|type|compose) (a |an )?(new )?(message|text)|compose|text someone|message someone|send something|write to someone)\b/.test(t) && !/\bsaying\b|\bthat\b/.test(t)) {
+    return withWho({ kind: 'compose', who: mention?.who })
   }
   if (short && /^(make|place|start|do)( a| an)? (video )?call$|^(video )?call( someone)?$/.test(t)) return { kind: 'callWho', video: /video/.test(t) }
 
   // Calls
-  if (short && /\b(answer|accept|pick up|take)\b( (it|the call|call))?$/.test(t)) return { kind: 'callAction', action: 'answer' }
-  if (short && /\b(decline|reject|ignore)\b( (it|the call|call))?$/.test(t)) return { kind: 'callAction', action: 'decline' }
-  if (short && /\b(hang up|end (the )?call|cut (the )?call|stop (the )?call|cancel (the )?call)\b/.test(t)) return { kind: 'callAction', action: 'end' }
-  if (short && /^(unmute|turn on (my )?(mic|microphone))\b/.test(t)) return { kind: 'callAction', action: 'unmute' }
-  if (short && /^(mute|turn off (my )?(mic|microphone))\b/.test(t)) return { kind: 'callAction', action: 'mute' }
-  if (short && /\b(camera|video) off\b|turn off (my )?(camera|video)/.test(t)) return { kind: 'callAction', action: 'camOff' }
-  if (short && /\b(camera|video) on\b|turn on (my )?(camera|video)/.test(t)) return { kind: 'callAction', action: 'camOn' }
+  if (short && /^(answer|accept|pick up|take)( (it|the call|call))?$/.test(t)) return { kind: 'callAction', action: 'answer' }
+  if (short && /^(decline|reject|ignore)( (it|the call|call))?$/.test(t)) return { kind: 'callAction', action: 'decline' }
+  if (short && /^(hang up|end (the )?call|cut (the )?call|stop (the )?call|cancel (the )?call)$/.test(t)) return { kind: 'callAction', action: 'end' }
+  if (short && /^(unmute( me)?|turn on (my )?(mic|microphone))$/.test(t)) return { kind: 'callAction', action: 'unmute' }
+  if (short && /^(mute( me)?|turn off (my )?(mic|microphone))$/.test(t)) return { kind: 'callAction', action: 'mute' }
+  if (short && /^((my )?(camera|video) off|turn off (my )?(camera|video))$/.test(t)) return { kind: 'callAction', action: 'camOff' }
+  if (short && /^((my )?(camera|video) on|turn on (my )?(camera|video))$/.test(t)) return { kind: 'callAction', action: 'camOn' }
 
   // Screens
-  if (short && /^(go|open|take me|show|switch)\b.*\b(call history|calls|recent calls)\b/.test(t)) return { kind: 'nav', to: 'calls' }
-  if (short && /^(go|open|take me|show)\b.*\b(profile|settings|my account)\b/.test(t)) return { kind: 'nav', to: 'profile' }
-  if (short && /^(go|open|take me|start)\b.*\b(go mode|interpreter|face to face)\b/.test(t)) return { kind: 'nav', to: 'go' }
-  if (short && /^(go|take me|back)\b.*\b(home|chats|chat list|main)\b|^go back$/.test(t)) return { kind: 'nav', to: 'home' }
+  if (short && /^(go|open|take me|show|switch)\b.*\b(call history|calls|recent calls)$/.test(t)) return { kind: 'nav', to: 'calls' }
+  if (short && /^(go|open|take me|show)\b.*\b(profile|settings|my account)$/.test(t)) return { kind: 'nav', to: 'profile' }
+  if (short && /^(go|open|take me|start)\b.*\b(go mode|interpreter|face to face)$/.test(t)) return { kind: 'nav', to: 'go' }
+  if (short && /^((go|take me) (back )?(to )?(the )?(home|chats|chat list|main)( screen| page)?|go back|go home)$/.test(t)) return { kind: 'nav', to: 'home' }
 
   // Account and status
-  if (short && /\b(log ?out|sign out)\b/.test(t)) return { kind: 'logout' }
-  if (short && /\b(who am i|what'?s my (name|username))\b/.test(t)) return { kind: 'whoami' }
-  if (short && /\b(who'?s|who is|anyone) online\b/.test(t)) return { kind: 'online' }
-  if (short && /\b(any (new|unread) messages|what did i miss|unread|new messages|anything new)\b/.test(t)) return { kind: 'unread' }
-  if (short && /\b(speak|talk|read)\b.*\b(faster|quicker)\b|^faster$/.test(t)) return { kind: 'speed', faster: true }
-  if (short && /\b(speak|talk|read)\b.*\b(slower|slowly)\b|^slower$/.test(t)) return { kind: 'speed', faster: false }
+  if (short && /^(log ?out|sign out)( of anyway)?$/.test(t)) return { kind: 'logout' }
+  if (short && /^(who am i|what'?s my (name|username)|what is my (name|username))$/.test(t)) return { kind: 'whoami' }
+  if (short && /^(who'?s online|who is online|is anyone online|anyone online)$/.test(t)) return { kind: 'online' }
+  if (short && /^((do i have |are there |any )?(any )?(new|unread) (messages|texts)|what did i miss|anything new|check (my )?messages|unread)$/.test(t)) return { kind: 'unread' }
+  if (short && /^((speak|talk|read)( a bit)? (faster|quicker)|faster)$/.test(t)) return { kind: 'speed', faster: true }
+  if (short && /^((speak|talk|read)( a bit)? (slower|more slowly|slowly)|slower)$/.test(t)) return { kind: 'speed', faster: false }
+  if (short && /^(stop|stop talking|be quiet|quiet|shut up|silence)$/.test(t)) return { kind: 'stopTalking' }
+  if (short && /^(what time is it|what'?s the time|what is the time|time)$/.test(t)) return { kind: 'time' }
 
   // Contacts and groups
   const add = t.match(/^(?:add|save)\s+(?:a\s+)?(?:new\s+)?(?:contact|friend|person|user(?:name)?)\s+(.+)$/)
   if (add && !/\bto\b.*\bgroup\b/.test(t)) return { kind: 'addContact', username: add[1].split(/\s+/).map((x) => NUMBERS[x] ?? x).join('').replace(/[^a-z0-9]/g, '') }
-  const group = raw.match(/\b(?:create|make|start|new)\s+(?:a\s+)?group\s+(?:called|named)?\s*(.+?)\s+with\s+(.+)$/i)
+  const group = t.match(/^(?:create|make|start|new)\s+(?:a\s+)?(?:new\s+)?group\s+(?:called|named)\s+(.+?)\s+with\s+(.+)$/) ?? (inChat ? null : t.match(/^(?:create|make|start)\s+(?:a\s+)?(?:new\s+)?group\s+(.+?)\s+with\s+(.+)$/))
   if (group) {
     const members = group[2].split(/\s*(?:,|\band\b)\s*/i).map((part) => findMentioned(part, people)?.who).filter((p): p is Person => !!p)
-    return { kind: 'createGroup', name: group[1].trim(), members }
+    return { kind: 'createGroup', name: group[1].trim().replace(/\b\w/g, (c) => c.toUpperCase()), members }
   }
   const blk = t.match(/^(un)?block\s+(.+)$/)
   if (blk) {
-    const who = findMentioned(blk[2], people)?.who
-    if (who) return { kind: 'block', who, block: !blk[1] }
+    const m = findMentioned(blk[2], people)
+    if (m) return { kind: 'block', who: m.who, block: !blk[1], ...(m.ambiguous ? { ambiguous: m.ambiguous } : {}) }
   }
 
   // Acting on the last message in the open chat
-  if (inChat && short && /^(like|love|heart|thumbs up|laugh at|react to)\b( (it|that|this|the last (one|message)))?$/.test(t))
+  if (inChat && short && /^(like|love|heart|thumbs up|laugh at|react to)( (it|that|this|the last (one|message)))?$/.test(t))
     return { kind: 'react', emoji: /love|heart/.test(t) ? '❤️' : /laugh/.test(t) ? '😂' : '👍' }
   if (inChat && /^(delete|unsend|remove) (my )?(last|that|previous) message$|^unsend( that)?$/.test(t)) return { kind: 'deleteLast' }
   const edit = raw.match(/^(?:edit|change|correct) (?:my )?(?:last|that|previous) message to (.+)$/i)
   if (inChat && edit) return { kind: 'editLast', text: edit[1] }
-  if (short && /^(repeat|say (it|that) again|again|what did (he|she|they) say)\b/.test(t)) return { kind: 'repeat' }
-  if (short && /\b(list|who are|read)\b.*\b(chats|contacts|people)\b/.test(t)) return { kind: 'list' }
+  if (short && /^(repeat( that| it| the last message)?|say (it|that) again|again|what did (he|she|they) say)$/.test(t)) return { kind: 'repeat' }
+  if (short && /^((list|read)( out)? (my |all )?(chats|contacts|people)|who are my (chats|contacts|friends))$/.test(t)) return { kind: 'list' }
   if (short && /^(next|next chat|next one|go next)$/.test(t)) return { kind: 'next' }
+  if (short && /^(previous|previous chat|last chat|go back a chat)$/.test(t)) return { kind: 'previous' }
+  if (inChat && short && /^(read|read (it|this|out|aloud|the chat|this chat|my messages|messages|the messages|the last messages?)|what did they say|play messages)$/.test(t)) return { kind: 'read' }
 
   if (mention) {
-    const w = words(raw)
-    const before = w.slice(0, mention.start).join(' ')
-    const after = raw.split(/\s+/).slice(mention.end).join(' ')
-    if (/\b(video call|video chat|facetime)\b/.test(before)) return { kind: 'call', who: mention.who, video: true }
-    if (/\b(call|ring|phone|dial|voice call)\b/.test(before) && after.split(/\s+/).filter(Boolean).length <= 2) return { kind: 'call', who: mention.who, video: false }
-    if (/\b(send|tell|message|text|let|inform|ask|reply|write)\b/.test(before)) {
+    const before = words(raw).slice(0, mention.start).join(' ').replace(POLITE, '').trim()
+    const afterWords = raw.split(/\s+/).slice(mention.end)
+    const after = afterWords.join(' ')
+    const fewAfter = afterWords.filter(Boolean).length <= 2
+    if (LEAD_VIDEO.test(before) && fewAfter) return withWho({ kind: 'call', who: mention.who, video: true })
+    if ((LEAD_CALL.test(before) && fewAfter) || (before === 'give' && /^a (voice |phone )?call\b/i.test(after))) return withWho({ kind: 'call', who: mention.who, video: false })
+    if (LEAD_SEND.test(before)) {
       const text = after
         .replace(/^[\s,:]*(?:know|that|saying|to say|and say|say|a message|the message|message)?[\s,:]*(?:that|saying)?[\s,:]*/i, '')
         .trim()
-      if (/^(?:a |an )?(?:voice|audio)\s*(?:message|note|msg)?$/i.test(text)) return { kind: 'voiceNote', who: mention.who }
-      if (text) return { kind: 'send', who: mention.who, text }
-      return { kind: 'open', who: mention.who }
+      if (/^(?:a |an )?(?:voice|audio)\s*(?:message|note|msg)?$/i.test(text)) return withWho({ kind: 'voiceNote', who: mention.who })
+      if (text) return withWho({ kind: 'send', who: mention.who, text })
+      return withWho({ kind: inChat ? 'compose' : 'open', who: mention.who } as Intent)
     }
-    if (/\b(open|go to|switch to|chat with|show|talk to|talk with)\b/.test(before) && after.split(/\s+/).filter(Boolean).length <= 2) return { kind: 'open', who: mention.who }
-    if (/\b(what did|did|any|read|messages? from|new from)\b/.test(t) && short) return { kind: 'open', who: mention.who }
+    if (LEAD_OPEN.test(before) && fewAfter) return withWho({ kind: 'open', who: mention.who })
+    if (!inChat && short && (LEAD_ASK.test(before) || before === '')) {
+      if (/^(say|send|write|text|message|call)?\s*(anything|something)?\??$/i.test(after) || /^(?:'s|s)?\s*messages?$/i.test(after) || before !== '') return withWho({ kind: 'open', who: mention.who })
+    }
+    if (!inChat && short && /^is$/.test(before) && /^online\b/i.test(after)) return withWho({ kind: 'isOnline', who: mention.who })
   }
 
-  if (short && /\b(any new|new (messages|texts)|what'?s new|unread)\b/.test(t)) return { kind: 'unread' }
-  if (short && /\b(read|my messages)\b/.test(t)) return inChat ? { kind: 'read' } : { kind: 'unread' }
+  if (!inChat && short && /\b(read|my messages)\b/.test(t)) return { kind: 'unread' }
 
   // Nothing matched exactly: find the closest action from the phrase library.
   const fuzzy = fromLibrary(raw, people, inChat)
-  if (fuzzy) return fuzzy
+  // Inside a chat, the loose matcher never sends words to someone else: only a clear command (above) does that.
+  if (fuzzy && !(inChat && 'who' in fuzzy && fuzzy.who)) return withWho(fuzzy)
   if (inChat) return { kind: 'say', text: raw }
-  return { kind: 'unclear', who: mention?.who }
+  return withWho({ kind: 'unclear', who: mention?.who })
 }
 
 const cleanText = (s: string) => s.replace(/^(?:that|to|saying|say|about|is)\s+/i, '').trim()

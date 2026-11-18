@@ -9,11 +9,11 @@ import VoiceNote from '../components/VoiceNote'
 import { translateForMe, useTranslated } from '../translateMsg'
 import SignStrip from '../components/SignStrip'
 import PhraseBoard from '../components/PhraseBoard'
-import { FROM_DOTS, key, toBraille } from '../braille'
 import { startCall } from '../calls'
-import { canListen, listenOnce, preloadNaturalVoice, speak, voiceClip, type Listening } from '../speech'
-import { registerChatVoice, understand } from '../voice'
-import { describePhoto } from '../vision'
+import { canListen, listenOnce, preloadVoiceClip, speak, voiceClip, voiceClipReady, type Listening } from '../speech'
+import { registerChatVoice, runAssistant, understand, type Intent } from '../voice'
+import { howLabel } from '../origin'
+import { describePhoto, visionReady } from '../vision'
 import { sendText } from '../nexconn'
 import { useNavigate } from 'react-router-dom'
 import ChatInfo from './ChatInfo'
@@ -82,10 +82,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   }, [messages.length, searching])
   const submit: SendFn = (text, origin) => {
     // Someone who can't speak gets their words said out loud too, so people nearby hear them.
-    if (origin.mode === 'speech' && !editing) {
-      preloadNaturalVoice()
-      speak(text)
-    }
+    if (origin.mode === 'speech' && !editing) speak(text)
     if (editing) {
       void edit(editing.id, text)
       setEditing(null)
@@ -97,7 +94,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
   const [descriptions, setDescriptions] = useState<Record<string, string>>({})
   const explain = async (m: ChatMessage, aloud = false) => {
     if (!m.url) return
-    setDescriptions((d) => ({ ...d, [m.id]: d[m.id] ?? 'Describing…' }))
+    setDescriptions((d) => ({ ...d, [m.id]: d[m.id] ?? (visionReady() ? 'Describing…' : 'Describing… (the first photo takes about a minute)') }))
     const text = (await describePhoto(m.url)) ?? "Couldn't describe this photo."
     setDescriptions((d) => ({ ...d, [m.id]: text }))
     if (aloud) speak(`The photo shows: ${text}`, true)
@@ -119,8 +116,8 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
     return t ? `${contactById(m.from).name} says, in ${t.fromName}: ${t.text}` : say(m)
   }
   useEffect(() => { if (mode === 'blind' && failed) speak(`Not sent. ${failed}`, true) }, [failed, mode])
-  const runVoice = (raw: string) => {
-    const it = understand(raw, contacts, true)
+  const runVoice = (raw: string, understood?: Intent) => {
+    const it = understood ?? understand(raw, contacts, true)
     switch (it.kind) {
       case 'help':
         return speak('Just talk normally. For example: send Priya I am on my way. Call Meera. Read my messages. Or say your message and it goes to this chat.', true)
@@ -178,18 +175,24 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         return speak('Edited.', true)
       }
       case 'send':
-        if (!isGroup && it.who.id === id) submit(it.text, { mode: 'blind' })
-        else void sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind' })
-        return speak(`Sent to ${it.who.name}.`, true)
-      default:
-        submit(raw.trim(), { mode: 'blind' })
+        if (!isGroup && it.who.id === id) {
+          submit(it.text, { mode: 'blind', how: 'spoken' })
+          return speak(`Sent to ${it.who.name}.`, true)
+        }
+        return void sendText({ kind: 'direct', id: it.who.id }, it.text, { mode: 'blind', how: 'spoken' }).then((m) => speak(m ? `Sent to ${it.who.name}.` : `Sorry, I couldn't send that to ${it.who.name}.`, true))
+      default: {
+        const words = it.kind === 'say' ? it.text : raw
+        submit(words.trim(), { mode: 'blind', how: 'spoken' })
         return speak('Sent.', false)
+      }
     }
   }
-  const talk = useTapToTalk(runVoice)
   const runRef = useRef(runVoice)
-  runRef.current = runVoice
-  useEffect(() => (mode === 'blind' ? registerChatVoice((t) => runRef.current(t)) : undefined), [mode])
+  useEffect(() => {
+    runRef.current = runVoice
+  })
+  const talk = useTapToTalk((t) => runAssistant(t, (x) => runRef.current(x)))
+  useEffect(() => (mode === 'blind' ? registerChatVoice((t, i) => runRef.current(t, i)) : undefined), [mode])
   useEffect(() => {
     if (mode !== 'blind') return
     const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
@@ -219,9 +222,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
             : 'typing…'
           : isGroup
             ? `${group?.members.length ?? 0} members: ${group?.members.map((m) => (m.id === me ? 'you' : m.name)).join(', ') ?? ''}`
-            : online.has(c.id) ? 'online' : 'offline'
-
-  if (mode === 'deafblind') return <DeafBlindChat name={c.name} messages={messages} me={me} send={(t) => void send(t, { mode: 'deafblind' })} />
+            : c.demo ? 'demo friend · answers by itself' : online.has(c.id) ? 'online' : 'offline'
 
   return (
     <div className="screen">
@@ -298,6 +299,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                     </a>
                   )}
                   {m.type === 'text' && (mine ? m.text : <MsgText text={m.text} deaf={mode === 'deaf'} autoPlay={m.id === newestIncoming} />)}
+                  {!mine && m.type === 'text' && howLabel(m.origin) && <span className="how-made">{howLabel(m.origin)}</span>}
                   <span className="stamp">
                     {m.edited && <span className="edited">edited</span>}
                     {fmt(m.sentTime)}
@@ -354,7 +356,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
       {mode === 'blind' && (
         <>
           <BlindComposer name={c.name} talk={talk} />
-          <div className="composer" style={{ paddingTop: 0, borderTop: 0 }}><TextField onSend={(t) => submit(t, { mode: 'blind' })} mode="blind" placeholder="Or type a message" /></div>
+          <div className="composer" style={{ paddingTop: 0, borderTop: 0 }}><TextField onSend={(t) => submit(t, { mode: 'blind', how: 'typed' })} mode="blind" placeholder="Or type a message" /></div>
         </>
       )}
       {mode === 'deaf' && <DeafComposer key={editing?.id} onSend={submit} />}
@@ -373,7 +375,7 @@ function TextField({ placeholder = 'Message', onSend, mode }: { placeholder?: st
   const rec = useRecorder(sendVoice)
   const submit = () => {
     if (!text.trim()) return
-    onSend(text, { mode: mode === 'speech' ? 'speech' : mode === 'deafblind' ? 'deafblind' : 'standard' })
+    onSend(text, { mode: mode === 'speech' ? 'speech' : mode === 'blind' ? 'blind' : 'standard', how: 'typed' })
     setText('')
   }
   if (rec.recording)
@@ -540,9 +542,9 @@ function DeafComposer({ onSend }: { onSend: SendFn }) {
       {video ? (
         away ? <p className="hint">Camera paused.</p> : <VideoRecorder onSend={(f) => { sendFile(f); setVideo(false) }} />
       ) : signing ? (
-        away ? <p className="hint">Camera paused.</p> : <SignCamera context={lastIncoming} onSend={(text, gloss, confidence) => onSend(text, { mode: 'deaf', gloss, confidence })} />
+        away ? <p className="hint">Camera paused.</p> : <SignCamera context={lastIncoming} onSend={(text, gloss, confidence) => onSend(text, { mode: 'deaf', how: 'signed', gloss, confidence })} />
       ) : (
-        <TextField onSend={(t) => onSend(t, { mode: 'deaf' })} mode="deaf" />
+        <TextField onSend={(t) => onSend(t, { mode: 'deaf', how: 'typed' })} mode="deaf" />
       )}
     </div>
   )
@@ -552,91 +554,22 @@ function SpeechComposer({ onSend }: { onSend: SendFn }) {
   const { sendVoice } = useContext(ActionsCtx)
   // Send as text (read aloud on their side), or as a real voice message in the natural voice.
   const [asVoice, setAsVoice] = useState(false)
-  const [making, setMaking] = useState(false)
+  const [making, setMaking] = useState<string | null>(null)
   const send: SendFn = (t, o) => {
     if (!asVoice) return onSend(t, o)
-    setMaking(true)
-    void voiceClip(t).then((b) => { if (b) sendVoice(b); else onSend(t, o) }).finally(() => setMaking(false))
+    // The first voice message downloads the voice (about 90 MB), so say why it takes a moment.
+    setMaking(voiceClipReady() ? 'Making the voice…' : 'Getting your voice ready, only the first time (about a minute)…')
+    void voiceClip(t).then((b) => { if (b) sendVoice(b); else onSend(t, o) }).finally(() => setMaking(null))
   }
   return (
     <div className="composer">
       <div className="mode-bar" role="group" aria-label="Send as">
         <button className="pill" aria-pressed={!asVoice} onClick={() => setAsVoice(false)}><Keyboard size={14} aria-hidden="true" />Send as text</button>
-        <button className="pill" aria-pressed={asVoice} onClick={() => { setAsVoice(true); preloadNaturalVoice() }}><Volume2 size={14} aria-hidden="true" />Send as voice</button>
-        {making && <span className="hint" role="status" style={{ margin: 0 }}>Making the voice…</span>}
+        <button className="pill" aria-pressed={asVoice} onClick={() => { setAsVoice(true); preloadVoiceClip() }}><Volume2 size={14} aria-hidden="true" />Send as voice</button>
+        {making && <span className="hint" role="status" style={{ margin: 0 }}>{making}</span>}
       </div>
-      <PhraseBoard onPick={(t) => send(t, { mode: 'speech' })} />
+      <PhraseBoard onPick={(t) => send(t, { mode: 'speech', how: 'tapped' })} />
       <TextField onSend={send} mode="speech" placeholder={asVoice ? 'Type, and it goes as a voice message' : 'Or type, and AnyWay will say it'} />
-    </div>
-  )
-}
-
-/** A buzz pattern for a message: one long buzz, then short ones for each word (up to 4). */
-const buzzFor = (text: string) => [400, ...text.trim().split(/\s+/).slice(0, 4).flatMap(() => [120, 150])]
-
-function DeafBlindChat({ name, messages, me, send }: { name: string; messages: ChatMessage[]; me: string; send: (text: string) => void }) {
-  const incoming = messages.filter((m) => m.from !== me && m.type === 'text')
-  const [at, setAt] = useState(-1)
-  const [dots, setDots] = useState<number[]>([])
-  const [draft, setDraft] = useState('')
-  const last = useRef(0)
-  // Always open on the newest message, and buzz when a new one arrives.
-  useEffect(() => {
-    if (incoming.length > last.current) {
-      if (last.current > 0) navigator.vibrate?.(buzzFor(incoming[incoming.length - 1].text))
-      setAt(incoming.length - 1)
-    }
-    last.current = incoming.length
-  }, [incoming.length])
-  const m = incoming[at]
-  const who = m ? contactById(m.from).name : name
-  const toggle = (d: number) => setDots((s) => (s.includes(d) ? s.filter((x) => x !== d) : [...s, d]))
-  const addLetter = () => {
-    const ch = FROM_DOTS[key(dots)]
-    if (ch) setDraft((t) => t + ch)
-    setDots([])
-  }
-  const buzz = m ? buzzFor(m.text) : []
-  return (
-    <div className="screen db">
-      <div className="row-between">
-        <BackButton />
-        <strong style={{ fontSize: 18 }}>{m ? `From ${who}` : name}</strong>
-        <span className="muted">{incoming.length ? `${at + 1} of ${incoming.length}` : ''}</span>
-      </div>
-      <div className="db-card" aria-live="polite">
-        <div className="big">{m ? m.text : 'No messages yet.'}</div>
-        {m && <div className="db-braille" aria-hidden="true">{toBraille(m.text)}</div>}
-        {m && <p className="muted" style={{ margin: '10px 0 0' }}>{fmt(m.sentTime)}</p>}
-      </div>
-      {m && (
-        <div>
-          <p className="muted" style={{ margin: '0 0 8px' }}>Felt as</p>
-          <div className="pulse-row" aria-label="Buzz pattern">
-            {buzz.filter((_, i) => i % 2 === 0).map((ms, i) => <i key={i} style={{ width: ms / 7 }} />)}
-          </div>
-        </div>
-      )}
-      <div className="grid-2">
-        <button className="btn" disabled={at <= 0} onClick={() => setAt(at - 1)}>Previous</button>
-        <button className="btn" disabled={at >= incoming.length - 1} onClick={() => setAt(at + 1)}>Next</button>
-      </div>
-      <div style={{ flex: 1 }} />
-      <label className="db-draft">
-        <span className="sr-only">Your reply</span>
-        <input className="db-input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Type with braille keys or a braille display" />
-      </label>
-      <div className="braille" role="group" aria-label="Braille keys">
-        {[1, 4, 2, 5, 3, 6].map((d) => (
-          <button key={d} aria-pressed={dots.includes(d)} aria-label={`Dot ${d}`} onClick={() => toggle(d)}>{d}</button>
-        ))}
-      </div>
-      <div className="grid-3">
-        <button className="btn" onClick={addLetter} disabled={!dots.length}>Add letter {dots.length ? toBraille(FROM_DOTS[key(dots)] ?? '') : ''}</button>
-        <button className="btn" onClick={() => setDraft((t) => t + ' ')}>Space</button>
-        <button className="btn" onClick={() => setDraft((t) => t.slice(0, -1))}>Delete</button>
-      </div>
-      <button className="btn primary block" disabled={!draft.trim()} onClick={() => { send(draft.trim()); setDraft('') }}>Send</button>
     </div>
   )
 }

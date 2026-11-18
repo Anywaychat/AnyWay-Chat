@@ -2,9 +2,9 @@ import { useSyncExternalStore } from 'react'
 
 /** Blind users' listening choices, saved on this device. */
 export type Announce = 'full' | 'sender' | 'off'
-export type BlindPrefs = { announce: Announce; rate: number; sounds: boolean }
+export type BlindPrefs = { announce: Announce; rate: number; sounds: boolean; natural: boolean }
 const KEY = 'anyway.blind'
-const DEF: BlindPrefs = { announce: 'full', rate: 1, sounds: true }
+const DEF: BlindPrefs = { announce: 'full', rate: 1, sounds: true, natural: false }
 let cur: BlindPrefs = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') } } catch { return DEF } })()
 const subs = new Set<() => void>()
 export const getBlindPrefs = () => cur

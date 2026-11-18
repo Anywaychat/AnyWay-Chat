@@ -29,7 +29,7 @@ export default function CallOverlay() {
   const s = useCall()
   const timer = useTimer(s.phase === 'connected' ? s.startTime : null)
   const { mode } = useProfile()
-  const canHear = mode !== 'deaf' && mode !== 'deafblind'
+  const canHear = mode !== 'deaf'
   const blind = mode === 'blind'
   const who = contactById(s.peer ?? '').name
   // Ringtone for everyone who can hear, and for blind users the caller's name and how to answer, repeated while it rings.

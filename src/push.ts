@@ -56,7 +56,12 @@ export async function enablePush() {
   return !!(await call('/push/subscribe', { subscription: sub.toJSON() }))
 }
 
-/** Tells the server a message went out, so it can push it to the other person's devices. */
-export function notifyPush(t: Target, body: string) {
-  void call('/push/notify', { kind: t.kind, id: t.id, body })
+/** Tells the server a message went out, so it can push it to the other person's devices (and demo friends can answer). */
+export function notifyPush(t: Target, body: string, what: 'text' | 'image' | 'voice' | 'file' = 'text') {
+  void call('/push/notify', { kind: t.kind, id: t.id, body, what })
+}
+
+/** Tells the server a call is ringing, so the other person's phone shows "… is calling you" even when the app is closed. */
+export function notifyCall(peer: string, video: boolean) {
+  void call('/push/notify', { kind: 'direct', id: peer, call: true, video, body: '' })
 }

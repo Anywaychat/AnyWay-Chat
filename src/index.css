@@ -72,7 +72,7 @@ input { font: inherit; color: inherit; }
 .hue-violet { background: #EEE7FA; color: #5B34A8; }
 .hue-slate { background: #EEEEF1; color: #3A3B44; }
 .mode-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-3); }
-.mode-deaf svg { color: var(--coral); } .mode-blind svg { color: var(--blue); } .mode-speech svg { color: var(--green); } .mode-deafblind svg { color: var(--violet); } .mode-standard svg { color: var(--ink-2); }
+.mode-deaf svg { color: var(--coral); } .mode-blind svg { color: var(--blue); } .mode-speech svg { color: var(--green); } .mode-standard svg { color: var(--ink-2); }
 .chip-btn { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--ink-2); }
 .chip-btn[aria-pressed='true'] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
@@ -176,16 +176,6 @@ input { font: inherit; color: inherit; }
 .cats { display: flex; gap: 6px; overflow-x: auto; }
 @media (max-width: 600px) { .phrases { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sign-panel { grid-template-columns: 1fr; } }
 
-/* deaf-blind */
-.db { padding: 24px; gap: 16px; overflow-y: auto; max-width: 720px; width: 100%; margin: 0 auto; }
-.db-card { border: 2px solid var(--ink); border-radius: 16px; padding: 20px; }
-.db-card .big { font-size: 40px; line-height: 1.1; font-weight: 700; }
-.pulse-row { display: flex; gap: 6px; align-items: center; }
-.pulse-row i { height: 12px; border-radius: 6px; background: var(--ink); }
-.braille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.braille button { height: 64px; border-radius: 32px; border: 2px solid var(--ink-3); background: transparent; font-size: 20px; font-weight: 700; cursor: pointer; }
-.braille button[aria-pressed='true'] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.db-draft { font-size: 24px; border-bottom: 2px solid var(--ink-3); padding-bottom: 6px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 
@@ -276,7 +266,7 @@ input { font: inherit; color: inherit; }
 .mode-opt span { font-size: 13px; color: var(--ink-2); }
 .mode-opt .check { margin-left: auto; color: var(--accent); }
 
-/* ---------- Dark (blind, deaf-blind): larger type, stronger contrast ---------- */
+/* ---------- Dark (blind): larger type, stronger contrast ---------- */
 .dark {
   --bg: #000; --panel: #0C0D10; --raised: #1B1F26; --hover: #20252D; --line: #2A2F38;
   --ink: #FFFFFF; --ink-2: #C3CAD5; --ink-3: #8A93A0;
@@ -416,7 +406,7 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; font: inher
 .send-failed { padding: 8px max(16px, calc((100% - 820px) / 2)); background: var(--accent-soft); color: var(--danger); font-size: 13px; border-top: 1px solid #F3C3BF; }
 .wake-pill { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 70; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--ink-2); font-size: 13px; font-weight: 700; box-shadow: 0 6px 18px rgba(0,0,0,.18); pointer-events: none; }
 .wake-pill.awake { background: var(--accent); border-color: var(--accent); color: #fff; }
-.wake-pill.off { color: var(--danger); }
+.wake-pill.blocked, .wake-pill.nomic, .wake-pill.unavailable { color: var(--danger); }
 .talk-btn.live { background: var(--danger); }
 @media (min-width: 901px) { .wake-pill { left: auto; right: 18px; transform: none; bottom: 18px; } }
 .voice-loading { font-weight: 400; opacity: .8; }
@@ -472,10 +462,7 @@ img.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: cove
 .dict .cats { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
 .dict .cats .chip-btn { white-space: nowrap; flex-shrink: 0; }
 video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: cover; background: var(--raised); display: block; }
-.db-braille { font-size: 30px; letter-spacing: 3px; margin-top: 10px; line-height: 1.3; word-break: break-all; }
-.db-input { width: 100%; border: 0; border-bottom: 2px solid var(--ink-3); background: none; color: var(--ink); font: inherit; font-size: 22px; padding: 6px 0; outline: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.braille { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; max-width: 280px; margin: 0 auto; width: 100%; }
 
 /* ---------- Usage dashboard (/admin) ---------- */
 .admin { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; display: flex; flex-direction: column; gap: 18px; height: 100%; overflow-y: auto; }
@@ -513,7 +500,6 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .admin-table .actions, .review-card .actions { display: flex; gap: 6px; }
 .admin-table .actions .btn, .review-card .actions .btn { height: 32px; padding: 0 10px; font-size: 13px; }
 .review-way { display: flex; flex-direction: column; gap: 10px; }
-.braille-pad { display: flex; flex-direction: column; gap: 10px; }
 
 /* ---------- Live call captions ---------- */
 .call-captions { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 10px; }
@@ -617,3 +603,56 @@ video.sign-thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: co
 .tr-text { font-size: 13px; color: var(--ink-2); }
 .sign-ask { align-items: center; }
 .ask-q { font-weight: 700; font-size: 14px; margin-right: 4px; }
+
+/* How a received message was made (signed / spoken / tapped) */
+.how-made { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .01em; color: var(--ink-3); }
+
+/* Blind: the microphone is off, with how to turn it on */
+.mic-help { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 80; display: grid; gap: 6px; padding: 14px 16px; border-radius: 16px; background: var(--panel); border: 2px solid var(--danger); color: var(--ink); box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.mic-help strong { font-size: 16px; }
+.mic-help span { font-size: 14px; color: var(--ink-2); }
+.mic-help .btn { justify-self: start; height: 40px; }
+@media (min-width: 901px) { .mic-help { left: auto; right: 18px; width: 380px; } }
+
+/* Demo friends invite (new users can try every way of talking on their own) */
+.demo-invite { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; align-items: start; padding: 12px; border-radius: 14px; border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--ink); }
+.demo-invite .go-ico { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; }
+.demo-invite strong { display: block; font-size: 15px; }
+.demo-invite .sub { display: block; font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.demo-invite .btn { grid-column: 2; justify-self: start; height: 38px; }
+.demo-invite.big { width: 100%; padding: 16px; }
+.demo-invite.big strong { font-size: 17px; }
+.demo-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; vertical-align: middle; }
+
+/* ---------- Go mode: one phone between two people ---------- */
+.go2 { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
+.go2-them, .go2-me { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; }
+/* The other person's half always uses light colours, whatever theme the owner uses. */
+.go2-them { flex: 0 0 auto; max-height: 48%; background: #F6F1EE; color: #111;
+  --bg: #FFF6F4; --panel: #FFFFFF; --raised: #EFE7E3; --hover: #E9DFDA; --line: #DCD1CC; --ink: #111; --ink-2: #444; --ink-3: #666; }
+.go2.flip .go2-them { transform: rotate(180deg); }
+.go2-me { flex: 1; }
+.go2-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; flex-wrap: wrap; }
+.go2-big { font-size: clamp(24px, 5.2vw, 36px); font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
+.go2-small { margin: 0; font-size: 14px; color: var(--ink-2); }
+.go2-wait { font-size: 16px; font-weight: 400; color: var(--ink-2); }
+.go2-seam { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; font-size: 13px; background: var(--raised); color: var(--ink-2); border-block: 1px solid var(--line); flex-wrap: wrap; }
+.go2-lang { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.go2-lang select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+.go2-their-input .grid-2 .btn { width: 100%; }
+.go2-type { display: flex; gap: 8px; }
+.go2-type .input { flex: 1; min-width: 0; }
+.go2-end { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--accent); }
+.go2-log { font-size: 14px; color: var(--ink-2); }
+.go2-log summary { cursor: pointer; font-weight: 700; }
+.go2-log p { margin: 4px 0; color: var(--ink); }
+.go2-log p.me { color: var(--ink-2); }
+@media (min-width: 901px) {
+  /* A laptop on the counter: side by side, nothing upside down. */
+  .go2 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto minmax(0, 1fr); grid-template-areas: 'seam seam' 'me them'; }
+  .go2-seam { grid-area: seam; }
+  .go2-me { grid-area: me; }
+  .go2-them { grid-area: them; max-height: none; border-left: 1px solid var(--line); }
+  .go2.flip .go2-them { transform: none; }
+  .go2-seam .chip-btn { display: none; }
+}

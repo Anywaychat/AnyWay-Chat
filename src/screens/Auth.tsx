@@ -10,7 +10,6 @@ const ICON_BG: Record<Mode, string> = {
   blind: 'hue-indigo',
   deaf: 'hue-coral',
   speech: 'hue-emerald',
-  deafblind: 'hue-violet',
   standard: 'hue-slate',
 }
 

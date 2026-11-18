@@ -137,11 +137,15 @@ export class SignReader {
   private video: HTMLVideoElement
   private onSign: (guesses: Guess[]) => void
   private onState?: (s: { hands: boolean; recording: boolean }) => void
+  private minGap: number
 
-  constructor(video: HTMLVideoElement, onSign: (guesses: Guess[]) => void, onState?: (s: { hands: boolean; recording: boolean }) => void) {
+  /** `maxFps` limits how often the camera is read: on a video call, reading every screen refresh took processing power
+   *  the call needed (video dropped from 26 to 20 frames a second on a fast laptop, more on phones). */
+  constructor(video: HTMLVideoElement, onSign: (guesses: Guess[]) => void, onState?: (s: { hands: boolean; recording: boolean }) => void, { maxFps = 60 } = {}) {
     this.video = video
     this.onSign = onSign
     this.onState = onState
+    this.minGap = 1000 / maxFps - 2
   }
 
   async start() {
@@ -150,7 +154,7 @@ export class SignReader {
       if (this.stopped) return
       if (this.video.readyState >= 2) {
         const now = performance.now()
-        if (now > this.lastT) {
+        if (now - this.lastT >= this.minGap) {
           this.lastT = now
           const hr = r.hands.detectForVideo(this.video, now)
           const pr = r.pose.detectForVideo(this.video, now)

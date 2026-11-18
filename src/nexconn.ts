@@ -23,6 +23,8 @@ import { takeStartToken } from './startToken'
 /** How a message was originally made, carried alongside the text so each receiver can render it their way. */
 export interface Origin {
   mode: Mode
+  /** How it was made: signed to the camera, spoken, tapped on the phrase board, or typed. */
+  how?: 'signed' | 'spoken' | 'tapped' | 'typed'
   gloss?: string
   confidence?: number
 }
@@ -53,6 +55,8 @@ export interface ChatMessage {
   origin?: Origin
   sentTime: number
   read?: boolean
+  /** Arrived while you were away and was delivered when you connected: shown in the chat, but not announced one by one. */
+  catchUp?: boolean
 }
 
 export const keyOf = (t: Target) => `${t.kind}:${t.id}`
@@ -173,6 +177,16 @@ export async function sendCaption(to: string, c: Caption) {
   await new DirectChannel(to).sendMessage(params as never).catch(() => {})
 }
 
+// Messages that arrived while you were offline are delivered right after connecting. They go into the chats, but
+// aren't read aloud, flashed or chimed one by one (a blind user heard every missed message on opening the app).
+let catchingUp = true
+let catchUpTimer: ReturnType<typeof setTimeout> | undefined
+function startCatchUp() {
+  catchingUp = true
+  clearTimeout(catchUpTimer)
+  catchUpTimer = setTimeout(() => (catchingUp = false), 8000) // in case the "sync finished" event never comes
+}
+
 function setupHandlers() {
   NCEngine.addConnectionStatusHandler('anyway', new ConnectionStatusHandler({ onConnectionStatusChanged: () => {} }))
   NCEngine.addMessageHandler(
@@ -186,8 +200,14 @@ function setupHandlers() {
             return
           }
           const cm = toChat(m)
-          if (cm) listeners.forEach((l) => l(cm))
+          if (!cm) return
+          if (catchingUp) cm.catchUp = true
+          listeners.forEach((l) => l(cm))
         })
+      },
+      onOfflineMessageSyncCompleted() {
+        clearTimeout(catchUpTimer)
+        catchingUp = false
       },
       onMessagesUpdated({ messages }) {
         messages.forEach((m) => {
@@ -264,6 +284,7 @@ export async function connectAs(userId: string): Promise<boolean> {
       let token = (await takeStartToken()) ?? (await fresh())
       if (!token) throw new Error('no token')
       setCallUser(userId)
+      startCatchUp()
       let res = await NCEngine.connect({ token })
       if (res.code !== 0) {
         token = await fresh()
@@ -310,7 +331,7 @@ export async function sendFile(t: Target, file: File): Promise<ChatMessage | nul
   if (t.kind === 'direct') (made.data as { needReceipt?: boolean }).needReceipt = true
   const { code, data } = await channelFor(t).sendMediaMessage(made.data as never)
   if (code !== 0 || !data) return null
-  notifyPush(t, isImage ? '📷 Photo' : file.type.startsWith('video/') ? '🎥 Video message' : `📎 ${file.name}`)
+  notifyPush(t, isImage ? '📷 Photo' : file.type.startsWith('video/') ? '🎥 Video message' : `📎 ${file.name}`, isImage ? 'image' : 'file')
   sentListeners.forEach((l) => l())
   return toChat(data as Message)
 }
@@ -475,7 +496,7 @@ export async function sendVoice(t: Target, blob: Blob): Promise<ChatMessage | nu
   if (t.kind === 'direct') (made.data as { needReceipt?: boolean }).needReceipt = true
   const { code, data } = await channelFor(t).sendMediaMessage(made.data as never)
   if (code !== 0 || !data) return null
-  notifyPush(t, '🎤 Voice message')
+  notifyPush(t, '🎤 Voice message', 'voice')
   sentListeners.forEach((l) => l())
   return toChat(data as Message)
 }

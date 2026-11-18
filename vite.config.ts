@@ -20,5 +20,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), anywayApi(env)],
     server: { watch: { ignored: ['**/data/**'] } },
+    // The on-device AI runs in background workers, which load their model libraries in pieces.
+    worker: { format: 'es' },
   }
 })

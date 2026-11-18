@@ -18,7 +18,7 @@ type AdminUser = { id: string; name: string; mode: string; createdAt: number; la
 type AdminReview = { id: string; user: string; name: string; mode?: string; rating: number; text: string; lang: string; showName: boolean; hidden?: boolean; time: number }
 type AdminReport = { from: string; about: string; reason: string; time: number; fromName?: string; aboutName?: string }
 
-const MODES: Record<string, string> = { blind: 'Blind or low-vision', deaf: 'Deaf · signs', speech: "Can't speak", deafblind: 'Deaf-blind', standard: 'Talks and types' }
+const MODES: Record<string, string> = { blind: 'Blind or low-vision', deaf: 'Deaf · signs', speech: "Can't speak", standard: 'Talks and types' }
 const when = (t: number | null) => (t ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—')
 const stars = (n: number) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n)
 const KEY = 'anyway.adminKey'

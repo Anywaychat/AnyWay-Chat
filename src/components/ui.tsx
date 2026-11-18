@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom'
-import { ChevronLeft, Ear, EyeOff, Hand, LayoutGrid, MessageCircle, Footprints, UserRound, Vibrate } from 'lucide-react'
+import { ChevronLeft, Ear, EyeOff, Hand, LayoutGrid, MessageCircle, Footprints, UserRound } from 'lucide-react'
 import type { Contact, Mode } from '../state'
-import { MODES, useAuth } from '../state'
+import { MODES } from '../state'
 
 export function ModeIcon({ mode, size = 24 }: { mode: Mode; size?: number }) {
   const p = { size, strokeWidth: 2, 'aria-hidden': true } as const
@@ -12,8 +12,6 @@ export function ModeIcon({ mode, size = 24 }: { mode: Mode; size?: number }) {
       return <Hand {...p} />
     case 'speech':
       return <LayoutGrid {...p} />
-    case 'deafblind':
-      return <Vibrate {...p} />
     default:
       return <Ear {...p} />
   }
@@ -23,7 +21,6 @@ const HOW: Record<Mode, string> = {
   deaf: 'Signs',
   blind: 'Speaks',
   speech: 'Taps phrases',
-  deafblind: 'Braille + touch',
   standard: 'Talks & types',
 }
 
@@ -65,12 +62,9 @@ export function Wave({ n = 14 }: { n?: number }) {
 }
 
 export function TabBar() {
-  const { user } = useAuth()
-  // Blind users do everything by voice; the face-to-face Go screen isn't for them.
-  const blind = user?.mode === 'blind'
   const tabs = [
     { to: '/home', label: 'Chats', icon: MessageCircle },
-    ...(blind ? [] : [{ to: '/go', label: 'Go', icon: Footprints }]),
+    { to: '/go', label: 'Face to face', icon: Footprints },
     { to: '/calls', label: 'Calls', icon: Ear },
     { to: '/profile', label: 'Me', icon: UserRound },
   ]

@@ -2,7 +2,7 @@
   "id": "/home",
   "name": "AnyWay Chat",
   "short_name": "AnyWay",
-  "description": "Chat, call and meet anyone, each in your own way. Built for blind, deaf, deaf-blind and non-speaking people.",
+  "description": "Chat, call and meet anyone, each in your own way. Built for deaf, blind and non-speaking people, and everyone who talks with them.",
   "start_url": "/home",
   "scope": "/",
   "display": "standalone",

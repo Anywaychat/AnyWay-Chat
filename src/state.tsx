@@ -2,7 +2,10 @@ import { disconnect, onMessage } from './nexconn'
 import { setStartToken } from './startToken'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
-export type Mode = 'blind' | 'deaf' | 'speech' | 'deafblind' | 'standard'
+export type Mode = 'blind' | 'deaf' | 'speech' | 'standard'
+const MODE_IDS: Mode[] = ['blind', 'deaf', 'speech', 'standard']
+/** Accounts from before a mode was retired (deaf-blind) are shown as talk-and-type. */
+export const modeOf = (m: unknown): Mode => (MODE_IDS.includes(m as Mode) ? (m as Mode) : 'standard')
 
 export interface ModeInfo {
   id: Mode
@@ -38,14 +41,6 @@ export const MODES: Record<Mode, ModeInfo> = {
     receives: 'App speaks for you',
     theme: 'theme-speech',
   },
-  deafblind: {
-    id: 'deafblind',
-    label: 'I’m deaf-blind',
-    short: 'Deaf-blind',
-    sends: 'Type or braille',
-    receives: 'Feel vibrations',
-    theme: 'theme-deafblind',
-  },
   standard: {
     id: 'standard',
     label: 'I talk and type',
@@ -63,6 +58,8 @@ export interface User {
   avatar?: string
   /** The name you gave this contact. Only you see it. */
   nickname?: string
+  /** A demo friend that answers by itself, so anyone can try every way of talking alone. */
+  demo?: boolean
 }
 
 export interface Contact extends User {
@@ -84,7 +81,7 @@ const HUES: Contact['hue'][] = ['coral', 'indigo', 'emerald', 'violet', 'slate']
 const hueFor = (id: string) => HUES[[...id].reduce((n, ch) => n + ch.charCodeAt(0), 0) % HUES.length]
 export const toContact = (u: User): Contact => {
   const name = u.nickname || u.name
-  return { ...u, name, realName: u.name, initial: (name || u.id).charAt(0).toUpperCase(), hue: hueFor(u.id) }
+  return { ...u, mode: modeOf(u.mode), name, realName: u.name, initial: (name || u.id).charAt(0).toUpperCase(), hue: hueFor(u.id) }
 }
 
 // Every user the app has seen, so any screen can show a name and mode from an id.
@@ -137,6 +134,8 @@ interface AuthCtx {
   setBlocked: (username: string, block: boolean) => Promise<string | null>
   report: (username: string, reason: string) => Promise<string | null>
   addContact: (username: string) => Promise<string | null>
+  removeContact: (username: string) => Promise<string | null>
+  startDemo: () => Promise<string | null>
   refreshContacts: () => Promise<void>
 }
 
@@ -164,14 +163,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [session],
   )
 
+  // One call for contacts, groups and blocks (it used to be two calls every 20 seconds from every open app).
   const refreshContacts = useCallback(async () => {
-    const { contacts: list } = await api<{ contacts: User[] }>('/contacts')
-    const cs = list.map(toContact)
+    const b = await api<{ contacts: User[]; groups: Group[]; blocked: string[] }>('/bootstrap?token=0')
+    const cs = b.contacts.map(toContact)
     cs.forEach((c) => known.set(c.id, c))
     setContacts(cs)
-    const { groups: gs } = await api<{ groups: Group[] }>('/groups')
-    gs.forEach((g) => g.members.forEach((m) => known.has(m.id) || known.set(m.id, toContact(m))))
-    setGroups(gs)
+    b.groups.forEach((g) => g.members.forEach((m) => known.has(m.id) || known.set(m.id, toContact(m))))
+    setGroups(b.groups)
+    setBlockedList(b.blocked ?? [])
   }, [api])
 
   useEffect(() => {
@@ -191,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       b.groups.forEach((g) => g.members.forEach((m) => known.has(m.id) || known.set(m.id, toContact(m))))
       setContacts(cs)
       setGroups(b.groups)
-      setUser(b.user)
+      setUser({ ...b.user, mode: modeOf(b.user.mode) })
     }
     try {
       const cached = JSON.parse(localStorage.getItem(CK) ?? 'null') as Boot | null
@@ -223,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     const onFocus = () => void refreshContacts().catch(() => {})
     window.addEventListener('focus', onFocus)
-    const t = setInterval(onFocus, 20000)
+    const t = setInterval(() => !document.hidden && onFocus(), 60000)
     return () => {
       off()
       window.removeEventListener('focus', onFocus)
@@ -234,7 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const start = (s: string, u: User) => {
     writeSession(s)
     known.set(u.id, toContact(u))
-    setUser(u)
+    setUser({ ...u, mode: modeOf(u.mode) })
     setSession(s)
   }
 
@@ -303,13 +303,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async setAvatar(avatar) {
         const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { avatar } })
         known.set(r.user.id, toContact(r.user))
-        setUser(r.user)
+        setUser({ ...r.user, mode: modeOf(r.user.mode) })
       },
       async setName(name) {
         try {
           const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { name } })
           known.set(r.user.id, toContact(r.user))
-          setUser(r.user)
+          setUser({ ...r.user, mode: modeOf(r.user.mode) })
           return null
         } catch (e) {
           return (e as Error).message
@@ -326,7 +326,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async setMode(m) {
         const r = await api<{ user: User }>('/me', { method: 'PATCH', body: { mode: m } })
-        setUser(r.user)
+        setUser({ ...r.user, mode: modeOf(r.user.mode) })
+      },
+      async removeContact(username) {
+        try {
+          await api('/contacts/remove', { method: 'POST', body: { username } })
+          await refreshContacts()
+          return null
+        } catch (e) {
+          return (e as Error).message
+        }
+      },
+      async startDemo() {
+        try {
+          await api('/demo/start', { method: 'POST' })
+          await refreshContacts()
+          return null
+        } catch (e) {
+          return (e as Error).message
+        }
       },
       async addContact(username) {
         try {

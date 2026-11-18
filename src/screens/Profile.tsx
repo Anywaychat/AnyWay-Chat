@@ -1,5 +1,5 @@
 import { enablePush } from '../push'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, BookOpen, Camera, Star, CheckCircle2, LogOut, Pencil } from 'lucide-react'
 import { MODES, useAuth, type Mode } from '../state'
@@ -7,10 +7,10 @@ import { Avatar, ModeIcon, TabBar } from '../components/ui'
 import { preloadNaturalVoice } from '../speech'
 import InstallButton from '../components/InstallButton'
 import { SIZES, setDisplay, useDisplay } from '../display'
-import { setLang, setUnderstood, useLang, useUnderstood } from '../lang'
+import { base, setLang, setUnderstood, useLang, useUnderstood } from '../lang'
 import LangPicker from '../components/LangPicker'
 import { setBlindPrefs, useBlindPrefs, type Announce } from '../blindPrefs'
-import { setRate, speak as say } from '../speech'
+import { chooseVoice, chosenVoice, setRate, speak as say, voicesFor } from '../speech'
 import { contactById } from '../state'
 
 export default function Profile() {
@@ -114,6 +114,7 @@ export default function Profile() {
         </div>
 
         {user?.mode === 'blind' && <Listening />}
+        {(user?.mode === 'blind' || user?.mode === 'speech') && <VoiceSettings mine={user?.mode === 'speech'} />}
         <Display />
 
         <div className="section">
@@ -223,14 +224,66 @@ function Listening() {
             </label>
           ))}
         </div>
+        <label className="disp-row check-row" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="checkbox" checked={p.sounds} onChange={(e) => setBlindPrefs({ sounds: e.target.checked })} />
+          <span><strong>Message sound</strong><br /><small>A short sound when a message arrives</small></span>
+        </label>
+      </div>
+    </div>
+  )
+}
+
+const SAMPLE: Record<string, string> = {
+  en: 'Hello. This is how AnyWay sounds.',
+  hi: 'नमस्ते। AnyWay ऐसे बोलता है।',
+  ta: 'வணக்கம். AnyWay இப்படித்தான் பேசும்.',
+  te: 'నమస్కారం. AnyWay ఇలా మాట్లాడుతుంది.',
+  kn: 'ನಮಸ್ಕಾರ. AnyWay ಹೀಗೆ ಮಾತನಾಡುತ್ತದೆ.',
+  ml: 'നമസ്കാരം. AnyWay ഇങ്ങനെയാണ് സംസാരിക്കുന്നത്.',
+  bn: 'নমস্কার। AnyWay এভাবে কথা বলে।',
+  mr: 'नमस्कार. AnyWay असे बोलते.',
+  gu: 'નમસ્તે. AnyWay આ રીતે બોલે છે.',
+  pa: 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ। AnyWay ਇਸ ਤਰ੍ਹਾਂ ਬੋਲਦਾ ਹੈ।',
+  ur: 'السلام علیکم۔ AnyWay ایسے بولتا ہے۔',
+}
+
+/** The voice AnyWay speaks with: which voice, how fast, and the optional natural (English) voice.
+ *  For someone who can't speak this is their own voice, so they can pick one that suits them. */
+function VoiceSettings({ mine }: { mine: boolean }) {
+  const lang = useLang()
+  const p = useBlindPrefs()
+  const [list, setList] = useState(() => voicesFor(lang))
+  const [pick, setPick] = useState(() => chosenVoice(lang))
+  useEffect(() => {
+    const load = () => setList(voicesFor(lang))
+    load()
+    setPick(chosenVoice(lang))
+    const synth = typeof speechSynthesis === 'undefined' ? null : speechSynthesis
+    synth?.addEventListener?.('voiceschanged', load)
+    return () => synth?.removeEventListener?.('voiceschanged', load)
+  }, [lang])
+  const sample = () => say(SAMPLE[base(lang)] ?? SAMPLE.en, true, lang)
+  return (
+    <div className="section">
+      <h2>{mine ? 'Your voice' : 'Voice'}</h2>
+      <div className="panel">
+        <label className="disp-row">
+          <strong>{mine ? 'The voice that speaks for you' : 'The voice that reads to you'}</strong>
+          <select className="input" value={pick} onChange={(e) => { chooseVoice(lang, e.target.value); setPick(e.target.value); setTimeout(sample, 50) }}>
+            <option value="">Automatic (the clearest one)</option>
+            {list.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
+          </select>
+          {list.length === 0 && <small>This device has no voice for this language yet. Add one in your phone's text-to-speech settings.</small>}
+        </label>
         <div className="disp-row" role="group" aria-label="Speaking speed">
           <strong>Speaking speed</strong>
           <div className="seg">{([[0.8, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Fastest']] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={p.rate === v} onClick={() => { setBlindPrefs({ rate: v }); setRate(v); say(`${l} speed.`, true) }}>{l}</button>)}</div>
         </div>
         <label className="disp-row check-row" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <input type="checkbox" checked={p.sounds} onChange={(e) => setBlindPrefs({ sounds: e.target.checked })} />
-          <span><strong>Message sound</strong><br /><small>A short sound when a message arrives</small></span>
+          <input type="checkbox" checked={p.natural} onChange={(e) => setBlindPrefs({ natural: e.target.checked })} />
+          <span><strong>Natural voice (English)</strong><br /><small>More human-sounding. Downloads about 330 MB once and needs a fast computer. Your phone's voice is used until it's ready, and for other languages.</small></span>
         </label>
+        <div className="disp-row"><button type="button" className="btn" onClick={sample}>Hear it</button></div>
       </div>
     </div>
   )

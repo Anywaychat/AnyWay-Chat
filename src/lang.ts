@@ -34,12 +34,7 @@ export const useUnderstood = () => useSyncExternalStore((f) => { subs.add(f); re
 /** True when this language needs translating for me. */
 export const needsTranslation = (theirs: string) => !!theirs && base(theirs) !== base(cur) && !und.some((u) => base(u) === base(theirs))
 
-/** Say text aloud in a given language: the natural voice for English, the phone's own voice for Indian languages. */
+/** Say text aloud in a given language, in turn with everything else AnyWay is saying (never talking over it). */
 export function sayIn(text: string, lang: string) {
-  if (base(lang) === 'en' || typeof speechSynthesis === 'undefined') return speak(text)
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = lang
-  const v = speechSynthesis.getVoices().find((x) => x.lang.replace('_', '-').startsWith(base(lang)))
-  if (v) u.voice = v
-  speechSynthesis.speak(u)
+  speak(text, false, lang)
 }

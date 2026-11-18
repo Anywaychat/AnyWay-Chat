@@ -18,8 +18,11 @@ import { useEffect } from 'react'
 import { enablePush } from './push'
 import { useDisplay } from './display'
 import FlashAlert from './components/FlashAlert'
+import { useLang } from './lang'
+import { setNaturalVoice, setRate, setSpeechLang } from './speech'
+import { useBlindPrefs } from './blindPrefs'
 
-const DARK_MODES: Mode[] = ['blind', 'deafblind']
+const DARK_MODES: Mode[] = ['blind']
 
 function EmptyPane() {
   return (
@@ -42,6 +45,13 @@ export default function App() {
   }, [user])
 
   const disp = useDisplay()
+  // How AnyWay talks: in the person's language, at their speed, with the natural voice only if they turned it on.
+  const lang = useLang()
+  const vp = useBlindPrefs()
+  useEffect(() => setSpeechLang(lang), [lang])
+  useEffect(() => setRate(vp.rate), [vp.rate])
+  const talks = user?.mode === 'blind' || user?.mode === 'speech'
+  useEffect(() => setNaturalVoice(talks && vp.natural), [talks, vp.natural])
   if (pathname === '/') return <Landing />
   if (pathname === '/admin') return <Admin />
   if (!ready) return null
@@ -75,7 +85,7 @@ export default function App() {
           />
           <Route path="/chat/:id" element={<Chat key={pathname} />} />
           <Route path="/group/:id" element={<Chat key={pathname} kind="group" />} />
-          <Route path="/go" element={user?.mode === 'blind' ? <Navigate to="/home" replace /> : <Go />} />
+          <Route path="/go" element={<Go />} />
           <Route path="/calls" element={<Calls />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/signs" element={<SignDictionary />} />

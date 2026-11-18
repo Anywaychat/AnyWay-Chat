@@ -2,6 +2,7 @@
  * Voice in and voice out, using the browser's built-in speech engines.
  * Nothing leaves the device except the final text, which is sent as a normal message.
  */
+import { workerClient } from './workers/rpc'
 
 type Rec = {
   lang: string
@@ -13,6 +14,7 @@ type Rec = {
   onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null
   onerror: ((e: { error: string }) => void) | null
   onend: (() => void) | null
+  onstart?: (() => void) | null
 }
 
 const RecCtor = (window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec }).SpeechRecognition
@@ -40,14 +42,86 @@ export function beep(kind: 'start' | 'stop' | 'error') {
   }
 }
 
-/* ---------- Speaking: Kokoro (natural voice, runs in the browser) with the built-in voice as a fallback ---------- */
+/* ---------- Speaking ---------- */
+// The phone's own voice by default: instant, clear, nothing to download, and it reads Hindi, Tamil and the other
+// Indian languages. The natural voice (Kokoro, English only) is an opt-in for fast computers: it is a large download,
+// it was blurry at half precision on the graphics chip, and it can't read other languages at all.
 let rate = 1
 export function setRate(r: number) {
   rate = r
 }
 
-type Kokoro = { generate: (text: string, o: { voice: string; speed: number }) => Promise<{ toBlob: () => Blob }> }
-let kokoro: Kokoro | null = null
+const lower = (l: string) => l.replace('_', '-').toLowerCase()
+const baseOf = (l: string) => lower(l).split('-')[0]
+
+/** The language a text is written in, from its script. Latin script is read in English. */
+const SCRIPTS: [RegExp, string[]][] = [
+  [/[\u0900-\u097F]/, ['hi-IN', 'mr-IN']],
+  [/[\u0B80-\u0BFF]/, ['ta-IN']],
+  [/[\u0C00-\u0C7F]/, ['te-IN']],
+  [/[\u0C80-\u0CFF]/, ['kn-IN']],
+  [/[\u0D00-\u0D7F]/, ['ml-IN']],
+  [/[\u0980-\u09FF]/, ['bn-IN']],
+  [/[\u0A80-\u0AFF]/, ['gu-IN']],
+  [/[\u0A00-\u0A7F]/, ['pa-IN']],
+  [/[\u0600-\u06FF]/, ['ur-IN']],
+]
+let homeLang = 'en-IN'
+/** The language the person reads in (set from their profile), used to pick between languages that share a script. */
+export function setSpeechLang(l: string) {
+  homeLang = l
+}
+export function langOfText(text: string): string {
+  for (const [re, langs] of SCRIPTS) if (re.test(text)) return langs.find((l) => baseOf(l) === baseOf(homeLang)) ?? langs[0]
+  return baseOf(homeLang) === 'en' ? homeLang : 'en-IN'
+}
+
+/* The clearest installed voice for each language (or the one the person picked). */
+let voices: SpeechSynthesisVoice[] = []
+const loadVoices = () => {
+  voices = canSpeak ? window.speechSynthesis.getVoices() : []
+}
+if (canSpeak) {
+  loadVoices()
+  window.speechSynthesis.addEventListener?.('voiceschanged', loadVoices)
+}
+const GOOD = /google|natural|neural|premium|enhanced|wavenet|siri/i
+let chosen: Record<string, string> = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('anyway.voices') ?? '{}') as Record<string, string>
+  } catch {
+    return {}
+  }
+})()
+/** Voices that can read a language, best first. */
+export function voicesFor(lang: string): SpeechSynthesisVoice[] {
+  if (!voices.length) loadVoices()
+  const b = baseOf(lang)
+  const score = (v: SpeechSynthesisVoice) => (GOOD.test(v.name) ? 3 : 0) + (lower(v.lang) === lower(lang) ? 2 : 0) + (v.localService ? 0 : 0.5)
+  return voices.filter((v) => baseOf(v.lang) === b).sort((x, y) => score(y) - score(x))
+}
+export function voiceFor(lang: string): SpeechSynthesisVoice | undefined {
+  const list = voicesFor(lang)
+  return list.find((v) => v.name === chosen[baseOf(lang)]) ?? list[0]
+}
+/** Remembers the voice picked for a language ('' = automatic). */
+export function chooseVoice(lang: string, name: string) {
+  chosen = { ...chosen, [baseOf(lang)]: name }
+  try {
+    localStorage.setItem('anyway.voices', JSON.stringify(chosen))
+  } catch {
+    /* storage full */
+  }
+}
+export const chosenVoice = (lang: string) => chosen[baseOf(lang)] ?? ''
+
+// The natural voice runs in a background thread (on the page's own thread it froze every tap while it worked).
+const kokoro = workerClient<{ text?: string; speed?: number; live?: boolean }, { blob?: Blob; fast?: boolean; slowness?: number }>(
+  () => new Worker(new URL('./workers/voice.worker.ts', import.meta.url), { type: 'module' }),
+)
+let naturalWanted = false
+let naturalLive = false // the natural voice is ready and fast enough to talk with
+let slowLines = 0
 let kokoroLoading: Promise<void> | null = null
 export type VoiceState = 'basic' | 'loading' | 'natural'
 let voiceState: VoiceState = 'basic'
@@ -64,95 +138,165 @@ const setVoiceState = (v: VoiceState) => {
   voiceListeners.forEach((l) => l(v))
 }
 
-/** Downloads the Kokoro voice once (cached by the browser afterwards). Until it's ready, the built-in voice is used. */
+/** Turns the natural (English) voice on or off. On: downloads it once if this computer is fast enough to talk with it. */
+export function setNaturalVoice(on: boolean) {
+  naturalWanted = on
+  if (!on) {
+    naturalLive = false
+    setVoiceState('basic')
+    return
+  }
+  preloadNaturalVoice()
+}
+
+/** Starts loading the natural voice, only if the person turned it on. Until it's ready the phone's own voice talks. */
 export function preloadNaturalVoice() {
-  if (kokoro || kokoroLoading) return
+  if (!naturalWanted || naturalLive || kokoroLoading) return
   setVoiceState('loading')
-  kokoroLoading = (async () => {
-    try {
-      const { KokoroTTS } = await import('kokoro-js')
-      // The small (about 90 MB) version runs on every phone and laptop. The WebGPU version needs a 300 MB download,
-      // which took minutes on mobile data, so people heard the robotic fallback voice the whole time.
-      const load = () => KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'wasm' })
-      kokoro = (await load().catch(() => load())) as unknown as Kokoro
-      setVoiceState('natural')
-    } catch (e) {
-      console.warn('Natural voice could not load, using the built-in voice.', e)
-      kokoro = null
+  kokoroLoading = kokoro({ live: true }).then(
+    ({ fast }) => {
+      naturalLive = !!fast && naturalWanted
+      setVoiceState(naturalLive ? 'natural' : 'basic')
+    },
+    (e) => {
+      console.warn('Natural voice could not load, using the phone voice.', e)
       kokoroLoading = null
       setVoiceState('basic')
-    }
-  })()
+    },
+  )
 }
 
 /** Resolves once the natural voice has finished loading (or failed), so other big downloads can wait their turn. */
 export const naturalVoiceSettled = () => kokoroLoading ?? Promise.resolve()
 
 // One line at a time, so messages don't talk over each other.
-const queue: string[] = []
+type Line = { text: string; lang: string }
+const queue: Line[] = []
 let playing: HTMLAudioElement | null = null
+let endPlaying: (() => void) | null = null
 let busy = false
 let generation = 0
+
+/** Plays one line in the natural voice; false if the browser wouldn't play it. */
+function play(blob: Blob, text: string): Promise<boolean> {
+  return new Promise<boolean>((done) => {
+    const url = URL.createObjectURL(blob)
+    const el = new Audio(url)
+    playing = el
+    const finish = (ok: boolean) => {
+      clearTimeout(guard)
+      URL.revokeObjectURL(url)
+      if (playing === el) {
+        playing = null
+        endPlaying = null
+      }
+      done(ok)
+    }
+    endPlaying = () => finish(true)
+    const guard = setTimeout(() => finish(true), 5000 + text.length * 150)
+    el.onended = () => finish(true)
+    el.onerror = () => finish(false)
+    // If the browser blocks playback (no tap yet), say this line with the phone voice instead of skipping it.
+    void el.play().catch(() => finish(false))
+  })
+}
+
+/** Makes one line in the natural voice. Gives up (and goes back to the phone voice) if it's too slow, so the
+ *  queue never stalls: a stuck graphics chip used to leave "Hey Chat" deaf until the page was reloaded. */
+function makeVoice(text: string): Promise<Blob | null> {
+  const made = kokoro({ text, speed: rate, live: true }).then(
+    (r) => {
+      slowLines = (r.slowness ?? 0) > 1 ? slowLines + 1 : 0
+      return slowLines >= 2 ? null : (r.blob ?? null)
+    },
+    () => null,
+  )
+  const limit = new Promise<null>((r) => setTimeout(() => r(null), 4000 + text.length * 60))
+  return Promise.race([made, limit]).then((blob) => {
+    if (!blob && naturalLive) {
+      naturalLive = false
+      setVoiceState('basic')
+    }
+    return blob
+  })
+}
+
+/** Says one line with the phone's own voice, in the line's language. */
+function sayBuiltIn({ text, lang }: Line): Promise<void> {
+  return new Promise<void>((done) => {
+    const synth = window.speechSynthesis
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = lang
+    const v = voiceFor(lang)
+    if (v) u.voice = v
+    u.rate = rate
+    // Some browsers never fire "end" (for example when sound is blocked until the first tap),
+    // which used to freeze the queue so no later message was ever read. Give up after a fair time.
+    const guard = setTimeout(done, 3000 + (text.length * 120) / rate)
+    u.onend = u.onerror = () => {
+      clearTimeout(guard)
+      done()
+    }
+    if (synth.paused) synth.resume()
+    synth.speak(u)
+  })
+}
 
 async function pump() {
   if (busy) return
   busy = true
   // Stop the "Hey Chat" listener while AnyWay talks, so it doesn't hear its own voice
   // (the chat greeting itself says "Hey Chat"). It starts fresh as soon as we're quiet.
-  try { wakeRec?.abort() } catch { /* already stopped */ }
+  if (wakeLive) stopWakeRec()
   const myGen = generation
+  // While one line plays, the next one is already being made, so there's no wait between sentences.
+  let next: { text: string; blob: Promise<Blob | null> } | null = null
   while (queue.length && myGen === generation) {
-    const text = queue.shift()!
-    if (kokoro) {
-      try {
-        const audio = await kokoro.generate(text, { voice: 'af_heart', speed: rate })
-        if (myGen !== generation) break
-        const url = URL.createObjectURL(audio.toBlob())
-        const played = await new Promise<boolean>((done) => {
-          const el = new Audio(url)
-          playing = el
-          const finish = (ok: boolean) => {
-            clearTimeout(guard)
-            URL.revokeObjectURL(url)
-            playing = null
-            done(ok)
-          }
-          const guard = setTimeout(() => finish(true), 5000 + text.length * 150)
-          el.onended = () => finish(true)
-          el.onerror = () => finish(false)
-          // If the browser blocks playback (no tap yet), say this line with the built-in voice instead of skipping it.
-          void el.play().catch(() => finish(false))
-        })
-        if (played) continue
-      } catch {
-        /* fall back to the built-in voice for this line */
+    const line = queue.shift()!
+    if (naturalLive && baseOf(line.lang) === 'en') {
+      const blob = await (next?.text === line.text ? next.blob : makeVoice(line.text))
+      next = null
+      if (myGen !== generation) break
+      if (blob) {
+        const after = queue[0]
+        if (after && baseOf(after.lang) === 'en' && naturalLive) next = { text: after.text, blob: makeVoice(after.text) }
+        if (await play(blob, line.text)) continue
       }
+      // No natural voice for this line: the phone voice says it instead.
     }
-    if (canSpeak) {
-      await new Promise<void>((done) => {
-        const u = new SpeechSynthesisUtterance(text)
-        u.lang = LANG
-        u.rate = rate
-        // Some browsers never fire "end" (for example when sound is blocked until the first tap),
-        // which used to freeze the queue so no later message was ever read. Give up after a fair time.
-        const guard = setTimeout(done, 3000 + text.length * 120)
-        u.onend = u.onerror = () => {
-          clearTimeout(guard)
-          done()
-        }
-        window.speechSynthesis.speak(u)
-      })
-    }
+    if (canSpeak) await sayBuiltIn(line)
   }
+  // Stopped part-way: stopSpeaking() already reset things, and a newer round may be talking now.
+  if (myGen !== generation) return
   busy = false
-  if (wakeOn && !wakePaused) setTimeout(runWake, 300)
+  if (wakeOn && !wakePaused) scheduleWake(300)
 }
 
-/** Speaks text. `interrupt` stops whatever is being read first. */
-export function speak(text: string, interrupt = false) {
+/** Long text is said sentence by sentence, so the first words start quickly instead of after the whole text is made. */
+function sentences(text: string): string[] {
+  const parts = text.split(/(?<=[.!?।])\s+/).map((p) => p.trim()).filter(Boolean)
+  const out: string[] = []
+  // Very short bits ("Okay.", "ok") stay with their neighbour.
+  for (const p of parts) {
+    const last = out[out.length - 1]
+    if (last !== undefined && (last.length < 30 || p.length < 12)) out[out.length - 1] = `${last} ${p}`
+    else out.push(p)
+  }
+  return out.length ? out : [text]
+}
+
+/** Speaks text. `interrupt` stops whatever is being read first. `lang` defaults to the language the text is written in. */
+export function speak(text: string, interrupt = false, lang?: string) {
   if (!text.trim()) return
   if (interrupt) stopSpeaking()
-  queue.push(text)
+  // A line mixing English with another script ("Priya says, in Tamil: ...") is split so each part gets the right voice.
+  for (const part of sentences(text)) {
+    const own = lang ?? langOfText(part)
+    const m = !lang && baseOf(own) !== 'en' ? part.match(/^([\t -~]*[:,]\s+)([^\t -~\s][\s\S]*)$/) : null
+    if (m && /[a-z]/i.test(m[1])) {
+      queue.push({ text: m[1].trim(), lang: 'en-IN' }, { text: m[2], lang: own })
+    } else queue.push({ text: part, lang: own })
+  }
   void pump()
 }
 
@@ -161,9 +305,9 @@ export function stopSpeaking() {
   queue.length = 0
   busy = false
   playing?.pause()
-  playing = null
+  endPlaying?.()
   if (canSpeak) window.speechSynthesis.cancel()
-  if (wakeOn && !wakePaused) setTimeout(runWake, 300)
+  if (wakeOn && !wakePaused) scheduleWake(300)
 }
 
 /** True while AnyWay is talking, so the wake word ignores its own voice. */
@@ -221,12 +365,12 @@ export function listen(onText: (sofar: string) => void, onDone: (finalText: stri
 }
 
 /* ---------- One-shot: tap, speak, it stops by itself when you pause ---------- */
-export function listenOnce(onText: (sofar: string) => void, onDone: (finalText: string) => void, onError: (msg: string) => void): Listening | null {
+export function listenOnce(onText: (sofar: string) => void, onDone: (finalText: string) => void, onError: (msg: string) => void, lang = LANG): Listening | null {
   if (!RecCtor) return null
   pauseWake()
   stopSpeaking()
   const rec = new RecCtor()
-  rec.lang = LANG
+  rec.lang = lang
   rec.interimResults = true
   rec.continuous = false
   let text = ''
@@ -259,32 +403,122 @@ const GREET = '(?:hey|hay|hi|hai|high|hello|ok|okay|o\\.?k\\.?|ay|eh|he|yo)'
 const CHAT = '(?:chat|chats|chad|chap|chet|jack|jat|chaat|chart|check|chuck|shot|shat|cat|chatting)'
 const WAKE = new RegExp(`(?:\\b${GREET}[\\s,.-]*${CHAT}\\b|^\\s*(?:a|uh|ah|um)?[\\s,]*${CHAT}\\b)[\\s,.]*`, 'i')
 
+/**
+ * off: not running (signed out, or not started yet). waiting: listening for "Hey Chat". awake: taking a command.
+ * blocked: the browser won't give us the microphone. nomic: no working microphone found.
+ * unavailable: keeps failing for another reason (for example no connection to the speech service); still retrying.
+ */
+export type WakeState = 'off' | 'waiting' | 'awake' | 'blocked' | 'nomic' | 'unavailable'
 let wakeRec: Rec | null = null
+let wakeLive = false // really listening (not still waiting for the person to answer the microphone prompt)
 let wakeOn = false
 let wakePaused = false
+let wakeFails = 0
+let wakeStuck = false
+let wakeTimer: ReturnType<typeof setTimeout> | undefined
+const ownStops = new WeakSet<Rec>()
 let onWakeCommand: ((text: string) => void) | null = null
-let onWakeState: ((s: 'off' | 'waiting' | 'awake') => void) | null = null
+let onWakeState: ((s: WakeState) => void) | null = null
 
-function pauseWake() {
-  wakePaused = true
+function stopWakeRec() {
+  if (!wakeRec) return
+  ownStops.add(wakeRec)
   try {
-    wakeRec?.abort()
+    wakeRec.abort()
   } catch {
     /* already stopped */
   }
 }
+function scheduleWake(ms: number) {
+  clearTimeout(wakeTimer)
+  wakeTimer = setTimeout(runWake, ms)
+}
+function pauseWake() {
+  wakePaused = true
+  clearTimeout(wakeTimer)
+  stopWakeRec()
+}
 function resumeWake() {
   wakePaused = false
-  if (wakeOn) setTimeout(runWake, 300)
+  if (wakeOn) scheduleWake(300)
+}
+
+export async function micPermission(): Promise<PermissionState | 'unknown'> {
+  try {
+    return (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state
+  } catch {
+    return 'unknown'
+  }
+}
+
+/** Asks the browser for the microphone (shows its "Allow" prompt). True if allowed. */
+export async function requestMic(): Promise<boolean> {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true })
+    s.getTracks().forEach((t) => t.stop())
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Listening stopped with an error. Browsers do this for many reasons besides a blocked microphone: the tab was hidden,
+ * another tab started listening, the network blinked, or the microphone prompt wasn't answered yet.
+ * It used to switch "Hey Chat" off for good (until a reload) and say the microphone was blocked even when it wasn't.
+ */
+async function wakeTrouble(why: string) {
+  wakeFails++
+  const perm = await micPermission()
+  if (!wakeOn || wakePaused || wakeRec) return
+  const refused = why === 'not-allowed' || why === 'service-not-allowed'
+  let problem: WakeState | null = null
+  if (perm === 'denied' || (refused && perm !== 'granted' && wakeFails >= 2)) problem = 'blocked'
+  else if (why === 'audio-capture' && wakeFails >= 3) problem = 'nomic'
+  else if (wakeFails >= 5) problem = 'unavailable'
+  if (problem) {
+    wakeStuck = true
+    onWakeState?.(problem)
+  }
+  // Blocked or no microphone: wait for the person to fix it (watchMic notices). A hidden tab starts again when shown.
+  if (problem === 'blocked' || problem === 'nomic' || document.hidden) return
+  scheduleWake(Math.min(30000, 1000 * 2 ** Math.min(wakeFails - 1, 5)))
+}
+
+// Starts "Hey Chat" again by itself once it can: microphone allowed in site settings, tab shown again, or a tap or key press.
+let watching = false
+function watchMic() {
+  if (watching) return
+  watching = true
+  const retry = () => {
+    if (!wakeOn || wakePaused || wakeRec || busy) return
+    wakeFails = 0
+    clearTimeout(wakeTimer)
+    runWake()
+  }
+  void navigator.permissions
+    ?.query({ name: 'microphone' as PermissionName })
+    .then((p) => {
+      p.onchange = () => p.state !== 'denied' && retry()
+    })
+    .catch(() => {})
+  document.addEventListener('visibilitychange', () => !document.hidden && retry())
+  navigator.mediaDevices?.addEventListener?.('devicechange', retry)
+  // A tap or key press can bring back a microphone prompt that was closed without answering.
+  const onInput = () => wakeStuck && void micPermission().then((p) => p !== 'denied' && retry())
+  window.addEventListener('pointerdown', onInput, true)
+  window.addEventListener('keydown', onInput, true)
 }
 
 function runWake() {
   if (!RecCtor || !wakeOn || wakePaused || wakeRec || busy) return
   const rec = new RecCtor()
   wakeRec = rec
+  wakeLive = false
   rec.lang = LANG
   rec.interimResults = true
   rec.continuous = true
+  let failed = ''
   let awake = false
   let command = ''
   let silence: ReturnType<typeof setTimeout> | undefined
@@ -300,6 +534,7 @@ function runWake() {
     }
   }
   rec.onresult = (e) => {
+    live()
     // Ignore our own voice while a message is being read aloud.
     if (isSpeaking()) return
     let heard = ''
@@ -320,34 +555,53 @@ function runWake() {
     if (isFinal && command.trim()) finish()
     else silence = setTimeout(finish, command.trim() ? 1600 : 6000)
   }
+  // Only report "listening" once the browser really is (after the microphone prompt, if there was one).
+  const live = () => {
+    if (wakeLive || wakeRec !== rec) return
+    wakeLive = true
+    wakeFails = 0
+    wakeStuck = false
+    onWakeState?.('waiting')
+  }
+  rec.onstart = live
   rec.onerror = (e) => {
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-      wakeOn = false
-      onWakeState?.('off')
-    }
+    // "no-speech" is normal (nobody talked for a while). Our own stops don't count either.
+    if (e.error === 'no-speech' || ownStops.has(rec)) return
+    // "aborted" that we didn't ask for: another tab or app took over listening.
+    failed = e.error
   }
   rec.onend = () => {
-    wakeRec = null
+    if (wakeRec === rec) {
+      wakeRec = null
+      wakeLive = false
+    }
+    if (!wakeOn || wakePaused) return
     // Browsers stop continuous listening every so often; quietly start again.
-    if (wakeOn && !wakePaused) setTimeout(runWake, 400)
+    if (!failed) return scheduleWake(400)
+    void wakeTrouble(failed)
   }
   try {
     rec.start()
-    onWakeState?.('waiting')
   } catch {
     wakeRec = null
+    scheduleWake(1000)
   }
 }
 
 /** Turns the always-on "Hey Chat" listener on or off. */
-export function setWakeWord(on: boolean, onCommand?: (text: string) => void, onState?: (s: 'off' | 'waiting' | 'awake') => void) {
+export function setWakeWord(on: boolean, onCommand?: (text: string) => void, onState?: (s: WakeState) => void) {
   if (onCommand) onWakeCommand = onCommand
   if (onState) onWakeState = onState
   wakeOn = on && !!RecCtor
-  if (wakeOn) runWake()
-  else {
-    pauseWake()
-    wakePaused = false
+  wakePaused = false
+  wakeFails = 0
+  wakeStuck = false
+  clearTimeout(wakeTimer)
+  if (wakeOn) {
+    watchMic()
+    runWake()
+  } else {
+    stopWakeRec()
     onWakeState?.('off')
   }
 }
@@ -435,6 +689,7 @@ export function listenForCaptions(onLine: (text: string) => void, onPartial: (te
   pauseWake()
   let stopped = false
   let rec: Rec | null = null
+  let fails = 0
   const start = () => {
     if (stopped) return
     const r = new RecCtor()
@@ -458,8 +713,14 @@ export function listenForCaptions(onLine: (text: string) => void, onPartial: (te
       onPartial(partial.trim())
     }
     // Browsers end recognition after a pause: start again while the call lasts.
-    r.onend = () => setTimeout(start, 250)
-    r.onerror = () => {}
+    // After an error (microphone blocked, network down) wait longer each time instead of retrying four times a second.
+    let failed = false
+    r.onstart = () => { fails = 0 }
+    r.onerror = (e) => { if (e.error !== 'no-speech' && e.error !== 'aborted') failed = true }
+    r.onend = () => {
+      if (failed) fails++
+      setTimeout(start, failed ? Math.min(10000, 500 * 2 ** fails) : 250)
+    }
     try { r.start() } catch { setTimeout(start, 500) }
   }
   start()
@@ -470,11 +731,16 @@ export function listenForCaptions(onLine: (text: string) => void, onPartial: (te
   }
 }
 
+let clipWarm = false
+/** True once the voice for voice messages is loaded (the first one downloads about 90 MB). */
+export const voiceClipReady = () => clipWarm
+/** Starts loading the voice-message voice, for example when someone picks "Send as voice". */
+export function preloadVoiceClip() {
+  if (clipWarm) return
+  void kokoro({}).then(() => { clipWarm = true }, () => {})
+}
 /** Turns typed words into a recorded voice (the natural Kokoro voice), to send as a voice message. */
 export async function voiceClip(text: string): Promise<Blob | null> {
-  preloadNaturalVoice()
-  await naturalVoiceSettled()
-  if (!kokoro) return null
-  const audio = await kokoro.generate(text, { voice: 'af_heart', speed: 1 })
-  return audio.toBlob()
+  // A message can wait a few seconds, so this uses the natural voice even where it's too slow for live speech.
+  return kokoro({ text, speed: 1 }).then((r) => { clipWarm = true; return r.blob ?? null }, () => null)
 }

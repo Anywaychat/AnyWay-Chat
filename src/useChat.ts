@@ -219,8 +219,8 @@ export function useNotifications(openKey: string | null) {
   useEffect(() => {
     if (!me) return
     return onMessage((m) => {
-      if (m.from === me) return
-      // Deaf users can't hear a message tone, blind users get a tap to go with the voice. (Deaf-blind has its own patterns.)
+      if (m.from === me || m.catchUp) return
+      // Deaf users can't hear a message tone, blind users get a tap to go with the voice.
       if (mode === 'deaf') navigator.vibrate?.([250, 120, 250])
       else if (mode === 'blind') navigator.vibrate?.(120)
       const sender = contactById(m.from).name
@@ -231,7 +231,7 @@ export function useNotifications(openKey: string | null) {
       // On-screen flash: the edge glows (deaf users see it even inside the chat), plus a banner for other chats.
       if (!document.hidden && (!here || mode === 'deaf')) window.dispatchEvent(new CustomEvent('anyway:flash', { detail: { title: group ? `${sender} in ${group}` : sender, body, url: here ? null : url } }))
       // A message sound for everyone who can hear (blind users also hear it read aloud in the open chat).
-      if (mode !== 'deaf' && mode !== 'deafblind' && !document.hidden && getBlindPrefs().sounds) chime()
+      if (mode !== 'deaf' && !document.hidden && getBlindPrefs().sounds) chime()
       if (here) return
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
       void showLocalNotification(group ? `${sender} in ${group}` : sender, body, m.key, url)

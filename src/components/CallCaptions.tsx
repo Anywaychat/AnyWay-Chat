@@ -31,12 +31,12 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   const [draft, setDraft] = useState('')
   const n = useRef(0)
   const box = useRef<HTMLDivElement>(null)
-  const canSpeak = mode !== 'deaf' && mode !== 'deafblind' && mode !== 'speech'
-  const canHear = mode !== 'deaf' && mode !== 'deafblind'
+  const canSpeak = mode !== 'deaf' && mode !== 'speech'
+  const canHear = mode !== 'deaf'
   const add = (c: Caption, mine: boolean, orig?: string) => setLines((l) => [...l.slice(-30), { ...c, mine, orig, id: n.current++ }])
   const voiceOnRef = useRef(true)
   // Captions are on for people who need them (deaf, can't speak); hearing users turn them on with CC so the face stays clear.
-  const [showCaps, setShowCaps] = useState(mode === 'deaf' || mode === 'deafblind' || mode === 'speech')
+  const [showCaps, setShowCaps] = useState(mode === 'deaf' || mode === 'speech')
   const showCapsRef = useRef(showCaps)
   showCapsRef.current = showCaps
   const helloBack = useRef(false)
@@ -90,7 +90,7 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   // Tell the other phone my language and whether I need captions; it only turns speech into text when someone needs it.
   // (Speech-to-text running beside the call competes for the mic and processor, which made calls lag.)
   const peerMode = contactById(peer).mode
-  const [peerWants, setPeerWants] = useState(peerMode === 'deaf' || peerMode === 'deafblind')
+  const [peerWants, setPeerWants] = useState(peerMode === 'deaf')
   const [peerLang, setPeerLang] = useState('')
   useEffect(() => {
     void sendCaption(peer, { text: '', how: 'spoken', final: false, lang: myLang, want: showCaps })
@@ -136,6 +136,7 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
           void sendCaption(peer, c)
         },
         (st) => setReading(st.recording ? 'Reading your sign…' : st.hands ? 'Hands found' : ''),
+        { maxFps: 20 },
       )
       void reader.start().catch(() => {})
     })

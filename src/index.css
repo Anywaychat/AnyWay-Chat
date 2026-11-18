@@ -683,6 +683,13 @@ main h1:focus-visible, main h2:focus-visible { outline: 3px solid var(--accent);
 .lab-target { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
 .lab-word { flex: 1 1 220px; display: grid; gap: 8px; min-width: 0; }
 .lab-word strong { font-family: var(--display); font-size: 34px; line-height: 1.05; }
+.lab-mode { display: flex; gap: 6px; }
+.lab-mode .chip-btn.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.lab-taught { font-size: 13px; font-weight: 700; color: var(--ok); }
+.lab-note { margin: 0; font-weight: 700; }
+.lab-mine { margin: 0; font-size: 14px; color: var(--ink-2); }
+.lab-row.taught { border-left-color: var(--ok); }
+.lab-row.notkept, .lab-row.removed { border-left-color: var(--line); opacity: .75; }
 .lab-nav { display: flex; gap: 6px; flex-wrap: wrap; }
 .lab-nav .btn { height: 38px; }
 .lab-matches { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -703,3 +710,4 @@ main h1:focus-visible, main h2:focus-visible { outline: 3px solid var(--accent);
 .lab-row.right { border-left-color: #1E7A4C; } .lab-row.intop3 { border-left-color: #B7791F; } .lab-row.wrong { border-left-color: var(--danger); }
 .lab-verdict { font-weight: 700; }
 @media (max-width: 600px) { .lab-row { grid-template-columns: minmax(0, 1fr) auto; } .lab-row > span:not(.lab-verdict) { grid-column: 1 / -1; } .lab-ref, .lab-ref .sign-clip { width: 100%; height: auto; } }
+.lab-list .link-btn, .lab-mine .link-btn { display: inline-flex; gap: 4px; align-items: center; }

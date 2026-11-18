@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BookOpen, Delete, Send, X } from 'lucide-react'
-import { framingHint, glossToSentence, isSure, loadSignReader, setSignBoost, SignReader, type Guess } from '../sign'
+import { framingHint, glossToSentence, isSure, loadSignReader, mySigns, setSignBoost, SignReader, type Guess } from '../sign'
 import { loadSigns, type SignWord } from '../signs'
 import { rememberSigns, suggestSigns } from '../signSuggest'
 import SignThumb from './SignThumb'
@@ -13,7 +14,10 @@ type Word = { word: string; options: Guess[] }
  * for the next-best guess. Everything runs on the phone; video never leaves it.
  */
 export default function SignCamera({ onSend, context = '' }: { onSend: (text: string, gloss: string, confidence: number) => void; context?: string }) {
+  const nav = useNavigate()
   const video = useRef<HTMLVideoElement>(null)
+  const [longTip, setLongTip] = useState(false)
+  const [taughtAny] = useState(() => Object.keys(mySigns()).length > 0)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
   const [tip, setTip] = useState('')
@@ -64,6 +68,7 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
           return
         }
         let lastTip = 0
+        let longTimer: ReturnType<typeof setTimeout> | undefined
         reader = new SignReader(
           v,
           (guesses) => {
@@ -85,7 +90,14 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
               const now = performance.now()
               if (now - lastTip < 500) return
               lastTip = now
-              setTip(framingHint(pts, pose))
+              setTip(framingHint(pts, pose, v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 4 / 3))
+            },
+            // Hands up for over 6 s: several signs or resting hands got read as one. Say how to fix it.
+            onSegment: (seg) => {
+              if (!seg.capped) return
+              setLongTip(true)
+              clearTimeout(longTimer)
+              longTimer = setTimeout(() => setLongTip(false), 5000)
             },
           },
         )
@@ -113,12 +125,17 @@ export default function SignCamera({ onSend, context = '' }: { onSend: (text: st
         <video ref={video} playsInline muted className="cam-video" />
         {status === 'ready' && <span className="live-tag">LIVE</span>}
         <span className="hint-tag">
-          {status === 'loading' ? 'Starting the sign reader…' : status === 'error' ? error : error === 'noreader' ? 'Pick a sign below to reply' : recording ? 'Reading your sign…' : tip ? tip : hands ? 'Hands found' : 'Raise your hands to sign'}
+          {status === 'loading' ? 'Starting the sign reader…' : status === 'error' ? error : error === 'noreader' ? 'Pick a sign below to reply' : recording ? 'Reading your sign…' : longTip ? 'Lower your hands out of the picture between words.' : tip ? tip : hands ? 'Hands found' : 'Raise your hands to sign'}
         </span>
       </div>
       <div className="sign-read">
         <div className="gloss" aria-live="polite">
-          {words.length === 0 && <span className="muted">Sign one word at a time. Lower your hands or hold still between words.</span>}
+          {words.length === 0 && (
+            <span className="muted">
+              Sign one word at a time. Lower your hands out of the picture between words.{' '}
+              <button className="link-btn" onClick={() => nav('/signlab?teach=1')}>{taughtAny ? 'Teach it more of your signs' : 'Not reading you well? Teach it your signs'}</button>
+            </span>
+          )}
           {words.map((w, i) => (
             <button key={i} className="gloss-word" aria-label={`${say(w.word)}, tap to change`} onClick={() => setPicking(picking === i ? null : i)}>
               {say(w.word).toUpperCase()}

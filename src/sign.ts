@@ -15,7 +15,7 @@ const POINTS = 67 // 25 body + 21 + 21 hand points
 
 export type Pt = [number, number]
 export type Frame = { t: number; pts: Pt[] }
-export type Guess = { word: string; score: number }
+export type Guess = { word: string; score: number; mine?: boolean }
 
 let ready: Promise<{ hands: HandLandmarker; pose: PoseLandmarker; model: InferenceSession; ort: typeof import('onnxruntime-web'); labels: string[]; allowed: Set<number> }> | null = null
 
@@ -196,17 +196,16 @@ export class SignReader {
       if (this.seen >= 5) this.recording = true
     } else {
       // A sign ends when the hands are down for a full second (short flickers no longer split one sign into many).
+      // (Ending a sign when the hands merely go still was tried and removed, Nov 18: people hold a sign for a moment,
+      // so it cut signs in half and read the hands going down as a second word; wrong reads doubled in a replay.)
       const quiet = f.t - this.lastHands > 1000
       const tooLong = f.t - this.frames[0].t > 6000
-      // Hands that stay in view but stop moving also end a sign (laptop cameras often keep resting hands in the
-      // picture, which made every attempt run to the 6 s limit and mix signing with resting).
-      const still = f.t - this.frames[0].t > 1200 && this.stillFor(f.t) > 900
-      if (quiet || tooLong || still) {
+      if (quiet || tooLong) {
         const sign = this.frames
         this.frames = []
         this.recording = false
         const long = sign[sign.length - 1].t - sign[0].t
-        if (sign.length >= 10 && long >= 700) void this.read(sign)
+        if (sign.length >= 10 && long >= 700) void this.read(sign, tooLong)
         // Too short to be a sign: the Sign lab still wants to know it happened.
         else this.onSegment?.({ frames: sign, guesses: [], aspect: this.aspect(), skipped: `too short (${(long / 1000).toFixed(1)} s)` })
       }
@@ -214,44 +213,36 @@ export class SignReader {
     this.onState?.({ hands: hasHands, recording: this.recording })
   }
 
-  /** How long (ms) both wrists have stayed within a small distance, relative to the shoulder width. */
-  private stillFor(now: number) {
-    const fr = this.frames
-    const last = fr[fr.length - 1].pts
-    const l = last[11], r = last[12]
-    const span = Number.isFinite(l[0]) && Number.isFinite(r[0]) ? Math.max(0.08, Math.abs(l[0] - r[0])) : 0.25
-    for (let i = fr.length - 2; i >= 0; i--) {
-      const moved = [H1, H2].some((h) => {
-        const a = fr[i].pts[h], b = last[h]
-        return Number.isFinite(a[0]) !== Number.isFinite(b[0]) || (Number.isFinite(a[0]) && Math.hypot(a[0] - b[0], a[1] - b[1]) > 0.12 * span)
-      })
-      if (moved) return now - fr[i + 1].t
-    }
-    return now - fr[0].t
-  }
-
   private aspect() {
     return this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 4 / 3
   }
 
-  private async read(frames: Frame[]) {
-    const aspect = this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 4 / 3
-    const guesses = await classify(frames, aspect)
+  private async read(frames: Frame[], capped = false) {
+    const aspect = this.aspect()
+    const r = await loadSignReader()
+    const probs = await wordProbs(r, frames, aspect)
+    const ids = [...r.allowed]
+    const guesses = readGuesses(probs, r.labels, ids, mineFor(r.labels, ids))
     this.onSign(guesses)
-    this.onSegment?.({ frames, guesses, aspect })
+    this.onSegment?.({ frames, guesses, aspect, vector: signVector(probs, ids), ...(capped ? { capped } : {}) })
   }
 }
 
-/** A framing tip for signing from the body points, or '' when the picture is fine. */
-export function framingHint(pts: Pt[], pose: boolean): string {
+/** A framing tip for signing, or '' when the picture is fine. Distances are in shoulder widths, so a tall phone
+ *  picture and a wide laptop one are judged the same way. Measured on Sign lab attempts (Nov 18): the recorded test
+ *  signer (read right 95%) has 1.6 shoulder widths of picture under the shoulders; at a laptop, 0.3-0.9, and the
+ *  hands left the bottom of the picture while signing. */
+export function framingHint(pts: Pt[], pose: boolean, aspect: number): string {
   if (!pose) return 'Make sure your head and shoulders are in the picture.'
   const [l, r] = [pts[11], pts[12]]
   if (Number.isFinite(l[0]) && Number.isFinite(r[0])) {
-    const span = Math.abs(l[0] - r[0])
+    const w = Math.abs(l[0] - r[0]) * aspect // shoulder width, in picture heights
     const y = (l[1] + r[1]) / 2
-    if (y > 0.62) return 'Tilt the screen back or sit up: your shoulders are near the bottom, so your hands leave the picture. Show your chest too.'
-    if (span > 0.45) return 'Move back a little: your shoulders fill most of the picture, so your hands go out of view.'
-    if (span < 0.15) return 'Come a bit closer: you look small in the picture.'
+    const nose = pts[0]
+    if (w > 0.65) return 'Move back a little: you are very close, so your hands go out of the picture.'
+    if ((1 - y) / w < 0.9) return 'Sit back a little, or tilt the screen toward you, so your chest is in the picture. Now your hands leave it when you sign.'
+    if (Number.isFinite(nose[1]) && nose[1] / w < 0.35) return 'Tilt the screen back a little: your head is at the top edge.'
+    if (w < 0.12) return 'Come a bit closer: you look small in the picture.'
   }
   if (pts.slice(25).some(([x, y]) => Number.isFinite(x) && (x < 0.02 || x > 0.98 || y < 0.02 || y > 0.98))) return 'A hand is at the edge of the picture.'
   return ''
@@ -312,15 +303,33 @@ export async function classify(frames: Frame[], aspect: number): Promise<Guess[]
   const r = await loadSignReader()
   const probs = await wordProbs(r, frames, aspect)
   const ids = [...r.allowed]
-  const exp = ids.map((i) => [i, probs[i]] as const)
-  const sum = exp.reduce((s, [, e]) => s + e, 0) || 1
+  return readGuesses(probs, r.labels, ids, mineFor(r.labels, ids))
+}
+
+/** The model's word probabilities -> best 3 guesses: weighted by how likely each word is in this chat, then, when the
+ *  model is unsure, matched against the signs this person taught (see "Your own signs" below). */
+export function readGuesses(probs: ArrayLike<number>, labels: string[], ids: number[], mine: MineWords | null, pri: (id: string) => number = prior): Guess[] {
+  const sum = ids.reduce((s, i) => s + probs[i], 0) || 1
   // Weigh by how likely each word is in a chat (greetings far more than "orange"), then renormalise.
-  const weighted = exp.map(([i, e]) => ({ word: r.labels[i], score: (e / sum) * prior(r.labels[i]) }))
+  const weighted = ids.map((i) => ({ word: labels[i], score: (probs[i] / sum) * pri(labels[i]) }))
   const total = weighted.reduce((t, w) => t + w.score, 0) || 1
-  return weighted
-    .map((w) => ({ ...w, score: w.score / total }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
+  let out: Guess[] = weighted.map((w) => ({ ...w, score: w.score / total })).sort((a, b) => b.score - a.score)
+  if (mine && out[0].score < MINE_MODEL_UNSURE) {
+    const m = matchMine(signVector(probs, ids), mine)
+    if (m && m.sim >= MINE_MIN_SIM) {
+      // Close to one of your own examples: that word goes first. Clearly closer than any other taught word = used
+      // straight away; two taught words about as close (a person's "good" and "nice" can look alike) = "Did you sign…?"
+      // with both.
+      const sure = m.sim - m.next >= MINE_SURE_LEAD
+      const first: Guess[] = [{ word: m.word, score: sure ? Math.min(0.9, 0.5 + (m.sim - MINE_MIN_SIM) * 1.5) : 0.4, mine: true }]
+      if (!sure && m.second) first.push({ word: m.second, score: 0.25, mine: true })
+      const taken = new Set(first.map((g) => g.word))
+      const had = out.filter((g) => taken.has(g.word)).reduce((t, g) => t + g.score, 0)
+      const left = 1 - first.reduce((t, g) => t + g.score, 0)
+      out = [...first, ...out.filter((g) => !taken.has(g.word)).map((g) => ({ ...g, score: (g.score * left) / (1 - had || 1) }))]
+    }
+  }
+  return out.slice(0, 3)
 }
 
 /** How likely a word is in a chat: greetings far more than colours or animals. Plus a boost for words that fit this moment. */
@@ -348,7 +357,7 @@ export function glossToSentence(words: string[]) {
 export const isSure = (g: Guess[]) => !!g[0] && g[0].score >= 0.5 && (!g[1] || g[0].score >= g[1].score * 2)
 
 /** One attempt the reader saw: its points, what it read, and why it was skipped (if it was). For the Sign lab. */
-export type Segment = { frames: Frame[]; guesses: Guess[]; aspect: number; skipped?: string }
+export type Segment = { frames: Frame[]; guesses: Guess[]; aspect: number; skipped?: string; vector?: number[]; capped?: boolean }
 
 /** The model's own top guesses, before any chat weighting, for the Sign lab. */
 export async function topWords(frames: Frame[], aspect: number, k = 10): Promise<Guess[]> {
@@ -360,4 +369,102 @@ export async function topWords(frames: Frame[], aspect: number, k = 10): Promise
     .map((i) => ({ word: r.labels[i], score: probs[i] / sum }))
     .sort((a, b) => b.score - a.score)
     .slice(0, k)
+}
+
+/* ---------- Your own signs ----------
+ * People sign differently from the signers the model learned from: slower, with holds, regional variants, a laptop
+ * camera. So the reader can learn your way: in the Sign lab, sign a word a few times; each attempt's word
+ * probabilities (not the video) are kept on this device. When the model is unsure (under 50%), an attempt that
+ * closely matches one of your examples is read as that word.
+ * Replay of 34 saved attempts (Nov 18, examples from other attempts only): taught words read right 6/23 -> 11/23,
+ * words not taught never changed; wrong words used without asking: see MINE_SURE_LEAD. The probabilities say which signs an attempt resembles, even when the top one is
+ * wrong, so the same person's same sign gives a similar pattern. */
+export type MineWords = Record<string, { id: string; v: number[] }[]>
+const MINE_KEY = 'anyway.mysigns.v1'
+const MINE_PER_WORD = 5
+const MINE_MODEL_UNSURE = 0.5
+const MINE_MIN_SIM = 0.7
+// Replay: right matches led the next taught word by 0.28-0.56, wrong ones mostly by 0.05-0.17.
+const MINE_SURE_LEAD = 0.2
+
+/** An attempt's fingerprint: the log of each word's probability, centred. */
+export function signVector(probs: ArrayLike<number>, ids: number[]): number[] {
+  const sum = ids.reduce((t, i) => t + probs[i], 0) || 1
+  const v = ids.map((i) => Math.log(probs[i] / sum + 1e-4))
+  const mu = v.reduce((a, b) => a + b, 0) / v.length
+  return v.map((x) => Math.round((x - mu) * 100) / 100)
+}
+
+function cosine(a: number[], b: number[]) {
+  let d = 0, x = 0, y = 0
+  for (let i = 0; i < a.length && i < b.length; i++) { d += a[i] * b[i]; x += a[i] * a[i]; y += b[i] * b[i] }
+  return d / Math.sqrt(x * y + 1e-12)
+}
+
+/** The taught word whose closest example is closest to this attempt. */
+export function matchMine(v: number[], mine: MineWords): { word: string; sim: number; second?: string; next: number } | null {
+  const best = Object.entries(mine)
+    .map(([word, ex]) => ({ word, sim: Math.max(-1, ...ex.map((e) => cosine(v, e.v))) }))
+    .filter((b) => b.sim > -1)
+    .sort((a, b) => b.sim - a.sim)
+  return best[0] ? { word: best[0].word, sim: best[0].sim, second: best[1]?.word, next: best[1]?.sim ?? 0 } : null
+}
+
+type MineStore = { sig: string; words: MineWords }
+const sigOf = (labels: string[], ids: number[]) => `${labels.length}:${ids.length}:${labels[0]}:${labels[labels.length - 1]}`
+function loadMine(): MineStore | null {
+  try {
+    const raw = localStorage.getItem(MINE_KEY)
+    return raw ? (JSON.parse(raw) as MineStore) : null
+  } catch {
+    return null
+  }
+}
+function saveMine(m: MineStore) {
+  try {
+    localStorage.setItem(MINE_KEY, JSON.stringify(m))
+  } catch {
+    /* storage full or blocked: teaching just doesn't stick */
+  }
+  mineListeners.forEach((f) => f())
+}
+const mineListeners = new Set<() => void>()
+export function onMySignsChange(f: () => void) {
+  mineListeners.add(f)
+  return () => void mineListeners.delete(f)
+}
+/** Examples made for this model (examples from an older model don't match a newer one, so they're ignored). */
+function mineFor(labels: string[], ids: number[]): MineWords | null {
+  const m = loadMine()
+  return m && m.sig === sigOf(labels, ids) && Object.keys(m.words).length ? m.words : null
+}
+
+/** Keeps one attempt as an example of `word` (the newest 5 per word). Returns how many that word has now. */
+export async function teachSign(word: string, id: string, vector: number[]): Promise<number> {
+  const r = await loadSignReader()
+  const sig = sigOf(r.labels, [...r.allowed])
+  const m = loadMine()
+  const store: MineStore = m && m.sig === sig ? m : { sig, words: {} }
+  const list = [...(store.words[word] ?? []).filter((e) => e.id !== id), { id, v: vector }].slice(-MINE_PER_WORD)
+  store.words[word] = list
+  saveMine(store)
+  return list.length
+}
+
+/** Removes one example (undo), or every example of a word, or (no arguments) all of them. */
+export function forgetSign(word?: string, id?: string) {
+  const m = loadMine()
+  if (!m) return
+  if (!word) m.words = {}
+  else if (id) {
+    m.words[word] = (m.words[word] ?? []).filter((e) => e.id !== id)
+    if (!m.words[word].length) delete m.words[word]
+  } else delete m.words[word]
+  saveMine(m)
+}
+
+/** Taught words and how many examples each has. */
+export function mySigns(): Record<string, number> {
+  const m = loadMine()
+  return m ? Object.fromEntries(Object.entries(m.words).map(([w, ex]) => [w, ex.length])) : {}
 }

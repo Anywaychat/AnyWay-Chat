@@ -192,8 +192,10 @@ export class SignReader {
     // Keep a short lead-in so the start of the sign isn't cut off.
     this.frames.push(f)
     if (!this.recording) {
-      this.frames = this.frames.slice(-6)
-      if (this.seen >= 5) this.recording = true
+      // Start only when the hands move: hands resting in view (common at a laptop) no longer start a reading.
+      // Keep ~half a second before the movement so the start of the sign isn't cut off.
+      this.frames = this.frames.slice(-15)
+      if (this.seen >= 5 && this.moving()) this.recording = true
     } else {
       // A sign ends when the hands are down for a full second (short flickers no longer split one sign into many).
       // (Ending a sign when the hands merely go still was tried and removed, Nov 18: people hold a sign for a moment,
@@ -211,6 +213,22 @@ export class SignReader {
       }
     }
     this.onState?.({ hands: hasHands, recording: this.recording })
+  }
+
+  /** Did a hand move clearly (over a fifth of a shoulder width) in the last few frames, or just come into view? */
+  private moving() {
+    const fr = this.frames.slice(-8)
+    const last = fr[fr.length - 1].pts
+    const l = last[11], r = last[12]
+    const span = Number.isFinite(l[0]) && Number.isFinite(r[0]) ? Math.max(0.08, Math.abs(l[0] - r[0])) : 0.25
+    return fr.slice(0, -1).some((f) =>
+      [H1, H1 + 8, H2, H2 + 8].some((k) => {
+        const a = f.pts[k], b = last[k]
+        if (!Number.isFinite(b[0])) return false
+        if (!Number.isFinite(a[0])) return true
+        return Math.hypot(a[0] - b[0], a[1] - b[1]) > 0.2 * span
+      }),
+    )
   }
 
   private aspect() {

@@ -800,3 +800,7 @@ main h1:focus-visible, main h2:focus-visible { outline: 3px solid var(--accent);
 
 /* Headings get focus after moving between screens (screen readers announce them); no red box for sighted users */
 main h1[tabindex="-1"]:focus, main h2[tabindex="-1"]:focus { outline: none; }
+
+/* Phones on a call: tap, say a sentence, it goes as a caption (keeps the call's microphone steady) */
+.cap-talk { display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: center; min-height: 48px; padding: 0 18px; border-radius: 24px; border: 0; background: rgba(255,255,255,.92); color: #16161D; font-weight: 700; font-size: 15px; cursor: pointer; }
+.cap-talk.on { background: var(--accent); color: #fff; }

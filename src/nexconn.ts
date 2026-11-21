@@ -76,7 +76,9 @@ const listeners = new Set<Listener>()
 const statusListeners = new Set<StatusListener>()
 const typingListeners = new Set<(key: string, userIds: string[]) => void>()
 const receiptListeners = new Set<(key: string, messageIds: string[]) => void>()
-const presenceListeners = new Set<() => void>()
+/** Who just came online or went offline (the event carries it: 1 online, 0 offline, per device). */
+export type PresenceChange = { userId: string; online: boolean }
+const presenceListeners = new Set<(changes: PresenceChange[]) => void>()
 const sentListeners = new Set<() => void>()
 /** Edits, deletions and reaction changes to messages already on screen. */
 export type Change = { kind: 'update'; message: ChatMessage } | { kind: 'delete'; key: string; id: string } | { kind: 'react'; key: string; id: string; reactions?: Record<string, string[]> }
@@ -159,7 +161,7 @@ export const onStatus = (l: StatusListener) => sub(statusListeners, l)
 export const onMessage = (l: Listener) => sub(listeners, l)
 export const onTyping = (l: (key: string, userIds: string[]) => void) => sub(typingListeners, l)
 export const onReceipt = (l: (key: string, messageIds: string[]) => void) => sub(receiptListeners, l)
-export const onPresence = (l: () => void) => sub(presenceListeners, l)
+export const onPresence = (l: (changes: PresenceChange[]) => void) => sub(presenceListeners, l)
 /** Fires after this device sends a message, so the chat list can refresh. */
 export const onSent = (l: () => void) => sub(sentListeners, l)
 export const onChange = (l: (c: Change) => void) => sub(changeListeners, l)
@@ -303,8 +305,9 @@ function setupHandlers() {
   NCEngine.addUserHandler(
     'anyway',
     new UserHandler({
-      onSubscriptionChanged() {
-        presenceListeners.forEach((l) => l())
+      onSubscriptionChanged(e) {
+        const changes = (e?.events ?? []).map((x) => ({ userId: x.userId, online: (x.details ?? []).some((d) => d.eventValue === 1) }))
+        presenceListeners.forEach((l) => l(changes))
       },
     }),
   )

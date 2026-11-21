@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Captions, CaptionsOff, Languages, Send } from 'lucide-react'
+import { Captions, CaptionsOff, Languages, Mic, Send } from 'lucide-react'
 import { onCaption, sendCaption, type Caption } from '../nexconn'
-import { listenForCaptions, speak } from '../speech'
+import { listenForCaptions, listenOnce, speak, type Listening } from '../speech'
+
+/** Phones stop speech recognition after every sentence, and each restart takes the microphone away from the call for a
+ *  moment (the other person heard you cut in and out). On a phone, captions go one sentence at a time, on a tap. */
+const PHONE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 import { contactById, useAuth, useProfile } from '../state'
 import { base, getLang, langName, needsTranslation, sayIn, useLang, useUnderstood } from '../lang'
 import { REMOTE_VIDEO_ID } from '../calls'
@@ -28,6 +32,9 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   const [theirLang, setTheirLang] = useState('')
   const [lines, setLines] = useState<Line[]>([])
   const [partial, setPartial] = useState('')
+  const [talking, setTalking] = useState<Listening | null>(null)
+  // The call ended (or the button went away) mid-sentence: stop listening.
+  useEffect(() => () => talking?.cancel(), [talking])
   const [draft, setDraft] = useState('')
   const n = useRef(0)
   const box = useRef<HTMLDivElement>(null)
@@ -99,7 +106,7 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
 
   // My speech becomes captions for the other person (only when my mic is on and they need them).
   useEffect(() => {
-    if (!canSpeak || !micOn || !needMyCaptions) return
+    if (PHONE || !canSpeak || !micOn || !needMyCaptions) return
     const stop = listenForCaptions(
       (text) => {
         setPartial('')
@@ -167,6 +174,35 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   }
 
   const them = contactById(peer).name
+  // Phones: tap, say one sentence, and it goes as a caption (translated on the other side if needed).
+  const tapToTalk = PHONE && canSpeak && micOn && needMyCaptions
+  const talkBtn = tapToTalk ? (
+    <button
+      type="button"
+      className={`cap-talk${talking ? ' on' : ''}`}
+      aria-pressed={!!talking}
+      onClick={() => {
+        if (talking) return talking.stop()
+        const l = listenOnce(
+          setPartial,
+          (t) => {
+            setTalking(null)
+            setPartial('')
+            if (t) send(t, 'spoken')
+          },
+          () => {
+            setTalking(null)
+            setPartial('')
+          },
+          myLang,
+        )
+        setTalking(l)
+      }}
+    >
+      <Mic size={18} aria-hidden="true" />
+      {talking ? 'Listening… tap when done' : 'Tap, then say a sentence for captions'}
+    </button>
+  ) : null
   // Blind: nothing to read on screen. Their speech is still sent as captions (for a deaf or other-language person),
   // and translations are spoken. Only the translation switch is shown, and nothing is announced by the screen reader.
   if (mode === 'blind')
@@ -177,8 +213,9 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
           <span>Translating {langName(theirLang)} → {langName(myLang)}</span>
           <button type="button" className="chip-btn" aria-pressed={voiceOn} onClick={() => setVoiceOn((v) => !v)}>{voiceOn ? 'Translated voice on' : 'Original voice'}</button>
         </div>
+        {talkBtn}
       </div>
-    ) : null
+    ) : talkBtn ? <div className="call-captions">{talkBtn}</div> : null
   return (
     <div className="call-captions" aria-label="Live captions">
       {deaf && interp && (
@@ -198,6 +235,7 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
       <button type="button" className="cap-toggle" aria-pressed={showCaps} onClick={() => setShowCaps((v) => !v)}>
         {showCaps ? <CaptionsOff size={16} aria-hidden="true" /> : <Captions size={16} aria-hidden="true" />}{showCaps ? 'Hide captions' : 'Captions'}
       </button>
+      {talkBtn}
       {showCaps && <div className="cap-lines" ref={box} aria-live="polite">
         {lines.length === 0 && !partial && <p className="cap-empty">{canSpeak ? `Captions are on. What you and ${them} say appears here.` : `What ${them} says appears here. Type or tap to answer.`}</p>}
         {lines.slice(video ? -3 : -8).map((l) => (

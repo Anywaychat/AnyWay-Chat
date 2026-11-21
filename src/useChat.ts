@@ -235,10 +235,26 @@ export function usePresence() {
       presenceKey = ids
       void subscribePresence(list).then(() => readPresence(list))
     }
-    const off = onPresence(() => readPresence(list))
-    const t = setInterval(() => readPresence(list), 60000)
+    // The event says who changed: show it at once (it used to be thrown away, and the dot waited for the next check).
+    const off = onPresence((changes) => {
+      if (changes.length) {
+        const next = new Set(presenceOnline)
+        for (const c of changes) if (c.online) next.add(c.userId); else next.delete(c.userId)
+        presenceOnline = next
+        presenceViews.forEach((v) => v(next))
+      } else readPresence(list)
+    })
+    // A phone pauses the page in the background and misses changes: check again on coming back and on reconnecting.
+    const again = () => { if (!document.hidden) readPresence(list) }
+    document.addEventListener('visibilitychange', again)
+    window.addEventListener('focus', again)
+    const offLink = onLink((l) => l === 'online' && readPresence(list))
+    const t = setInterval(again, 20000)
     return () => {
       off()
+      offLink()
+      document.removeEventListener('visibilitychange', again)
+      window.removeEventListener('focus', again)
       clearInterval(t)
     }
   }, [status, ids])

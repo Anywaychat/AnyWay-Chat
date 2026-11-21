@@ -76,11 +76,12 @@ Chat apps assume everyone can see, hear, speak and type.
 
 - **430 million** people live with disabling hearing loss ([WHO](https://www.who.int/news-room/fact-sheets/detail/deafness-and-hearing-loss)); **70 million+** deaf people use a sign language.
 - **2.2 billion** people have a vision impairment ([WHO](https://www.who.int/news-room/fact-sheets/detail/blindness-and-visual-impairment)).
+- **It grows with age.** Over 25% of people over 60 have disabling hearing loss, and most people with vision impairment are over 50 ([WHO](https://www.who.int/news-room/fact-sheets/detail/deafness-and-hearing-loss), [WHO](https://www.who.int/news-room/fact-sheets/detail/blindness-and-visual-impairment)). India has **149 million** people over 60, and will have **347 million** by 2050 ([UNFPA India Ageing Report 2023](https://india.unfpa.org/en/news/india-ageing-elderly-make-20-population-2050-unfpa-report)).
 - **97 million** people can't rely on speech alone and could use picture and voice aids, AAC ([Beukelman & Light, via ASHA](https://www.asha.org/Practice-Portal/Professional-Issues/Augmentative-and-Alternative-Communication/)).
 - India has about **250 certified sign language interpreters for about 18 million deaf people** ([GSMA](https://www.gsma.com/mobilefordevelopment/blog/making-sign-language-interpretation-accessible-for-all-through-mobile-assistive-technology/), an older estimate).
 - India's Supreme Court held that digital accessibility is a fundamental right, binding on private companies too ([Rajive Raturi v. Union of India, 2024](https://api.sci.gov.in/supremecourt/2005/9321/9321_2005_1_1503_56986_Judgement_08-Nov-2024.pdf); [Pragya Prasun v. Union of India, 2025](https://www.scconline.com/blog/post/2025/05/15/supreme-court-digital-inclusion-kyc-accessiblity/)).
 
-So today a blind teenager waits for a parent to read his messages, and a deaf customer writes on paper at the counter.
+So today a blind teenager waits for a parent to read his messages, a deaf customer writes on paper at the counter, and a grandmother whose eyes and ears are fading stops reading the family group.
 
 ## Who it's for
 
@@ -94,6 +95,8 @@ AnyWay translates **between** ways of communicating, inside one conversation:
 | **Talk & type** | Typing or talking, as in any chat | Messages labelled with how they were made ("Signed in ISL · HELLO · HOW ARE YOU") |
 
 Every message is also **translated** into the reader's language (11 Indian languages), with the original underneath.
+
+It works the same for **older people losing their sight or hearing**, with nothing new to learn: text up to *Huge* and high contrast in every mode, every message read aloud in blind mode, and live captions on calls.
 
 | Blind: dark, spoken, "Hey Chat" | Can't speak: tap to talk | Talk & type: see how Priya signed |
 | --- | --- | --- |

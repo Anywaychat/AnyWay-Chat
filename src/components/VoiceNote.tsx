@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Captions, Pause, Play, Volume2 } from 'lucide-react'
 import { transcribe } from '../transcribe'
-import { translateForMe, type Translated } from '../translateMsg'
+import { useTranslated } from '../translateMsg'
 import { getLang, sayIn } from '../lang'
 
 const BARS = 36
@@ -49,7 +49,8 @@ export default function VoiceNote({ src, auto, label, mine = false }: { src: str
   const [speed, setSpeed] = useState(1)
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'fail'>('idle')
   const [text, setText] = useState('')
-  const [tr, setTr] = useState<Translated | null>(null)
+  // Follows the reader's language: change it at the top of the chat and the words are translated again.
+  const tr = useTranslated(state === 'done' ? text : '', state === 'done' && !!text && text !== '(no words heard)')
 
   useEffect(() => {
     let alive = true
@@ -62,10 +63,9 @@ export default function VoiceNote({ src, auto, label, mine = false }: { src: str
   const run = () => {
     setState('busy')
     transcribe(src)
-      .then(async (t) => {
+      .then((t) => {
         setText(t || '(no words heard)')
         setState('done')
-        if (t) setTr(await translateForMe(t))
       })
       .catch(() => setState('fail'))
   }

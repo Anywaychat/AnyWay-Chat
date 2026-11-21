@@ -797,3 +797,6 @@ main h1:focus-visible, main h2:focus-visible { outline: 3px solid var(--accent);
 
 .topbar-title h1.topbar-name, .topbar-title > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-title > span { display: block; }
+
+/* Headings get focus after moving between screens (screen readers announce them); no red box for sighted users */
+main h1[tabindex="-1"]:focus, main h2[tabindex="-1"]:focus { outline: none; }

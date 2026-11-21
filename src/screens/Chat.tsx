@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Check, CheckCheck, FileText, Hand, Users, Keyboard, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, Info, Trash2, Video, Volume2, X } from 'lucide-react'
+import { Check, CheckCheck, FileText, Hand, Users, Keyboard, Mic, Paperclip, Pencil, Phone, Reply, Search, Send, SmilePlus, EllipsisVertical, Trash2, Video, Volume2, X } from 'lucide-react'
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import SignCamera from '../components/SignCamera'
@@ -285,8 +285,8 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
         <LangMenu />
         {!isGroup && <button className="icon-btn" aria-label={`Voice call ${c.name}`} onClick={() => startCall(c.id, false)}><Phone size={19} aria-hidden="true" /></button>}
         {!isGroup && <button className="icon-btn" aria-label={`Video call ${c.name}`} onClick={() => startCall(c.id, true)}><Video size={20} aria-hidden="true" /></button>}
-        <button className="icon-btn" aria-label={isGroup ? 'Group info' : 'Contact info'} onClick={() => setInfo(true)}><Info size={19} aria-hidden="true" /></button>
         <button className="icon-btn" aria-label="Search in this chat" aria-pressed={searching} onClick={() => { setSearching(!searching); setQuery('') }}><Search size={19} aria-hidden="true" /></button>
+        <button className="icon-btn" aria-label={isGroup ? 'More: group info and settings' : 'More: contact info, block and report'} onClick={() => setInfo(true)}><EllipsisVertical size={20} aria-hidden="true" /></button>
       </header>
       {searching && (
         <div className="chat-search">

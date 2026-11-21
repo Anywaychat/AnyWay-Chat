@@ -1,5 +1,5 @@
 import { enablePush } from '../push'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Bell, BookOpen, Footprints, Search, Sparkles, UserPlus, Users, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -9,6 +9,7 @@ import InstallButton from '../components/InstallButton'
 import { useChannels, usePresence } from '../useChat'
 import TryCard from '../components/TryCard'
 import { useShowTry } from '../tryIt'
+import { loadSignReader } from '../sign'
 import PairModal from '../components/PairModal'
 import { QrCode as QrIcon } from 'lucide-react'
 
@@ -57,6 +58,16 @@ export default function Home() {
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
   const { show: showTry } = useShowTry()
+  // Deaf people sign in every chat: get the sign reader ready while they look at the list, so a chat opens smoothly.
+  const deaf = user?.mode === 'deaf'
+  useEffect(() => {
+    if (!deaf) return
+    const t = setTimeout(() => {
+      const idle = window.requestIdleCallback ?? ((f: () => void) => setTimeout(f, 0))
+      idle(() => void loadSignReader().catch(() => {}), { timeout: 3000 })
+    }, 2500)
+    return () => clearTimeout(t)
+  }, [deaf])
 
   const byKey = new Map(channels.map((c) => [c.key, c]))
   const rows = [

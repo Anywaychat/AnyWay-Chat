@@ -3,6 +3,7 @@
  * Nothing leaves the device except the final text, which is sent as a normal message.
  */
 import { workerClient } from './workers/rpc'
+import { sentences } from './sentences'
 
 type Rec = {
   lang: string
@@ -286,19 +287,6 @@ async function pump() {
   if (myGen !== generation) return
   busy = false
   if (wakeOn && !wakePaused) scheduleWake(300)
-}
-
-/** Long text is said sentence by sentence, so the first words start quickly instead of after the whole text is made. */
-function sentences(text: string): string[] {
-  const parts = text.split(/(?<=[.!?।])\s+/).map((p) => p.trim()).filter(Boolean)
-  const out: string[] = []
-  // Very short bits ("Okay.", "ok") stay with their neighbour.
-  for (const p of parts) {
-    const last = out[out.length - 1]
-    if (last !== undefined && (last.length < 30 || p.length < 12)) out[out.length - 1] = `${last} ${p}`
-    else out.push(p)
-  }
-  return out.length ? out : [text]
 }
 
 /** Speaks text. `interrupt` stops whatever is being read first. `lang` defaults to the language the text is written in. */

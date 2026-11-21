@@ -379,7 +379,7 @@ const DEMO: Record<string, { name: string; mode: Mode; hello: string; how: Origi
 const isDemo = (id: string) => id in DEMO
 
 /** What a demo friend says back, in their own way. */
-function demoReply(id: string, said: string, kind: string): { text: string; gloss?: string } {
+export function demoReply(id: string, said: string, kind: string): { text: string; gloss?: string } {
   const t = said.toLowerCase()
   const has = (re: RegExp) => re.test(t)
   if (id === 'demopriya') {
@@ -519,7 +519,7 @@ function allowGuest(ip: string, now = Date.now()) {
 const clientIp = (req: IncomingMessage) => String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? '').split(',')[0].trim()
 
 /** Usernames people pick themselves. "demo" and "guest" names are kept for the app's own accounts. */
-function usernameProblem(id: string): string | null {
+export function usernameProblem(id: string): string | null {
   if (id.length < 3) return 'Username must be at least 3 letters or numbers.'
   if (isDemo(id) || id.startsWith('demo') || id.startsWith('guest')) return 'That username is taken. Try another.'
   return null

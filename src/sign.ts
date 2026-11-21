@@ -34,6 +34,23 @@ export function loadSignReader() {
     ])
     // Only offer the signs the model was fine-tuned on, when we know them.
     const allowed = new Set(vocab ? vocab.map((w) => labels.indexOf(w)).filter((i) => i >= 0) : labels.map((_, i) => i))
+    // The first reading of each kind builds its GPU programs, which holds up the page for about 0.3 s each.
+    // Doing it here with a blank picture (on the chat list, before any camera) lets a chat's camera start smoothly.
+    try {
+      const blank = document.createElement('canvas')
+      blank.width = 640
+      blank.height = 480
+      blank.getContext('2d')?.fillRect(0, 0, 640, 480)
+      const t = performance.now()
+      hands.detectForVideo(blank, t)
+      await new Promise((ok) => setTimeout(ok, 60))
+      pose.detectForVideo(blank, t + 1)
+      await new Promise((ok) => setTimeout(ok, 60))
+      if (model.inputNames.includes('points'))
+        await model.run({ points: new ort.Tensor('float32', new Float32Array(16 * POINTS * 2).fill(0.5), [1, 16, POINTS, 2]), aspect: new ort.Tensor('float32', new Float32Array([4 / 3]), [1]) })
+    } catch {
+      /* a warm-up that fails changes nothing */
+    }
     return { hands, pose, model, ort, labels, allowed }
   })()
   return ready

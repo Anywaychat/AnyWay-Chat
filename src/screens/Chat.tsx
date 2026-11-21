@@ -326,7 +326,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
                       <span>{m.replyTo.text}</span>
                     </div>
                   )}
-                  {m.type === 'voice' && <VoiceNote src={m.url ?? ''} auto={!mine && mode === 'deaf'} label={`Voice message from ${mine ? 'you' : contactById(m.from).name}${m.duration ? `, ${Math.round(m.duration)} seconds` : ''}`} />}
+                  {m.type === 'voice' && <VoiceNote src={m.url ?? ''} mine={mine} auto={!mine && mode === 'deaf'} label={`Voice message from ${mine ? 'you' : contactById(m.from).name}${m.duration ? `, ${Math.round(m.duration)} seconds` : ''}`} />}
                   {m.type === 'image' && (
                     <>
                       <a href={m.url} target="_blank" rel="noreferrer" className="photo">

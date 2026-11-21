@@ -6,6 +6,8 @@ type Stats = {
   generatedAt: number
   users: { total: number; activeToday: number; activeWeek: number; newWeek: number; byMode: Record<string, number>; withContacts: number; withPhoto: number }
   groups: { total: number; members: number }
+  /** "Try it now" guests (no sign-up), counted apart from accounts. */
+  guests?: { total: number; activeToday: number; week: number }
   contacts: number
   calls: { logged: number; week: number; video: number }
   push: number
@@ -14,7 +16,7 @@ type Stats = {
   reviews: { count: number; average: number | null; list: PublicReview[] }
   people: { mode: string; createdAt: number; lastSeen: number | null; contacts: number }[]
 }
-type AdminUser = { id: string; name: string; mode: string; createdAt: number; lastSeen: number | null; contacts: number; suspended: boolean; reviewed: boolean }
+type AdminUser = { id: string; name: string; mode: string; createdAt: number; lastSeen: number | null; contacts: number; suspended: boolean; reviewed: boolean; guest?: boolean }
 type AdminReview = { id: string; user: string; name: string; mode?: string; rating: number; text: string; lang: string; showName: boolean; hidden?: boolean; time: number }
 type AdminReport = { from: string; about: string; reason: string; time: number; fromName?: string; aboutName?: string }
 
@@ -64,6 +66,7 @@ export default function Admin() {
               ['Contacts made', s.contacts],
               ['Groups', s.groups.total],
               ['Calls logged', s.calls.logged],
+              ...(s.guests ? [['Tried it as a guest (no sign-up, not counted above)', s.guests.total]] : []),
             ].map(([label, n]) => (
               <div key={label} className="admin-card"><b>{n}</b><span>{label}</span></div>
             ))}
@@ -191,7 +194,7 @@ function Manage({ onChange }: { onChange: () => void }) {
               <tbody>
                 {shown.map((u) => (
                   <tr key={u.id} className={u.suspended ? 'off' : ''}>
-                    <td>{u.name}</td><td>@{u.id}</td><td>{MODES[u.mode] ?? u.mode}</td><td>{when(u.createdAt)}</td><td>{when(u.lastSeen)}</td><td>{u.contacts}</td>
+                    <td>{u.name}{u.guest ? ' (guest)' : ''}</td><td>@{u.id}</td><td>{MODES[u.mode] ?? u.mode}</td><td>{when(u.createdAt)}</td><td>{when(u.lastSeen)}</td><td>{u.contacts}</td>
                     <td>{u.reviewed ? '✓' : ''}</td><td>{u.suspended ? 'Turned off' : 'Active'}</td>
                     <td className="actions">
                       <button className="btn" onClick={() => void act(`/users/${u.id}/suspend`, { suspended: !u.suspended }, u.suspended ? undefined : `Turn off @${u.id}? They won't be able to log in.`)}>{u.suspended ? 'Turn on' : 'Turn off'}</button>

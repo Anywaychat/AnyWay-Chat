@@ -1,3 +1,4 @@
+import LangMenu from '../components/LangMenu'
 import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react'
 import { LOCAL_VIDEO_ID, REMOTE_VIDEO_ID, acceptCall, endCall, getCall, onCall, toggleCam, toggleMic, type CallState } from '../calls'
@@ -122,6 +123,7 @@ export default function CallOverlay() {
             {!showVideo && <div className="ring"><Avatar c={peer} size="xl" /></div>}
             <div className="call-name">{peer.name}</div>
             <div className="call-status" aria-live="polite">{status}</div>
+            <LangMenu dark />
             {s.phase === 'connected' && s.poor && <div className="call-poor" role="status">Weak connection: video may freeze</div>}
           </div>
 

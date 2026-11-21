@@ -771,3 +771,17 @@ main h1:focus-visible, main h2:focus-visible { outline: 3px solid var(--accent);
   .auth .btn.primary.block { height: 58px; font-size: 18px; border-radius: 14px; }
   .auth .btn.block { min-height: 50px; }
 }
+
+/* Language button in the chat header and on calls */
+.lang-menu { position: relative; flex-shrink: 0; }
+.lang-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border-radius: 16px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font-size: 13px; font-weight: 700; cursor: pointer; }
+.lang-pill:hover { background: var(--hover); }
+.lang-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; width: 270px; max-height: 70vh; overflow-y: auto; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.18); padding: 14px; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.lang-pop summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.lang-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 8px 0; }
+.lang-check { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.call-head .lang-menu { margin-top: 8px; }
+.lang-menu.dark-ui .lang-pill { background: rgba(0,0,0,.45); color: #fff; border-color: rgba(255,255,255,.35); }
+.call-head .lang-pop { left: 0; right: auto; }
+@media (max-width: 600px) { .chat-head .lang-pill { padding: 0 8px; } }
+.topbar:has(.lang-pop) { position: relative; z-index: 30; }

@@ -4,6 +4,7 @@ import { Check, CheckCheck, FileText, Hand, Users, Keyboard, Mic, Paperclip, Pen
 import { contactById, useAuth, useProfile, type Mode } from '../state'
 import { usePresence, useThread } from '../useChat'
 import SignCamera from '../components/SignCamera'
+import LangMenu from '../components/LangMenu'
 import { VideoPlayer, VideoRecorder, isVideoName } from '../components/VideoMessage'
 import VoiceNote from '../components/VoiceNote'
 import { translateForMe, useTranslated } from '../translateMsg'
@@ -281,6 +282,7 @@ export default function Chat({ kind = 'direct' }: { kind?: 'direct' | 'group' })
           <h1 className="topbar-name">{c.name}</h1>
           <span className={typing.length || (!isGroup && online.has(c.id)) ? 'online' : ''}>{subtitle}</span>
         </div>
+        <LangMenu />
         {!isGroup && <button className="icon-btn" aria-label={`Voice call ${c.name}`} onClick={() => startCall(c.id, false)}><Phone size={19} aria-hidden="true" /></button>}
         {!isGroup && <button className="icon-btn" aria-label={`Video call ${c.name}`} onClick={() => startCall(c.id, true)}><Video size={20} aria-hidden="true" /></button>}
         <button className="icon-btn" aria-label={isGroup ? 'Group info' : 'Contact info'} onClick={() => setInfo(true)}><Info size={19} aria-hidden="true" /></button>

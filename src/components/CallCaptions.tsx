@@ -25,20 +25,6 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   const { api } = useAuth()
   const myLang = useLang()
   // Speech-to-speech: when they talk in another language, play the translation and turn their own voice down.
-  // How a translation reaches a hearing person: spoken aloud, or captions only (speech comes a moment after each sentence).
-  // Blind people always hear it. Everyone else is asked once; the answer is remembered on this device.
-  const [voicePref, setVoicePref] = useState<'speak' | 'captions' | null>(() => {
-    try {
-      const v = localStorage.getItem('anyway.callVoice')
-      return v === 'speak' || v === 'captions' ? v : null
-    } catch {
-      return null
-    }
-  })
-  const choose = (v: 'speak' | 'captions') => {
-    setVoicePref(v)
-    try { localStorage.setItem('anyway.callVoice', v) } catch { /* storage unavailable */ }
-  }
   const [theirLang, setTheirLang] = useState('')
   const [lines, setLines] = useState<Line[]>([])
   const [partial, setPartial] = useState('')
@@ -46,7 +32,8 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
   const n = useRef(0)
   const box = useRef<HTMLDivElement>(null)
   const canSpeak = mode !== 'deaf' && mode !== 'speech'
-  const voiceOn = mode === 'blind' || voicePref === 'speak'
+  // Spoken translation (a moment after each sentence) only for blind people; everyone else reads it, with no delay.
+  const voiceOn = mode === 'blind'
   const canHear = mode !== 'deaf'
   const add = (c: Caption, mine: boolean, orig?: string) => setLines((l) => [...l.slice(-30), { ...c, mine, orig, id: n.current++ }])
   const voiceOnRef = useRef(true)
@@ -223,13 +210,6 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
         <div className="cap-trans" role="status">
           <Languages size={15} aria-hidden="true" />
           <span>Translating {langName(theirLang)} → {langName(myLang)}</span>
-        </div>
-      )}
-      {translating && canHear && (
-        <div className="voice-choice" role="group" aria-label="How do you want the translation?">
-          {voicePref === null && <span>How do you want the translation?</span>}
-          <button type="button" aria-pressed={voicePref === 'speak'} onClick={() => choose('speak')}>Hear it spoken</button>
-          <button type="button" aria-pressed={voicePref !== 'speak'} onClick={() => choose('captions')}>Captions only</button>
         </div>
       )}
       <div className="cap-row">

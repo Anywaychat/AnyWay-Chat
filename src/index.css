@@ -783,5 +783,17 @@ main h1:focus-visible, main h2:focus-visible { outline: 3px solid var(--accent);
 .call-head .lang-menu { margin-top: 8px; }
 .lang-menu.dark-ui .lang-pill { background: rgba(0,0,0,.45); color: #fff; border-color: rgba(255,255,255,.35); }
 .call-head .lang-pop { left: 0; right: auto; }
-@media (max-width: 600px) { .chat-head .lang-pill { padding: 0 8px; } }
+/* Phones: just the globe in the crowded top bar, and the menu opens as a sheet at the bottom, inside the screen */
+@media (max-width: 600px) {
+  .topbar .lang-pill { width: 36px; padding: 0; justify-content: center; }
+  .topbar .lang-name { display: none; }
+  /* Name and status on one line each, cut with … instead of wrapping word by word next to the buttons */
+  .topbar { gap: 4px; padding: 8px 8px 8px 4px; }
+  .topbar .icon-btn { width: 34px; }
+  .topbar .avatar.sm { margin-right: 4px; }
+  .lang-pop, .call-head .lang-pop { position: fixed; left: 12px; right: 12px; top: auto; bottom: calc(12px + env(safe-area-inset-bottom)); width: auto; max-height: 60vh; z-index: 200; }
+}
 .topbar:has(.lang-pop) { position: relative; z-index: 30; }
+
+.topbar-title h1.topbar-name, .topbar-title > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-title > span { display: block; }

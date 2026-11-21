@@ -27,7 +27,7 @@ export default function LangMenu({ dark = false }: { dark?: boolean }) {
     <div className={`lang-menu${dark ? ' dark-ui' : ''}`} ref={box}>
       <button type="button" className="lang-pill" aria-expanded={open} aria-label={`Translating into ${langName(lang)}. Change language`} onClick={() => setOpen((o) => !o)}>
         <Globe size={15} aria-hidden="true" />
-        {langName(lang)}
+        <span className="lang-name">{langName(lang)}</span>
       </button>
       {open && (
         <div className="lang-pop" role="dialog" aria-label="Language">

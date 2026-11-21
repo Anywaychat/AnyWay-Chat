@@ -545,6 +545,10 @@ function watchMic() {
   window.addEventListener('keydown', onInput, true)
 }
 
+/** Phones stop listening after every short phrase. "Hey Chat" heard just before a stop stays awake for the next
+ *  round, so "Hey Chat … (pause) … tell Meera hi" still works instead of being forgotten. */
+let awakeUntil = 0
+
 function runWake() {
   if (!RecCtor || !wakeOn || wakePaused || wakeRec || busy) return
   const rec = new RecCtor()
@@ -554,11 +558,13 @@ function runWake() {
   rec.interimResults = true
   rec.continuous = true
   let failed = ''
-  let awake = false
+  let awake = Date.now() < awakeUntil
   let command = ''
+  if (awake) onWakeState?.('awake')
   let silence: ReturnType<typeof setTimeout> | undefined
   const finish = () => {
     clearTimeout(silence)
+    awakeUntil = 0
     const text = command.trim()
     awake = false
     command = ''
@@ -609,6 +615,14 @@ function runWake() {
     if (wakeRec === rec) {
       wakeRec = null
       wakeLive = false
+    }
+    // Stopped mid-command (phones do this after every phrase): send what was said, or stay awake for the next round.
+    if (awake) {
+      if (command.trim()) finish()
+      else {
+        clearTimeout(silence)
+        awakeUntil = Date.now() + 6000
+      }
     }
     if (!wakeOn || wakePaused) return
     // Browsers stop continuous listening every so often; quietly start again.

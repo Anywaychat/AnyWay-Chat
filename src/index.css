@@ -859,3 +859,8 @@ main h1[tabindex="-1"]:focus, main h2[tabindex="-1"]:focus { outline: none; }
 .voice-choice button { min-height: 32px; font-size: 13px; }
 .voice-choice span { font-size: 13px; }
 @media (max-width: 600px) { .call-overlay:not(.with-video) .cap-toggle { align-self: auto; } }
+
+/* Calls: the "Translating A → B" note is a quiet line, not a bar */
+.call-overlay .cap-trans { background: none; padding: 0; margin: 0; justify-content: center; gap: 5px; font-size: 12px; opacity: .7; }
+.call-overlay .cap-trans span { flex: 0 1 auto; font-weight: 500; }
+.call-overlay .cap-trans svg { width: 13px; height: 13px; }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Captions, CaptionsOff, Languages, Send } from 'lucide-react'
+import { Languages, Send } from 'lucide-react'
 import { onCaption, sendCaption, type Caption } from '../nexconn'
 import { listenForCaptions, speak } from '../speech'
 
@@ -212,11 +212,6 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
           <span>Translating {langName(theirLang)} → {langName(myLang)}</span>
         </div>
       )}
-      <div className="cap-row">
-      <button type="button" className="cap-toggle" aria-pressed={showCaps} onClick={() => setShowCaps((v) => !v)}>
-        {showCaps ? <CaptionsOff size={16} aria-hidden="true" /> : <Captions size={16} aria-hidden="true" />}{showCaps ? 'Hide captions' : 'Captions'}
-      </button>
-      </div>
       {showCaps && (lines.length > 0 || partial || !video) && <div className="cap-lines" ref={box} aria-live="polite">
         {lines.length === 0 && !partial && <p className="cap-empty">{canSpeak ? `Captions are on. What you and ${them} say appears here.` : `What ${them} says appears here. Type or tap to answer.`}</p>}
         {lines.slice(video ? -3 : -8).map((l) => (

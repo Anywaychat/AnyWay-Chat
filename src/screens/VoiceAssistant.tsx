@@ -104,7 +104,9 @@ export default function VoiceAssistant() {
       const total = unread.reduce((n, c) => n + c.unread, 0)
       const from = unread.slice(0, 3).map((c) => (c.key.startsWith('group:') ? ctx.current.groups.find((g) => `group:${g.id}` === c.key)?.name : contactById(c.key.slice(7)).name)).filter(Boolean)
       await whenQuiet()
-      announce(`${hello}, ${first}. ${total ? `You have ${total} unread message${total > 1 ? 's' : ''}${from.length ? ` from ${from.join(' and ')}` : ''}.` : 'No new messages.'}${listening ? ' Say, Hey Chat, whenever you need me.' : ' Use the Tap to speak button, or the Space key, to talk to me.'}`)
+      // Someone trying AnyWay for the first time hears what to say first.
+      const tip = user.guest ? ` To start, say: Hey Chat, read my messages. Or: Hey Chat, tell Meera I'm on my way.` : ''
+      announce(`${hello}${user.guest ? '' : `, ${first}`}. ${user.guest ? 'Welcome to AnyWay. ' : ''}${total ? `You have ${total} unread message${total > 1 ? 's' : ''}${from.length ? ` from ${from.join(' and ')}` : ''}.` : 'No new messages.'}${listening ? ` Say, Hey Chat, whenever you need me.${tip}` : ' Use the Tap to speak button, or the Space key, to talk to me.'}`)
     }, 1500)
   }, [user, mic])
 

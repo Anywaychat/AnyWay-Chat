@@ -42,6 +42,8 @@ interface UserRecord {
   phrases?: { text: string; icon: string }[]
   /** A demo friend that answers by itself (not a real person, never counted as a user). */
   demo?: boolean
+  /** Made by "Try it now" without signing up. Counted apart from accounts; removed after 14 days unless saved. */
+  guest?: boolean
   /** Settings that follow the person to any device: languages, voice, speed, text size, alerts. */
   prefs?: Record<string, unknown>
 }
@@ -77,7 +79,14 @@ interface Review {
   hidden?: boolean
   time: number
 }
+/** A QR code or link that adds the person who opens it to `user`'s contacts ("Call yourself from your phone"). */
+interface PairRecord {
+  user: string
+  exp: number
+  joined: string[]
+}
 interface Db {
+  pairs?: Record<string, PairRecord>
   reports?: Report[]
   reviews?: Review[]
   calls?: Record<string, CallLog[]>
@@ -102,9 +111,10 @@ export interface PublicUser {
   mode: Mode
   avatar?: string
   demo?: boolean
+  guest?: boolean
 }
 
-const DB_PATH = resolve(process.cwd(), 'data/db.json')
+let DB_PATH = resolve(process.cwd(), 'data/db.json')
 
 /* ---------- Encryption at rest ---------- */
 let dataKey: Buffer | null = null
@@ -131,6 +141,8 @@ export function connectStore(env: Record<string, string | undefined>) {
   const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN
   redis = url && token ? { url, token } : null
   dataKey = env.DATA_KEY ? createHash('sha256').update(env.DATA_KEY).digest() : null
+  // Tests keep their own database file.
+  DB_PATH = resolve(process.cwd(), env.ANYWAY_DB_PATH || 'data/db.json')
 }
 const KEY = 'anyway:db'
 const LOCK = 'anyway:lock'
@@ -265,6 +277,7 @@ const pub = (u: UserRecord): PublicUser => ({
   mode: modeOf(u.mode),
   avatar: u.avatarV ? `/api/avatar/${u.id}?v=${u.avatarV}` : u.avatar,
   ...(u.demo ? { demo: true } : {}),
+  ...(u.guest ? { guest: true } : {}),
 })
 const hashPw = (pw: string, salt: string) => scryptSync(pw, salt, 32).toString('hex')
 const real = (u: UserRecord) => !u.demo
@@ -410,6 +423,110 @@ async function demoSay(env: Record<string, string | undefined>, from: string, to
   })
 }
 
+/** Adds the demo friends to `userId`'s contacts (and `userId` to theirs), making the friends if needed. */
+function addDemoFriends(d: Db, userId: string) {
+  for (const [id, p] of Object.entries(DEMO)) {
+    d.users[id] ??= { id, name: p.name, mode: p.mode, salt: '', hash: randomBytes(32).toString('hex'), contacts: [], createdAt: Date.now(), demo: true }
+    linkUsers(d, userId, id)
+  }
+}
+/** Each demo friend says hello in their own way. The chat service needs to know a user before it can send for them. */
+async function greetFromDemo(env: Record<string, string | undefined>, to: string) {
+  await Promise.all(Object.entries(DEMO).map(([id, p]) => issueNexconnToken(env, { id, name: p.name, mode: p.mode }).catch(() => null)))
+  for (const [id, p] of Object.entries(DEMO)) await demoSay(env, id, to, p.hello, p.gloss).catch(() => null)
+}
+/** Two people in each other's contacts, so either can start a chat or a call. */
+function linkUsers(d: Db, a: string, b: string) {
+  if (!d.users[a].contacts.includes(b)) d.users[a].contacts.push(b)
+  if (!d.users[b].contacts.includes(a)) d.users[b].contacts.push(a)
+}
+
+/** Deletes an account, its logins, its photo and every link to it. */
+async function removeUser(d: Db, id: string) {
+  delete d.users[id]
+  for (const [t, uid] of Object.entries(d.sessions)) if (uid === id) delete d.sessions[t]
+  for (const other of Object.values(d.users)) {
+    if (other.contacts.includes(id)) other.contacts = other.contacts.filter((c) => c !== id)
+    if (other.blocked?.includes(id)) other.blocked = other.blocked.filter((c) => c !== id)
+    if (other.nicknames && id in other.nicknames) delete other.nicknames[id]
+  }
+  for (const g of Object.values(d.groups ?? {})) g.members = g.members.filter((m) => m !== id)
+  if (d.reviews?.some((r) => r.user === id)) d.reviews = d.reviews.filter((r) => r.user !== id)
+  if (d.push) delete d.push[id]
+  if (d.calls) delete d.calls[id]
+  for (const [k, p] of Object.entries(d.pairs ?? {})) if (p.user === id) delete d.pairs![k]
+  if (d.seenStore) delete d.seenStore[id]
+  await putAvatar(d, id, null)
+}
+
+/** Gives an account a new username: every contact list, group, login and setting follows it. */
+async function renameUser(d: Db, from: string, to: string) {
+  const u = d.users[from]
+  const photo = u.avatarV ? await getAvatar(d, from) : null
+  d.users[to] = { ...u, id: to }
+  delete d.users[from]
+  const swap = (x: string) => (x === from ? to : x)
+  for (const k of Object.keys(d.sessions)) if (d.sessions[k] === from) d.sessions[k] = to
+  for (const o of Object.values(d.users)) {
+    o.contacts = o.contacts.map(swap)
+    if (o.blocked) o.blocked = o.blocked.map(swap)
+    if (o.nicknames && from in o.nicknames) {
+      o.nicknames[to] = o.nicknames[from]
+      delete o.nicknames[from]
+    }
+  }
+  for (const g of Object.values(d.groups ?? {})) {
+    g.members = g.members.map(swap)
+    g.owner = swap(g.owner)
+  }
+  for (const r of d.reviews ?? []) r.user = swap(r.user)
+  for (const p of Object.values(d.pairs ?? {})) {
+    p.user = swap(p.user)
+    p.joined = p.joined.map(swap)
+  }
+  for (const store of [d.push, d.calls, d.seenStore] as (Record<string, unknown> | undefined)[]) {
+    if (store && from in store) {
+      store[to] = store[from]
+      delete store[from]
+    }
+  }
+  if (photo) {
+    await putAvatar(d, to, photo)
+    await putAvatar(d, from, null)
+  }
+}
+
+const GUEST_DAYS = 14
+const MAX_GUESTS = 3000
+/** Guest accounts nobody saved are removed after two weeks (and the oldest go first past 3,000), so tries don't pile up. */
+async function pruneGuests(d: Db, now = Date.now()) {
+  const guests = Object.values(d.users).filter((u) => u.guest).sort((a, b) => a.createdAt - b.createdAt)
+  const old = guests.filter((u, i) => u.createdAt < now - GUEST_DAYS * 86400_000 || i < guests.length - MAX_GUESTS)
+  for (const u of old) await removeUser(d, u.id)
+  return old.length
+}
+
+/** At most 30 guest accounts an hour from one address (per server instance), so a script can't flood the database. */
+const guestHits = new Map<string, number[]>()
+function allowGuest(ip: string, now = Date.now()) {
+  const recent = (guestHits.get(ip) ?? []).filter((t) => t > now - 3600_000)
+  if (recent.length >= 30) return false
+  recent.push(now)
+  guestHits.set(ip, recent)
+  if (guestHits.size > 5000) guestHits.clear()
+  return true
+}
+const clientIp = (req: IncomingMessage) => String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? '').split(',')[0].trim()
+
+/** Usernames people pick themselves. "demo" and "guest" names are kept for the app's own accounts. */
+function usernameProblem(id: string): string | null {
+  if (id.length < 3) return 'Username must be at least 3 letters or numbers.'
+  if (isDemo(id) || id.startsWith('demo') || id.startsWith('guest')) return 'That username is taken. Try another.'
+  return null
+}
+const cleanCode = (v: unknown) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
+const PAIR_MINUTES = 30
+
 export function createApi(env: Record<string, string | undefined>) {
   connectStore(env)
   const pushReady = !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY)
@@ -465,8 +582,8 @@ export function createApi(env: Record<string, string | undefined>) {
         const name = String(b.name ?? '').trim().slice(0, 40)
         const password = String(b.password ?? '')
         const mode = MODES.includes(b.mode as Mode) ? (b.mode as Mode) : 'standard'
-        if (id.length < 3) return send(res, 400, { error: 'Username must be at least 3 letters or numbers.' })
-        if (isDemo(id) || id.startsWith('demo')) return send(res, 409, { error: 'That username is taken. Try another.' })
+        const bad = usernameProblem(id)
+        if (bad) return send(res, id.length < 3 ? 400 : 409, { error: bad })
         if (!name) return send(res, 400, { error: 'Enter your name.' })
         if (password.length < 6) return send(res, 400, { error: 'Password must be at least 6 characters.' })
         const salt = randomBytes(16).toString('hex')
@@ -482,11 +599,45 @@ export function createApi(env: Record<string, string | undefined>) {
       if (path === '/login' && req.method === 'POST') {
         const b = await readBody(req)
         const u = db.users[cleanId(b.username)]
-        const ok = u && !u.demo && timingSafeEqual(Buffer.from(hashPw(String(b.password ?? ''), u.salt), 'hex'), Buffer.from(u.hash, 'hex'))
+        const ok = u && !u.demo && !u.guest && timingSafeEqual(Buffer.from(hashPw(String(b.password ?? ''), u.salt), 'hex'), Buffer.from(u.hash, 'hex'))
         if (!u || !ok) return send(res, 401, { error: 'Wrong username or password.' })
         if (u.suspended) return send(res, 403, { error: 'This account has been turned off. Contact the AnyWay team.' })
         const token = await mutate((d) => newSession(d, u.id))
         return send(res, 200, { session: token, user: pub(u) })
+      }
+
+      // "Try it now": a guest account in one tap, no sign-up. It starts with the demo friends, or, from a
+      // "Call yourself from your phone" QR code, with the person who showed the code.
+      if (path === '/guest' && req.method === 'POST') {
+        const b = await readBody(req)
+        const mode = MODES.includes(b.mode as Mode) ? (b.mode as Mode) : 'standard'
+        if (!allowGuest(clientIp(req))) return send(res, 429, { error: 'Too many guest accounts from this network. Try again in an hour, or create an account.' })
+        const code = cleanCode(b.pair)
+        const made = await mutate(async (d) => {
+          await pruneGuests(d)
+          const pair = code ? d.pairs?.[code] : undefined
+          if (code && (!pair || pair.exp < Date.now() || !d.users[pair.user])) throw new Stop(404, { error: 'This QR code has expired. Ask for a new one.' })
+          let id = ''
+          do id = `guest${randomBytes(3).toString('hex')}`
+          while (d.users[id])
+          const name = `Guest ${1000 + (randomBytes(2).readUInt16BE(0) % 9000)}`
+          d.users[id] = { id, name, mode, salt: '', hash: randomBytes(32).toString('hex'), contacts: [], createdAt: Date.now(), guest: true }
+          if (pair) {
+            linkUsers(d, id, pair.user)
+            pair.joined.push(id)
+          } else addDemoFriends(d, id)
+          return { token: newSession(d, id), user: pub(d.users[id]), with: pair ? pub(d.users[pair.user]) : null }
+        })
+        if (!made.with) await greetFromDemo(env, made.user.id)
+        return send(res, 200, { session: made.token, user: made.user, with: made.with })
+      }
+
+      const pm = path.match(/^\/pair\/([a-z0-9]{6,16})$/)
+      if (pm && req.method === 'GET') {
+        const p = db.pairs?.[pm[1]]
+        const owner = p && p.exp > Date.now() ? db.users[p.user] : undefined
+        if (!owner) return send(res, 404, { error: 'This QR code has expired. Ask for a new one.' })
+        return send(res, 200, { from: { name: owner.name, mode: modeOf(owner.mode) } })
       }
 
       // ---------- Admin (needs the ADMIN_KEY secret in the x-admin-key header) ----------
@@ -503,7 +654,7 @@ export function createApi(env: Record<string, string | undefined>) {
           return send(res, 200, {
             users: Object.values(db.users)
               .filter(real)
-              .map((u) => ({ id: u.id, name: u.name, mode: modeOf(u.mode), createdAt: u.createdAt, lastSeen: seen[u.id] ?? null, contacts: u.contacts.filter((c) => !isDemo(c)).length, suspended: !!u.suspended, reviewed: (db.reviews ?? []).some((r) => r.user === u.id) }))
+              .map((u) => ({ id: u.id, name: u.name, mode: modeOf(u.mode), createdAt: u.createdAt, lastSeen: seen[u.id] ?? null, contacts: u.contacts.filter((c) => !isDemo(c)).length, suspended: !!u.suspended, reviewed: (db.reviews ?? []).some((r) => r.user === u.id), ...(u.guest ? { guest: true } : {}) }))
               .sort((a, b) => (b.lastSeen ?? b.createdAt) - (a.lastSeen ?? a.createdAt)),
           })
         }
@@ -523,19 +674,7 @@ export function createApi(env: Record<string, string | undefined>) {
               u.suspended = !!b.suspended
               return
             }
-            // Delete: the account, its logins, its photo and every link to it.
-            delete d.users[u.id]
-            for (const [t, id] of Object.entries(d.sessions)) if (id === u.id) delete d.sessions[t]
-            for (const other of Object.values(d.users)) {
-              other.contacts = other.contacts.filter((c) => c !== u.id)
-              if (other.blocked) other.blocked = other.blocked.filter((c) => c !== u.id)
-              if (other.nicknames) delete other.nicknames[u.id]
-            }
-            for (const g of Object.values(d.groups ?? {})) g.members = g.members.filter((m) => m !== u.id)
-            d.reviews = (d.reviews ?? []).filter((r) => r.user !== u.id)
-            if (d.push) delete d.push[u.id]
-            if (d.calls) delete d.calls[u.id]
-            await putAvatar(d, u.id, null)
+            await removeUser(d, u.id)
           })
           return send(res, 200, { ok: true })
         }
@@ -555,7 +694,9 @@ export function createApi(env: Record<string, string | undefined>) {
 
       // Public usage dashboard (/admin): numbers only, nothing that identifies anyone. Demo friends aren't counted.
       if (path === '/stats' && req.method === 'GET') {
-        const users = Object.values(db.users).filter(real)
+        // Accounts people made. "Try it now" guests are counted on their own, never as sign-ups.
+        const users = Object.values(db.users).filter((u) => real(u) && !u.guest)
+        const guests = Object.values(db.users).filter((u) => u.guest)
         const seen = await allSeen(db)
         const now = Date.now()
         const DAY = 86400_000
@@ -580,6 +721,7 @@ export function createApi(env: Record<string, string | undefined>) {
             withPhoto: users.filter((u) => u.avatar || u.avatarV).length,
           },
           signups,
+          guests: { total: guests.length, activeToday: guests.filter((u) => (seen[u.id] ?? 0) > now - DAY).length, week: guests.filter((u) => u.createdAt > now - 7 * DAY).length },
           groups: { total: Object.keys(db.groups ?? {}).length, members: Object.values(db.groups ?? {}).reduce((n, g) => n + g.members.length, 0) },
           contacts: users.reduce((n, u) => n + realContacts(u).length, 0) / 2,
           calls: { logged: calls.length, week: calls.filter((c) => c.time > now - 7 * DAY).length, video: calls.filter((c) => c.video).length },
@@ -724,19 +866,71 @@ export function createApi(env: Record<string, string | undefined>) {
 
       // Demo friends: added on request, each says hello in their own way.
       if (path === '/demo/start' && req.method === 'POST') {
-        await mutate((d) => {
-          for (const [id, p] of Object.entries(DEMO)) {
-            d.users[id] ??= { id, name: p.name, mode: p.mode, salt: '', hash: randomBytes(32).toString('hex'), contacts: [], createdAt: Date.now(), demo: true }
-            const u = d.users[id]
-            if (!u.contacts.includes(me.id)) u.contacts.push(me.id)
-            const mine = d.users[me.id]
-            if (!mine.contacts.includes(id)) mine.contacts.push(id)
-          }
-        })
-        // The chat service needs to know a user before it can send for them.
-        await Promise.all(Object.entries(DEMO).map(([id, p]) => issueNexconnToken(env, { id, name: p.name, mode: p.mode }).catch(() => null)))
-        for (const [id, p] of Object.entries(DEMO)) await demoSay(env, id, me.id, p.hello, p.gloss).catch(() => null)
+        await mutate((d) => addDemoFriends(d, me.id))
+        await greetFromDemo(env, me.id)
         return send(res, 200, { ok: true })
+      }
+
+      // "Call yourself from your phone" (or add a friend next to you): a QR code that links the two of you.
+      if (path === '/pair' && req.method === 'POST') {
+        const made = await mutate((d) => {
+          const now = Date.now()
+          d.pairs ??= {}
+          for (const [k, p] of Object.entries(d.pairs)) if (p.exp < now) delete d.pairs[k]
+          // One code at a time per person: the same one comes back while it has 10 minutes left.
+          const mine = Object.entries(d.pairs).find(([, p]) => p.user === me.id && p.exp > now + 600_000)
+          if (mine) return { code: mine[0], expires: mine[1].exp }
+          let c = ''
+          do c = randomBytes(5).toString('hex')
+          while (d.pairs[c])
+          d.pairs[c] = { user: me.id, exp: now + PAIR_MINUTES * 60_000, joined: [] }
+          return { code: c, expires: d.pairs[c].exp }
+        })
+        return send(res, 200, made)
+      }
+      const pj = path.match(/^\/pair\/([a-z0-9]{6,16})\/(join|status)$/)
+      if (pj && pj[2] === 'status' && req.method === 'GET') {
+        const p = db.pairs?.[pj[1]]
+        if (!p || p.user !== me.id) return send(res, 404, { error: 'Not found' })
+        const last = [...p.joined].reverse().find((id) => db.users[id])
+        return send(res, 200, { joined: last ? pub(db.users[last]) : null, expired: p.exp < Date.now() })
+      }
+      if (pj && pj[2] === 'join' && req.method === 'POST') {
+        const owner = await mutate((d) => {
+          const p = d.pairs?.[pj[1]]
+          if (!p || p.exp < Date.now() || !d.users[p.user]) throw new Stop(404, { error: 'This QR code has expired. Ask for a new one.' })
+          if (p.user === me.id) throw new Stop(400, { error: 'This is your own code. Open it on another phone.' })
+          linkUsers(d, me.id, p.user)
+          if (!p.joined.includes(me.id)) p.joined.push(me.id)
+          return pub(d.users[p.user])
+        })
+        return send(res, 200, { contact: owner })
+      }
+
+      // A guest keeps their account: a username of their own and a password, with their contacts and settings.
+      if (path === '/guest/keep' && req.method === 'POST') {
+        if (!me.guest) return send(res, 400, { error: 'This account is already saved.' })
+        const b = await readBody(req)
+        const id = cleanId(b.username)
+        const name = String(b.name ?? '').trim().slice(0, 40)
+        const password = String(b.password ?? '')
+        const bad = usernameProblem(id)
+        if (bad) return send(res, id.length < 3 ? 400 : 409, { error: bad })
+        if (!name) return send(res, 400, { error: 'Enter your name.' })
+        if (password.length < 6) return send(res, 400, { error: 'Password must be at least 6 characters.' })
+        const salt = randomBytes(16).toString('hex')
+        const user = await mutate(async (d) => {
+          if (d.users[id]) throw new Stop(409, { error: 'That username is taken. Try another.' })
+          await renameUser(d, me.id, id)
+          // (the check above narrowed d.users[id] to "missing"; it exists now)
+          const u = d.users[id] as UserRecord
+          Object.assign(u, { name, salt, hash: hashPw(password, salt), createdAt: Date.now() })
+          delete u.guest
+          return pub(u)
+        })
+        // The groups on the chat service follow the new username too.
+        for (const g of Object.values(db.groups ?? {})) if (g.members.includes(me.id)) await nexconnPost(env, '/v4/group-channel/join', { channelId: g.id, userIds: [id] }).catch(() => null)
+        return send(res, 200, { user })
       }
 
       if (path === '/push/notify' && req.method === 'POST') {

@@ -7,6 +7,10 @@ import { contactById, useAuth, toContact, type Contact, type User } from '../sta
 import { Avatar, TabBar } from '../components/ui'
 import InstallButton from '../components/InstallButton'
 import { useChannels, usePresence } from '../useChat'
+import TryCard from '../components/TryCard'
+import { useShowTry } from '../tryIt'
+import PairModal from '../components/PairModal'
+import { QrCode as QrIcon } from 'lucide-react'
 
 const FILTERS = ['All', 'Unread'] as const
 
@@ -52,6 +56,7 @@ export default function Home() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('All')
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
+  const { show: showTry } = useShowTry()
 
   const byKey = new Map(channels.map((c) => [c.key, c]))
   const rows = [
@@ -81,6 +86,9 @@ export default function Home() {
             <button key={f} className="pill" aria-pressed={f === filter} onClick={() => setFilter(f)}>{f}</button>
           ))}
         </div>
+        {/* Things to try: here on a phone; a laptop shows them on the big empty side instead. */}
+        {showTry && <div className="try-in-list"><TryCard /></div>}
+        {showTry && pathname !== '/home' && <Link to="/home" className="try-back">Things to try</Link>}
         {contacts.length > 0 && !contacts.some((c) => c.demo) && contacts.length < 3 && <DemoInvite />}
         {notif === 'default' && (
           <button className="notif-card" onClick={() => Notification.requestPermission().then((p) => { setNotif(p); if (p === 'granted') void enablePush() })}>
@@ -146,6 +154,7 @@ function AddContact({ onClose }: { onClose: () => void }) {
   const [results, setResults] = useState<Contact[]>([])
   const [searched, setSearched] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [qr, setQr] = useState(false)
 
   const search = async (value: string) => {
     setQ(value)
@@ -172,6 +181,8 @@ function AddContact({ onClose }: { onClose: () => void }) {
           <input autoFocus placeholder="Search by username or name" aria-label="Search people" value={q} onChange={(e) => search(e.target.value)} />
         </label>
         <p className="hint" style={{ textAlign: 'left', margin: 0 }}>Your username is <strong>@{user?.id}</strong>. Share it so friends can add you.</p>
+        <button type="button" className="btn" onClick={() => setQr(true)}><QrIcon size={16} aria-hidden="true" />Someone next to you? Show a QR code</button>
+        {qr && <PairModal purpose="friend" onClose={() => setQr(false)} />}
         <div className="modal-list">
           {searched && results.length === 0 && <p className="muted">No one found with that name.</p>}
           {results.map((r) => {

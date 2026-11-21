@@ -62,6 +62,8 @@ export interface User {
   nickname?: string
   /** A demo friend that answers by itself, so anyone can try every way of talking alone. */
   demo?: boolean
+  /** Made by "Try it now" without signing up; can be saved with a username and password. */
+  guest?: boolean
 }
 
 export interface Contact extends User {
@@ -139,6 +141,12 @@ interface AuthCtx {
   removeContact: (username: string) => Promise<string | null>
   startDemo: () => Promise<string | null>
   refreshContacts: () => Promise<void>
+  /** "Try it now": a guest account in one tap. With a pairing code, it starts in a chat with whoever showed the code. */
+  tryAs: (mode: Mode, pair?: string) => Promise<{ error: string | null; with?: User | null }>
+  /** Signed in already and opened someone's pairing code: become contacts. */
+  joinPair: (code: string) => Promise<{ error: string | null; contact?: User }>
+  /** A guest keeps their account with a username and password. */
+  keepGuest: (p: { username: string; name: string; password: string }) => Promise<string | null>
 }
 
 const Ctx = createContext<AuthCtx | null>(null)
@@ -369,6 +377,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return (e as Error).message
         }
       },
+      async tryAs(mode, pair) {
+        try {
+          const r = await api<{ session: string; user: User; with: User | null }>('/guest', { method: 'POST', body: { mode, pair } })
+          if (r.with) known.set(r.with.id, toContact(r.with))
+          start(r.session, r.user)
+          return { error: null, with: r.with }
+        } catch (e) {
+          return { error: (e as Error).message }
+        }
+      },
+      async joinPair(code) {
+        try {
+          const r = await api<{ contact: User }>(`/pair/${encodeURIComponent(code)}/join`, { method: 'POST' })
+          known.set(r.contact.id, toContact(r.contact))
+          await refreshContacts()
+          return { error: null, contact: r.contact }
+        } catch (e) {
+          return { error: (e as Error).message }
+        }
+      },
+      async keepGuest(p) {
+        try {
+          await api('/guest/keep', { method: 'POST', body: p })
+        } catch (e) {
+          return (e as Error).message
+        }
+        // The username changed, so start fresh: a new chat connection under the new name.
+        try {
+          if (session) localStorage.removeItem(`anyway.boot.${session.slice(0, 12)}`)
+        } catch {
+          /* storage unavailable */
+        }
+        await disconnect().catch(() => {})
+        location.assign('/home')
+        return null
+      },
       async startDemo() {
         try {
           await api('/demo/start', { method: 'POST' })
@@ -389,7 +433,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [user, ready, contacts, groups, blocked, api, refreshContacts],
+    [user, ready, contacts, groups, blocked, api, refreshContacts, session],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

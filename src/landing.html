@@ -329,6 +329,12 @@ section{padding:72px 0}
 .num-src{grid-column:1/-1;margin:4px 0 0;font-size:13px;opacity:.7}
 @media (max-width:620px){.band-row{flex-wrap:wrap;justify-content:center;gap:8px 14px;white-space:normal}.phone{justify-self:center;max-width:100%}.band .dots{display:none}}
 nav .btn,.logo{white-space:nowrap}
+/* Try it now: one tap per way of talking */
+.try-as{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:18px 0 0}
+.try-as-l{flex-basis:100%;font-size:13px;color:var(--g);font-weight:700;letter-spacing:.02em}
+.try-as a{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 11px;border-radius:999px;background:#fff;border:1.5px solid var(--line);font-weight:700;font-size:14px;text-decoration:none;transition:border-color .12s,color .12s}
+.try-as a:hover,.try-as a:focus-visible{border-color:var(--y);color:var(--y)}
+.hero .try-note{font-size:14px;color:var(--g);margin:12px 0 0;max-width:46ch}
 @media (max-width:380px){.logo{font-size:16px;gap:8px}nav .btn{height:42px;padding:0 14px;font-size:14px}}
 </style>
 
@@ -336,14 +342,22 @@ nav .btn,.logo{white-space:nowrap}
 <div class="wrap">
   <nav aria-label="Main">
     <a class="logo" href="#"><span class="cell" aria-hidden="true"><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i></span>AnyWay Chat</a>
-    <a class="btn y" href="/start">Open the app</a>
+    <a class="btn y" href="/try">Open the app</a>
   </nav>
   <header class="hero hero5">
     <div class="h5-text">
       <p class="kick">CHAT FOR EVERYONE</p>
       <h1>865 million people see, hear or speak differently.<br><span class="y">Chat isn’t only for the privileged.</span></h1>
       <p class="h5-p">A chat application designed for everyone — whether you're <b>blind</b>, <b>deaf</b>, <b>hard of hearing</b>, <b>non-speaking</b>, or simply someone who believes communication should have no barriers.</p>
-      <div class="ctas"><a class="btn y" href="/start">Start chatting</a><a class="btn o" href="#how">See how it works</a></div>
+      <div class="ctas"><a class="btn y" href="/try">Try it now · no sign-up</a><a class="btn o" href="/start">Create an account</a></div>
+      <div class="try-as" role="group" aria-label="Try it straight away as">
+        <span class="try-as-l">Or go straight in:</span>
+        <a href="/try?as=deaf"><span aria-hidden="true">🤟</span>I’m deaf</a>
+        <a href="/try?as=blind"><span aria-hidden="true">🔊</span>I’m blind</a>
+        <a href="/try?as=speech"><span aria-hidden="true">👆</span>I can’t speak</a>
+        <a href="/try?as=standard"><span aria-hidden="true">💬</span>I talk &amp; type</a>
+      </div>
+      <p class="try-note">One tap, no account: three demo friends who are deaf, blind and non-speaking answer you in their own way.</p>
     </div>
    <div class="h5-hub" role="img" aria-label="One message, Dinner at 8, reaches each friend their own way: read aloud to Arjun who is blind, signed and captioned for Priya who is deaf, who signs back and AnyWay turns it into text, and Meera who is non-speaking replies with a tap that is said out loud.">
 
@@ -412,7 +426,7 @@ nav .btn,.logo{white-space:nowrap}
 
   <div class="end">
     <h2>Talk your way.</h2>
-    <div class="ctas"><a class="btn y" href="/start">Open AnyWay Chat</a></div>
+    <div class="ctas"><a class="btn y" href="/try">Try it now · no sign-up</a><a class="btn o" href="/start">Create an account</a></div>
   </div>
   <footer>Built with the Nexconn Chat SDK for the Nexconn Build Challenge 2026.</footer>
 </div>

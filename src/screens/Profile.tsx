@@ -32,6 +32,7 @@ export default function Profile() {
         <h1>Profile</h1>
       </header>
       <div className="scroll">
+        {user.guest && <KeepGuest />}
         <div className="section">
           <div className="panel">
             <div className="panel-row">
@@ -150,12 +151,67 @@ export default function Profile() {
         </div>
 
         <div className="section" style={{ paddingBottom: 24 }}>
-          <button className="btn block" onClick={async () => { await logout(); nav('/login') }}>
+          <button
+            className="btn block"
+            onClick={async () => {
+              // A guest account has no password: logging out loses it.
+              if (user.guest && !window.confirm('This is a guest account with no password. If you log out, you can’t come back to it. Log out anyway?')) return
+              await logout()
+              nav(user.guest ? '/try' : '/login')
+            }}
+          >
             <LogOut size={16} aria-hidden="true" />Log out
           </button>
         </div>
       </div>
       <TabBar />
+    </div>
+  )
+}
+
+/** A guest (from "Try it now") keeps their account: their own username and a password, with contacts and settings. */
+function KeepGuest() {
+  const { keepGuest } = useAuth()
+  const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (location.hash === '#keep') ref.current?.scrollIntoView({ block: 'start' })
+  }, [])
+  return (
+    <div className="section" id="keep" ref={ref}>
+      <form
+        className="panel keep-guest"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          setBusy(true)
+          setError(null)
+          const err = await keepGuest({ username, name, password })
+          if (err) {
+            setBusy(false)
+            setError(err)
+          }
+        }}
+      >
+        <h2>Keep this account</h2>
+        <p className="muted">You’re using a guest account. Pick a username and a password to keep your contacts and settings and to log in on other devices. Guest accounts are removed after 14 days.</p>
+        <label className="field-label">Your name
+          <input className="input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} />
+        </label>
+        <label className="field-label">Username
+          <input className="input" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} required minLength={3} maxLength={32} />
+          <span className="field-hint">Letters and numbers only. Friends add you by it.</span>
+        </label>
+        <label className="field-label">Password
+          <input className="input" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+          <span className="field-hint">At least 6 characters</span>
+        </label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="btn primary block" disabled={busy}>{busy ? 'Saving…' : 'Keep my account'}</button>
+      </form>
     </div>
   )
 }

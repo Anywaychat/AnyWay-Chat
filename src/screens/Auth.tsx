@@ -65,6 +65,7 @@ export function Login() {
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="btn primary block" disabled={busy}>{busy ? 'Logging in…' : 'Log in'}</button>
       <p className="muted" style={{ textAlign: 'center' }}>New to AnyWay? <Link to="/signup" className="link">Create an account</Link></p>
+      <Link to="/try" className="btn block try-link">Just looking? Try it now, no sign-up</Link>
       <InstallButton />
     </form>
   )
@@ -114,6 +115,7 @@ export function Signup() {
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn primary block">Next</button>
         <p className="muted" style={{ textAlign: 'center' }}>Already have an account? <Link to="/login" className="link">Log in</Link></p>
+        <Link to="/try" className="btn block try-link">Just looking? Try it now, no sign-up</Link>
       </form>
     )
 

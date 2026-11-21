@@ -13,6 +13,8 @@ import SignDictionary from './screens/SignDictionary'
 import SignLab from './screens/SignLab'
 import Review from './screens/Review'
 import Landing from './screens/Landing'
+import Try from './screens/Try'
+import TryCard from './components/TryCard'
 import Admin from './screens/Admin'
 import { useLink, useNotifications } from './useChat'
 import { useEffect, useRef, useState } from 'react'
@@ -26,6 +28,9 @@ import { useBlindPrefs } from './blindPrefs'
 const DARK_MODES: Mode[] = ['blind']
 
 function EmptyPane() {
+  const { user, contacts } = useAuth()
+  // Guests and people trying the demo friends get the things to try here, on a laptop's big empty side.
+  if (user?.guest || contacts.some((c) => c.demo)) return <TryCard big />
   return (
     <div className="empty-pane">
       <span className="empty-ico"><MessageCircle size={34} aria-hidden="true" /></span>
@@ -35,7 +40,7 @@ function EmptyPane() {
   )
 }
 
-const TITLES: Record<string, string> = { '/home': 'Chats', '/calls': 'Calls', '/profile': 'Profile', '/go': 'Face to face', '/signs': 'Sign dictionary', '/signlab': 'Sign lab', '/review': 'Review AnyWay', '/login': 'Log in', '/signup': 'Create your account', '/admin': 'Dashboard' }
+const TITLES: Record<string, string> = { '/home': 'Chats', '/calls': 'Calls', '/profile': 'Profile', '/go': 'Face to face', '/signs': 'Sign dictionary', '/signlab': 'Sign lab', '/review': 'Review AnyWay', '/try': 'Try AnyWay', '/login': 'Log in', '/signup': 'Create your account', '/admin': 'Dashboard' }
 
 /**
  * Screen readers announce the page title, and every screen used to share one ("AnyWay Chat · talk your way"), so moving
@@ -125,9 +130,10 @@ export default function App() {
   if (pathname === '/admin') return <Admin />
   if (!ready) return null
 
-  const onboarding = ['/start', '/login', '/signup'].includes(pathname)
+  const onboarding = ['/start', '/login', '/signup', '/try'].includes(pathname)
   if (!user && !onboarding) return <Navigate to="/login" replace />
-  if (user && onboarding) return <Navigate to="/home" replace />
+  // (/try handles a signed-in person itself: a pairing code still has to be joined.)
+  if (user && onboarding && pathname !== '/try') return <Navigate to="/home" replace />
   if (!user && pathname === '/start') return <Navigate to="/signup" replace />
 
   const dark = disp.theme === 'dark' || (disp.theme === 'auto' && !!user && DARK_MODES.includes(user.mode))
@@ -144,6 +150,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/try" element={<Try />} />
           <Route
             path="/home"
             element={

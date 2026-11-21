@@ -850,3 +850,12 @@ main h1[tabindex="-1"]:focus, main h2[tabindex="-1"]:focus { outline: none; }
 .vnote.mine .vplay { background: #fff; color: var(--me); }
 .vnote.mine .vwave i.on { background: #fff; }
 .vnote-orig { margin: 0; font-size: 13px; opacity: .7; max-width: 280px; }
+
+/* Call: captions switch and "Hold to talk" side by side, small; translation choice compact */
+.cap-row { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cap-row .cap-toggle { align-self: auto; }
+.cap-talk { min-height: 34px; height: 34px; padding: 0 14px; font-size: 14px; border-radius: 999px; gap: 6px; background: #fff; color: #16161D; touch-action: none; user-select: none; -webkit-user-select: none; }
+.cap-talk.on { background: var(--accent); color: #fff; box-shadow: 0 0 0 6px rgba(215,50,42,.3); }
+.voice-choice button { min-height: 32px; font-size: 13px; }
+.voice-choice span { font-size: 13px; }
+@media (max-width: 600px) { .call-overlay:not(.with-video) .cap-toggle { align-self: auto; } }

@@ -20,7 +20,7 @@ import {
 import type { Mode } from './state'
 import { installCalls, setCallUser, startCallEngine } from './calls'
 import { notifyPush } from './push'
-import { takeStartToken } from './startToken'
+import { clearStartToken, takeStartToken } from './startToken'
 
 /** How a message was originally made, carried alongside the text so each receiver can render it their way. */
 export interface Origin {
@@ -332,7 +332,7 @@ export async function connectAs(userId: string): Promise<boolean> {
       const session = sessionStorage.getItem('anyway.session') ?? localStorage.getItem('anyway.session') ?? ''
       const fresh = async () => ((await (await fetch('/api/nexconn-token', { headers: { Authorization: `Bearer ${session}` } })).json()) as { token?: string }).token
       // Use the token that came with the startup call (or the cached one); fetch a new one only if it's refused.
-      let token = (await takeStartToken()) ?? (await fresh())
+      let token = (await takeStartToken(userId)) ?? (await fresh())
       if (!token) throw new Error('no token')
       setCallUser(userId)
       startCatchUp()
@@ -359,9 +359,13 @@ export async function connectAs(userId: string): Promise<boolean> {
 }
 
 export async function disconnect() {
+  clearStartToken()
+  if (connecting) await connecting.catch(() => false)
   if (!connectedAs) return
-  await NCEngine.disconnect()
   connectedAs = null
+  await NCEngine.disconnect()
+  // Logging out on purpose isn't "no internet".
+  setLink('online')
 }
 
 export async function sendText(t: Target, text: string, origin: Origin): Promise<ChatMessage | null> {

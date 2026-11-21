@@ -171,7 +171,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <ConnectionBar />
+      {user && <ConnectionBar />}
       <CallOverlay />
       <FlashAlert />
       {user?.mode === 'blind' && <VoiceAssistant />}

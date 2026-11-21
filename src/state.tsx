@@ -225,12 +225,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const cached = JSON.parse(localStorage.getItem(CK) ?? 'null') as Boot | null
-      if (cached?.user) { apply(cached); if (cached.token) setStartToken(cached.token); setReady(true) }
+      if (cached?.user) { apply(cached); if (cached.token) setStartToken(cached.token, cached.user.id); setReady(true) }
     } catch { /* no cache */ }
     api<Boot>('/bootstrap')
       .then((b) => {
         apply(b)
-        if (b.token) setStartToken(b.token)
+        if (b.token) setStartToken(b.token, b.user.id)
         // Settings saved on the account win (signing in on a new phone); an account without any gets this phone's.
         if (b.prefs) applyPrefs(b.prefs)
         else void api('/me', { method: 'PATCH', body: { prefs: collectPrefs() } }).catch(() => {})

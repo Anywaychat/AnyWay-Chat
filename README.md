@@ -44,6 +44,7 @@ A person who can't speak taps pictures and AnyWay says it out loud. The other pe
 - [Who it's for](#whos-it-for)
 - [What's new here](#whats-new-here)
 - [Features](#features)
+- [Model card: ISL sign reader](#model-card-isl-sign-reader)
 - [Built on Nexconn](#built-on-nexconn)
 - [Architecture](#architecture)
 - [Privacy and security](#privacy-and-security)
@@ -118,6 +119,23 @@ It works the same for **older people losing their sight or hearing**, with nothi
 - **Try it now:** a guest account in one tap with three demo friends, things to try for each way of talking, and a QR code to call yourself from your phone. Guests can keep their account later.
 - **Other on-device AI:** voice notes written out (Whisper), photo descriptions (Florence-2) and an optional natural voice (Kokoro), each in a background worker so the app never freezes.
 - **Accessibility for everyone:** text size, high contrast, light and dark, screen reader labels and focus, vibration patterns, flash alerts, installable app (PWA).
+
+## Model card: ISL sign reader
+
+| | |
+| --- | --- |
+| **What it does** | Reads one Indian Sign Language sign at a time from a camera and gives the top 3 words with scores |
+| **Where it runs** | Entirely in the browser, on the person's device ([src/sign.ts](src/sign.ts)). No video or points leave the device |
+| **Pipeline** | Camera → MediaPipe Hand + Pose Landmarker (67 points per frame: 25 body, 21 per hand) → sign model → words |
+| **Model** | v4: 1D convolution + transformer, an ensemble of 3, exported to ONNX (`public/models/isl_signs.onnx`, about 20 MB), run with ONNX Runtime Web. Up to 200 frames per sign; all preparation (centring, scaling to shoulder width) happens inside the model |
+| **Vocabulary** | 263 everyday words (greetings, people, time, places, home, adjectives and more); 262 are offered in the app |
+| **Training data** | All 4,257 clips of the INCLUDE dataset (AI4Bharat, CC BY 4.0), with simulated laptop and phone camera framing |
+| **Held-out accuracy** | 97.8% (laptop-style view), 97.9% (phone-style view) |
+| **Real-browser test** | 44 chat words signed to a live camera: 84–89% on a laptop, 93–96% on a phone |
+| **When unsure** | Below a clear lead it asks *"Did you sign…?"* with its top 3 guesses instead of guessing |
+| **Learns your signs** | In the Sign lab you can sign a word a few times; your examples stay on your device and are used when the model is unsure |
+| **Limitations** | One sign at a time; no full ISL sentences, grammar or fingerspelling yet. Trained on few signers, so lighting, distance and personal signing style lower accuracy; regional sign variants may not be recognised |
+| **Intended use** | Helping deaf people type faster in chat and calls, always shown before sending so the signer can correct it. Not a replacement for a qualified interpreter in medical, legal or emergency settings |
 
 ## Built on Nexconn
 

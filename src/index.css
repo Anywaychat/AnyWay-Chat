@@ -825,3 +825,9 @@ main h1[tabindex="-1"]:focus, main h2[tabindex="-1"]:focus { outline: none; }
 /* Call buttons always centred, however many there are */
 .call-overlay .call-ctrls { display: flex; justify-content: center; gap: 18px; }
 .call-overlay .call-ctrls .ctrl { width: 84px; }
+
+/* Deaf on a voice call: a small camera only they see, to sign */
+.sign-self { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; background: rgba(255,255,255,.08); }
+.sign-self video { width: 120px; height: 90px; object-fit: cover; border-radius: 10px; transform: scaleX(-1); background: #000; flex-shrink: 0; }
+.sign-self span { font-size: 14px; color: #E3E6EC; }
+.call-overlay .sign-self video { display: block; }

@@ -120,16 +120,27 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
     return () => stop?.()
   }, [peer, canSpeak, micOn, myLang, needMyCaptions])
 
-  // Deaf, on a video call: read their signs from the call camera and send each word (spoken aloud on the other side).
+  // Deaf: read their signs and send each word (spoken aloud on the other side). On a video call from the call camera;
+  // on a voice call from a camera only they see (nothing is sent but the words).
+  const selfCam = useRef<HTMLVideoElement>(null)
   useEffect(() => {
-    if (!deaf || !video || !camOn) return
-    const el = document.getElementById(LOCAL_VIDEO_ID) as HTMLVideoElement | null
-    if (!el) return
+    if (!deaf || (video && !camOn)) return
     let reader: SignReader | null = null
     let alive = true
+    let own: MediaStream | null = null
+    const getEl = async (): Promise<HTMLVideoElement | null> => {
+      if (video) return document.getElementById(LOCAL_VIDEO_ID) as HTMLVideoElement | null
+      const el = selfCam.current
+      if (!el) return null
+      own = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false }).catch(() => null)
+      if (!own || !alive) { own?.getTracks().forEach((t) => t.stop()); return null }
+      el.srcObject = own
+      await el.play().catch(() => {})
+      return el
+    }
     const name = (id: string) => words.find((w) => w.id === id)?.name ?? id
-    void loadSigns().then(() => {
-      if (!alive) return
+    void Promise.all([loadSigns(), getEl()]).then(([, el]) => {
+      if (!alive || !el) return
       reader = new SignReader(
         el,
         (guesses) => {
@@ -147,7 +158,7 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
       )
       void reader.start().catch(() => {})
     })
-    return () => { alive = false; reader?.stop() }
+    return () => { alive = false; reader?.stop(); own?.getTracks().forEach((t) => t.stop()) }
   }, [deaf, video, camOn, peer, words])
 
   const understood = useUnderstood()
@@ -224,7 +235,13 @@ export default function CallCaptions({ peer, micOn, video, camOn }: { peer: stri
           <span>{interp.text}</span>
         </div>
       )}
-      {deaf && video && (hint || reading) && <p className="cap-reading" role="status">{hint || reading}</p>}
+      {deaf && !video && (
+        <div className="sign-self">
+          <video ref={selfCam} muted playsInline aria-label="Your camera, only you see it" />
+          <span>Sign to your camera. Only you see it; {them} hears your signs.</span>
+        </div>
+      )}
+      {deaf && (hint || reading) && <p className="cap-reading" role="status">{hint || reading}</p>}
       {translating && (
         <div className="cap-trans" role="status">
           <Languages size={15} aria-hidden="true" />

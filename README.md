@@ -14,6 +14,7 @@ A person who can't speak taps pictures and AnyWay says it out loud. The other pe
 ![Nexconn Chat SDK](https://img.shields.io/badge/Nexconn-Chat%20SDK-D7322A)
 ![Nexconn Call SDK](https://img.shields.io/badge/Nexconn-Call%20SDK-D7322A)
 ![On-device AI](https://img.shields.io/badge/AI-on%20the%20device-22305E)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [**Live app**](https://anywaychat.vercel.app) ·
 [**Try it now, no sign-up**](https://anywaychat.vercel.app/try) ·
@@ -50,6 +51,7 @@ A person who can't speak taps pictures and AnyWay says it out loud. The other pe
 - [Run locally](#run-locally)
 - [Limitations](#limitations)
 - [Credits](#credits)
+- [Licenses](#licenses)
 
 ## Try it in 2 minutes
 
@@ -205,3 +207,22 @@ Open http://localhost:5173. Accounts are saved in `data/db.json` locally, or in 
 Built for the Nexconn Build Challenge 2026, starting Nov 15, 2026. ISL sign videos and training data: the INCLUDE dataset by AI4Bharat (CC BY 4.0); the signer in the screenshots is from INCLUDE.
 
 Made in India. Built for everyone.
+
+## Licenses
+
+AnyWay Chat's code is released under the [MIT License](LICENSE).
+
+It builds on open data, models and libraries, each under its own license:
+
+| Part | Used for | License |
+| --- | --- | --- |
+| INCLUDE dataset (AI4Bharat) | Sign model training data and ISL sign videos | CC BY 4.0 |
+| MediaPipe Hand and Pose Landmarker (Google) | Hand and body tracking on the device | Apache 2.0 |
+| ONNX Runtime Web (Microsoft) | Running the sign model in the browser | MIT |
+| Whisper (OpenAI), via Transformers.js | Voice notes written out | MIT (model), Apache 2.0 (Transformers.js) |
+| Florence-2 (Microsoft) | Photo descriptions | MIT |
+| Kokoro (hexgrad), via kokoro-js | Optional natural voice | Apache 2.0 |
+| React, React Router, Vite, Lucide | The app | MIT / ISC |
+| qrcode-generator | QR codes | MIT |
+| Nexconn Chat SDK and Call SDK | Messaging and calls | Nexconn's terms of service |
+

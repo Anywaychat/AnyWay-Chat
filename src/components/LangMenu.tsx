@@ -4,7 +4,7 @@ import { LANGS, base, langName, setLang, setUnderstood, useLang, useUnderstood }
 
 /**
  * Your language, always visible at the top of a chat and on a call: tap it to change the language messages and calls
- * are translated into, and (optional) tick languages you also understand, which are then left as they are.
+ * are translated into.
  */
 export default function LangMenu({ dark = false }: { dark?: boolean }) {
   const lang = useLang()
@@ -23,7 +23,6 @@ export default function LangMenu({ dark = false }: { dark?: boolean }) {
       document.removeEventListener('keydown', close)
     }
   }, [open])
-  const others = LANGS.filter((l) => base(l.code) !== base(lang))
   return (
     <div className={`lang-menu${dark ? ' dark-ui' : ''}`} ref={box}>
       <button type="button" className="lang-pill" aria-expanded={open} aria-label={`Translating into ${langName(lang)}. Change language`} onClick={() => setOpen((o) => !o)}>
@@ -38,28 +37,14 @@ export default function LangMenu({ dark = false }: { dark?: boolean }) {
               value={LANGS.find((l) => base(l.code) === base(lang))?.code ?? lang}
               onChange={(e) => {
                 setLang(e.target.value)
-                setUnderstood(und.filter((u) => base(u) !== base(e.target.value)))
+                // One language only: anything else is translated into it.
+                if (und.length) setUnderstood([])
               }}
             >
               {LANGS.map((l) => <option key={l.code} value={l.code}>{l.native === l.name ? l.name : `${l.native} · ${l.name}`}</option>)}
             </select>
           </label>
           <p className="hint" style={{ textAlign: 'left', margin: 0 }}>Messages and calls in other languages are translated into this one.</p>
-          <details open={und.length > 0}>
-            <summary>I also understand (optional)</summary>
-            <div className="lang-checks">
-              {others.map((l) => {
-                const on = und.some((u) => base(u) === base(l.code))
-                return (
-                  <label key={l.code} className="lang-check">
-                    <input type="checkbox" checked={on} onChange={() => setUnderstood(on ? und.filter((u) => base(u) !== base(l.code)) : [...und, l.code])} />
-                    {l.name}
-                  </label>
-                )
-              })}
-            </div>
-            <p className="hint" style={{ textAlign: 'left', margin: 0 }}>These are shown as they are, not translated.</p>
-          </details>
         </div>
       )}
     </div>

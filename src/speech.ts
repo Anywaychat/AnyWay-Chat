@@ -4,6 +4,8 @@
  */
 import { workerClient } from './workers/rpc'
 import { sentences } from './sentences'
+import { startAlwaysOn } from './voiceListener'
+import { transcribeAudio, warmTranscriber } from './transcribe'
 
 type Rec = {
   lang: string
@@ -456,6 +458,7 @@ let onWakeCommand: ((text: string) => void) | null = null
 let onWakeState: ((s: WakeState) => void) | null = null
 
 function stopWakeRec() {
+  stopPhoneListen()
   if (!wakeRec) return
   ownStops.add(wakeRec)
   try {
@@ -549,7 +552,77 @@ function watchMic() {
  *  round, so "Hey Chat … (pause) … tell Meera hi" still works instead of being forgotten. */
 let awakeUntil = 0
 
+/* ---------- Phones: always-on listening with our own microphone and Whisper (no restart gaps) ---------- */
+let PHONE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+let phoneStop: (() => void) | null = null
+let phoneStarting = false
+let phoneAwakeUntil = 0
+let phoneQueue: Promise<void> = Promise.resolve()
+function stopPhoneListen() {
+  phoneStop?.()
+  phoneStop = null
+}
+function onPhoneText(raw: string) {
+  const t = raw.trim()
+  if (!t || !wakeOn || wakePaused) return
+  const m = t.match(WAKE)
+  if (m) {
+    const cmd = t.slice((m.index ?? 0) + m[0].length).replace(/^[\s,.!?]+/, '').trim()
+    if (cmd) {
+      phoneAwakeUntil = 0
+      beep('stop')
+      onWakeState?.('waiting')
+      onWakeCommand?.(cmd)
+    } else {
+      // "Hey Chat" on its own: the next thing said is the command.
+      phoneAwakeUntil = Date.now() + 8000
+      beep('start')
+      onWakeState?.('awake')
+      setTimeout(() => { if (phoneAwakeUntil && Date.now() >= phoneAwakeUntil) { phoneAwakeUntil = 0; onWakeState?.('waiting') } }, 8100)
+    }
+    return
+  }
+  if (Date.now() < phoneAwakeUntil) {
+    phoneAwakeUntil = 0
+    beep('stop')
+    onWakeState?.('waiting')
+    onWakeCommand?.(t)
+  }
+}
+function runPhoneListen() {
+  if (phoneStop || phoneStarting || !wakeOn || wakePaused) return
+  phoneStarting = true
+  warmTranscriber()
+  startAlwaysOn(
+    (audio) => {
+      // One at a time, in order; a phone writes out a short command in a second or two.
+      phoneQueue = phoneQueue.then(() => transcribeAudio(audio).then(onPhoneText, () => {}))
+    },
+    () => !wakeOn || wakePaused || isSpeaking(),
+    () => {
+      // No sound reaches us this way on this device: go back to the browser's own listener.
+      PHONE = false
+      stopPhoneListen()
+      scheduleWake(300)
+    },
+  )
+    .then((stop) => {
+      phoneStarting = false
+      if (!wakeOn || wakePaused) return stop()
+      phoneStop = stop
+      wakeLive = true
+      wakeFails = 0
+      wakeStuck = false
+      onWakeState?.('waiting')
+    })
+    .catch((e: Error) => {
+      phoneStarting = false
+      void wakeTrouble(e?.name === 'NotAllowedError' ? 'not-allowed' : e?.name === 'NotFoundError' ? 'audio-capture' : 'network')
+    })
+}
+
 function runWake() {
+  if (PHONE) return runPhoneListen()
   if (!RecCtor || !wakeOn || wakePaused || wakeRec || busy) return
   const rec = new RecCtor()
   wakeRec = rec

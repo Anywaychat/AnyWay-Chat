@@ -30,3 +30,18 @@ export function transcribe(url: string): Promise<string> {
   }
   return p
 }
+
+/** Writes out audio that is already 16 kHz mono (the always-on listener's utterances). '' for silence. */
+export async function transcribeAudio(audio: Float32Array): Promise<string> {
+  let peak = 0
+  for (let i = 0; i < audio.length; i += 4) peak = Math.max(peak, Math.abs(audio[i]))
+  if (peak < 0.02) return ''
+  const text = (await asr({ audio }, [audio.buffer])).text
+  // The model invents these for noise; real speech that short is rare.
+  return /^\W*(you|thank you|thanks for watching|\[.*\]|\(.*\))\W*$/i.test(text) ? '' : text
+}
+
+/** Starts loading the speech model in the background (the first time is a download of about 40 MB). */
+export function warmTranscriber() {
+  void asr({ audio: new Float32Array(1600) }).catch(() => {})
+}

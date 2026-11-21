@@ -804,3 +804,24 @@ main h1[tabindex="-1"]:focus, main h2[tabindex="-1"]:focus { outline: none; }
 /* Phones on a call: tap, say a sentence, it goes as a caption (keeps the call's microphone steady) */
 .cap-talk { display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: center; min-height: 48px; padding: 0 18px; border-radius: 24px; border: 0; background: rgba(255,255,255,.92); color: #16161D; font-weight: 700; font-size: 15px; cursor: pointer; }
 .cap-talk.on { background: var(--accent); color: #fff; }
+
+/* Phone voice call: compact header row, captions fill the middle, buttons at the bottom */
+@media (max-width: 600px) {
+  .call-overlay:not(.with-video) .call-ui { padding: 16px 14px 22px; justify-content: flex-start; gap: 12px; }
+  .call-overlay:not(.with-video) .call-head { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; text-align: left; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .call-overlay:not(.with-video) .call-head .ring { grid-row: 1 / span 2; box-shadow: 0 0 0 4px rgba(215,50,42,.25); }
+  .call-overlay:not(.with-video) .call-head .ring .avatar { width: 52px; height: 52px; font-size: 22px; }
+  .call-overlay:not(.with-video) .call-name { font-size: 22px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .call-overlay:not(.with-video) .call-status { font-size: 14px; }
+  .call-overlay:not(.with-video) .call-head .lang-menu { grid-column: 3; grid-row: 1 / span 2; margin: 0; }
+  .call-overlay:not(.with-video) .call-head .call-poor { grid-column: 1 / -1; }
+  .call-overlay:not(.with-video) .call-captions { flex: 1; min-height: 0; max-width: none; }
+  .call-overlay:not(.with-video) .cap-lines { flex: 1; max-height: none; min-height: 0; }
+  .call-overlay:not(.with-video) .cap-line { font-size: 21px; }
+  .call-overlay:not(.with-video) .cap-trans { margin: 0; }
+  .call-overlay:not(.with-video) .cap-toggle { align-self: flex-end; height: 30px; font-size: 13px; }
+  .call-overlay:not(.with-video) .call-ctrls { margin-top: 4px; }
+}
+/* Call buttons always centred, however many there are */
+.call-overlay .call-ctrls { display: flex; justify-content: center; gap: 18px; }
+.call-overlay .call-ctrls .ctrl { width: 84px; }

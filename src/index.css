@@ -831,3 +831,9 @@ main h1[tabindex="-1"]:focus, main h2[tabindex="-1"]:focus { outline: none; }
 .sign-self video { width: 120px; height: 90px; object-fit: cover; border-radius: 10px; transform: scaleX(-1); background: #000; flex-shrink: 0; }
 .sign-self span { font-size: 14px; color: #E3E6EC; }
 .call-overlay .sign-self video { display: block; }
+
+/* Hearing person on a translated call: hear the translation spoken, or read captions only */
+.voice-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.voice-choice span { flex-basis: 100%; font-size: 14px; font-weight: 700; color: #fff; }
+.voice-choice button { flex: 1; min-height: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; font: 700 14px var(--font); cursor: pointer; }
+.voice-choice button[aria-pressed='true'] { background: #fff; color: #16161D; border-color: #fff; }

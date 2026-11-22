@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>AnyWay Chat: write-up for the Nexconn Build Challenge 2026</title>
+<meta name="author" content="AnyWay Chat" />
+<meta name="description" content="One chat where deaf, blind and non-speaking people, and older people losing their sight or hearing, talk with anyone, each in their own way." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=block" rel="stylesheet" />
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --red: #D7322A; --red-soft: #FFF3F1; --ink: #16161D; --muted: #55565F; --faint: #8A8B93;
+    --line: #ECE6E3; --navy: #22305E; --navy-soft: #EEF1F8; --green: #157F3D; --paper: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); }
+  body { font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; color: var(--ink); font-size: 10.5pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: inherit; text-decoration: none; }
+  .page { position: relative; width: 210mm; height: 297mm; padding: 15mm 16mm 18mm; overflow: hidden; page-break-after: always; break-after: page; background: var(--paper); }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  .page::before { content: ''; position: absolute; right: -60mm; top: -60mm; width: 150mm; height: 150mm; border-radius: 50%; background: radial-gradient(closest-side, rgba(215,50,42,.07), rgba(215,50,42,0)); }
+  .foot { position: absolute; left: 16mm; right: 16mm; bottom: 9mm; display: flex; justify-content: space-between; font-size: 8pt; color: var(--faint); border-top: 1px solid var(--line); padding-top: 2.5mm; }
+  .foot b { color: var(--red); font-weight: 700; }
+
+  h1, h2, h3, .display { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; letter-spacing: -0.015em; line-height: 1.08; }
+  h2 { font-size: 23pt; margin-bottom: 3.5mm; max-width: 165mm; }
+  h3 { font-size: 13pt; margin-bottom: 2mm; }
+  .red { color: var(--red); }
+  .kicker { font-weight: 700; font-size: 8.5pt; letter-spacing: .16em; text-transform: uppercase; color: var(--red); margin-bottom: 3mm; }
+  .lead { font-size: 12pt; color: var(--muted); max-width: 165mm; margin-bottom: 6mm; }
+  p + p { margin-top: 2mm; }
+  .muted { color: var(--muted); }
+  .small { font-size: 8.5pt; color: var(--muted); }
+  ul.plain { list-style: none; }
+  ul.dots { padding-left: 4.5mm; }
+  ul.dots li { margin-bottom: 1.6mm; }
+  ul.dots li::marker { color: var(--red); }
+
+  /* ---------- cover ---------- */
+  .brand { display: flex; align-items: center; gap: 4mm; margin-bottom: 9mm; }
+  .cover figure { width: 140mm; margin: 0 auto; }
+  .cover .facts { margin-top: 5mm; }
+  .cover .cap { text-align: center; }
+  .stat .n.sm { font-size: 18pt; }
+  .crop2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; margin-top: 6mm; }
+  .signed { width: 120mm; margin: 6mm auto 0; }
+  .signed .cap { text-align: center; }
+  .trycrop { width: 64mm; margin-left: auto; }
+  .brand img { width: 15mm; height: 15mm; }
+  .brand .name { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 20pt; letter-spacing: -0.02em; }
+  .cover h1 { font-size: 41pt; margin-bottom: 5mm; }
+  .cover .lead { font-size: 13pt; color: var(--ink); margin-bottom: 3mm; }
+  .cover .sub { font-size: 11pt; color: var(--muted); max-width: 165mm; margin-bottom: 7mm; }
+  .shot { border-radius: 3mm; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 6mm 14mm rgba(34,48,94,.13); background: #fff; }
+  .shot img { display: block; width: 100%; height: auto; }
+  .cap { font-size: 8.5pt; color: var(--muted); margin-top: 2.5mm; }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5mm 6mm; margin-top: 7mm; }
+  .fact { border-left: 1mm solid var(--red); padding: 1mm 0 1mm 3mm; }
+  .fact dt { font-size: 7.5pt; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+  .fact dd { font-weight: 700; font-size: 11pt; }
+  .fact.key { grid-column: 1 / -1; background: var(--red-soft); border-radius: 0 2mm 2mm 0; padding: 2.5mm 4mm; display: flex; align-items: baseline; gap: 5mm; }
+  .fact.key dd { font-family: 'SF Mono', Menlo, monospace; font-size: 17pt; color: var(--red); letter-spacing: .04em; }
+  .fact.key .why { font-size: 8.5pt; color: var(--muted); font-weight: 400; }
+
+  /* ---------- problem ---------- */
+  .stories { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-bottom: 7mm; }
+  .story { background: var(--navy-soft); border-radius: 3mm; padding: 4mm; font-size: 10.5pt; }
+  .story .e { font-size: 18pt; display: block; margin-bottom: 1.5mm; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+  .stat { border: 1px solid var(--line); border-radius: 3mm; padding: 4mm 4mm 3.5mm; background: #fff; box-shadow: 0 2mm 6mm rgba(34,48,94,.06); }
+  .stat .n { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 22pt; letter-spacing: -0.02em; line-height: 1; margin-bottom: 1.5mm; }
+  .stat .n.r { color: var(--red); }
+  .stat .l { font-size: 9.5pt; line-height: 1.35; margin-bottom: 2mm; }
+  .stat .s { font-size: 7.5pt; color: var(--faint); }
+  .note { font-size: 8.5pt; color: var(--faint); margin: 2.5mm 0 6mm; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .box { border-radius: 3mm; padding: 4.5mm 5mm; }
+  .box.red { background: var(--red-soft); color: var(--ink); }
+  .box.navy { background: var(--navy-soft); }
+  .box h3 { font-size: 12pt; }
+
+  /* ---------- solution ---------- */
+  .four { counter-reset: f; margin-bottom: 7mm; }
+  .four li { list-style: none; position: relative; padding-left: 12mm; margin-bottom: 3.2mm; font-size: 13pt; font-weight: 700; line-height: 1.3; }
+  .four li::before { counter-increment: f; content: counter(f); position: absolute; left: 0; top: -.5mm; width: 8mm; height: 8mm; border-radius: 50%; background: var(--red); color: #fff; font-size: 10.5pt; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; }
+  .four li span { font-weight: 400; color: var(--muted); }
+  .flow { display: grid; grid-template-columns: 1fr 46mm 1fr; gap: 0; align-items: center; margin-bottom: 7mm; }
+  .col .colh { font-size: 7.5pt; letter-spacing: .14em; text-transform: uppercase; color: var(--red); margin-bottom: 2mm; }
+  .chip { display: flex; align-items: center; gap: 2.5mm; border: 1px solid var(--line); border-radius: 2.5mm; padding: 2mm 3mm; margin-bottom: 2mm; font-weight: 700; background: #fff; box-shadow: 0 1.5mm 4mm rgba(34,48,94,.06); }
+  .chip.out { border: 1.6px solid var(--red); }
+  .chip .e { font-size: 13pt; width: 6mm; text-align: center; }
+  .hub { text-align: center; padding: 0 4mm; position: relative; }
+  .hub img { width: 17mm; height: 17mm; }
+  .hub .t { font-weight: 700; font-size: 9pt; margin-top: 1.5mm; }
+  .hub .t2 { font-size: 8pt; color: var(--muted); }
+  .hub::before, .hub::after { content: ''; position: absolute; top: 8mm; width: 12mm; height: 1.2mm; background: var(--red); border-radius: 1mm; }
+  .hub::before { left: -1mm; } .hub::after { right: -1mm; }
+  .friends { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+  .friend { border: 1px solid var(--line); border-radius: 3mm; padding: 4mm; background: #fff; }
+  .friend .who { display: flex; align-items: center; gap: 2.5mm; margin-bottom: 2mm; }
+  .friend .who .e { font-size: 17pt; }
+  .friend .who b { font-family: 'Bricolage Grotesque', sans-serif; font-size: 12pt; display: block; line-height: 1.1; }
+  .friend .who small { color: var(--red); font-weight: 700; font-size: 8.5pt; }
+  .friend .said { font-size: 10pt; margin-bottom: 2mm; }
+  .friend .said q { font-style: italic; }
+  .friend ul { list-style: none; font-size: 9pt; color: var(--muted); }
+  .friend ul li { margin-bottom: 1mm; }
+  .friend ul li b { color: var(--ink); }
+
+  /* ---------- tables ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  th { text-align: left; font-size: 7.5pt; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 700; padding: 0 3mm 2mm 0; border-bottom: 1.5px solid var(--ink); }
+  td { padding: 2.4mm 3mm 2.4mm 0; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.38; }
+  td:first-child { font-weight: 700; white-space: nowrap; }
+  tr.older td { background: var(--red-soft); }
+  tr.older td:first-child { padding-left: 2mm; }
+  code { font-family: 'SF Mono', Menlo, monospace; font-size: 8.4pt; background: var(--navy-soft); color: var(--navy); padding: .2mm 1.2mm; border-radius: 1mm; white-space: nowrap; }
+
+  /* ---------- screenshots ---------- */
+  .shots3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 6mm; }
+  .shots2 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 5mm; align-items: start; }
+  .phoneframe { border: 2mm solid #16161D; border-radius: 6mm; overflow: hidden; box-shadow: 0 5mm 12mm rgba(34,48,94,.16); width: 52mm; margin: 0 auto; }
+  .phoneframe img { display: block; width: 100%; }
+
+  /* ---------- features ---------- */
+  .feats { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm 6mm; margin-top: 6mm; }
+  .feat { display: flex; gap: 3mm; }
+  .feat .e { font-size: 15pt; flex: 0 0 8mm; }
+  .feat b { display: block; font-size: 10.5pt; margin-bottom: .6mm; }
+  .feat p { font-size: 9.2pt; color: var(--muted); line-height: 1.38; }
+
+  /* ---------- nexconn ---------- */
+  .keyline { display: flex; align-items: center; gap: 5mm; background: var(--ink); color: #fff; border-radius: 3mm; padding: 4mm 5mm; margin-bottom: 6mm; }
+  .keyline .lbl { font-size: 7.5pt; letter-spacing: .14em; text-transform: uppercase; color: #C9CAD1; font-weight: 700; }
+  .keyline .k { font-family: 'SF Mono', Menlo, monospace; font-size: 18pt; letter-spacing: .05em; color: #fff; }
+  .keyline .why { font-size: 8.5pt; color: #C9CAD1; margin-left: auto; max-width: 62mm; text-align: right; }
+  .idea { border-left: 1.2mm solid var(--red); background: var(--red-soft); padding: 3.5mm 4.5mm; border-radius: 0 3mm 3mm 0; margin-bottom: 6mm; font-size: 10.5pt; }
+  .arch { display: grid; grid-template-columns: 1.15fr .2fr 1fr .2fr 1fr; align-items: center; margin-top: 6mm; }
+  .arch .b { border: 1px solid var(--line); border-radius: 3mm; padding: 3.5mm; background: #fff; font-size: 8.8pt; line-height: 1.35; box-shadow: 0 2mm 5mm rgba(34,48,94,.06); }
+  .arch .b h5 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 10pt; margin-bottom: 1.5mm; }
+  .arch .b.nx { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .arch .b.nx h5 { color: #fff; }
+  .arch .ar { text-align: center; color: var(--red); font-size: 16pt; font-weight: 700; }
+  .server { margin: 3mm 0 0 0; font-size: 8.8pt; color: var(--muted); text-align: center; border: 1px dashed #D5CFCC; border-radius: 3mm; padding: 2.5mm; }
+
+  /* ---------- AI ---------- */
+  .pipe { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-bottom: 6mm; }
+  .pipe .p { border: 1px solid var(--line); border-radius: 3mm; padding: 3.5mm; background: #fff; font-size: 9pt; position: relative; line-height: 1.35; }
+  .pipe .p .e { font-size: 15pt; display: block; margin-bottom: 1mm; }
+  .pipe .p b { display: block; font-size: 10pt; margin-bottom: .6mm; }
+  .pipe .p:not(:last-child)::after { content: '→'; position: absolute; right: -3.2mm; top: 40%; color: var(--red); font-weight: 700; font-size: 12pt; background: #fff; }
+  .nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-bottom: 6mm; }
+  .nums .stat .n { font-size: 19pt; }
+
+  /* ---------- last page ---------- */
+  .steps { counter-reset: s; }
+  .steps li { list-style: none; position: relative; padding-left: 9mm; margin-bottom: 2.4mm; font-size: 10pt; }
+  .steps li::before { counter-increment: s; content: counter(s); position: absolute; left: 0; top: .2mm; width: 6mm; height: 6mm; border-radius: 50%; background: var(--ink); color: #fff; font-size: 8.5pt; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .credit { font-size: 8.2pt; color: var(--muted); line-height: 1.45; }
+  .sign-off { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 15pt; margin-top: 5mm; }
+</style>
+</head>
+<body>
+
+<!-- ================= 1. COVER ================= -->
+<section class="page cover" aria-label="Cover">
+  <div class="brand"><img src="../.github/assets/logo.svg" alt="AnyWay Chat logo" /><span class="name">AnyWay <span class="red">Chat</span></span></div>
+  <p class="kicker">Nexconn Build Challenge 2026 · Humanitarian &amp; Social Good</p>
+  <h1>Your way. Their way. <br /><span class="red">One conversation.</span></h1>
+  <p class="lead">AnyWay Chat is one chat app where people who are deaf, blind or can’t speak, and older people losing their sight or hearing, talk with anyone, each in their own way.</p>
+  <p class="sub">You sign, speak, tap a picture or type. The other person gets it the way they understand it: as text, a voice or sign language, in their own language. In chats, voice calls, video calls and face to face.</p>
+  <figure>
+    <div class="shot"><img src="../.github/assets/deaf-chat-read.png" alt="A deaf user's chat with Arjun, who is blind. Arjun's spoken message is shown as text and played as Indian Sign Language videos. Below, the camera has read the user's sign: HELLO, ready to send." /></div>
+    <figcaption class="cap">A deaf user signs HELLO to the laptop camera. AnyWay reads the sign on the device, and Arjun, who is blind, will hear it. Every screenshot in this document is the real app.</figcaption>
+  </figure>
+  <dl class="facts">
+    <div class="fact key"><dt>Nexconn App Key</dt><dd>qf3d5gbjqvm4h</dd><span class="why">Public by design. The App Secret stays on our server.</span></div>
+    <div class="fact"><dt>Live app</dt><dd><a href="https://anywaychat.vercel.app">anywaychat.vercel.app</a></dd></div>
+    <div class="fact"><dt>Try it in one tap, no sign-up</dt><dd><a href="https://anywaychat.vercel.app/try">anywaychat.vercel.app/try</a></dd></div>
+    <div class="fact"><dt>Code (MIT licence)</dt><dd><a href="https://github.com/sakthilildih/AnyWay-Chat">github.com/sakthilildih/AnyWay-Chat</a></dd></div>
+    <div class="fact"><dt>Live usage dashboard</dt><dd><a href="https://anywaychat.vercel.app/admin">anywaychat.vercel.app/admin</a></dd></div>
+  </dl>
+  <div class="foot"><span><b>AnyWay Chat</b> · Write-up for the Nexconn Build Challenge 2026</span><span>1 / 8</span></div>
+</section>
+
+<!-- ================= 2. THE PROBLEM ================= -->
+<section class="page" aria-label="The problem">
+  <p class="kicker">Why we built it</p>
+  <h2>Chat apps assume everyone can see, hear, speak and type</h2>
+  <p class="lead">School, work, family and health care now happen in chats and calls. Every popular chat app is built for people who can see the screen, hear the call, speak into the microphone and type quickly. Leave out any one of those, and everyday conversations turn into barriers.</p>
+  <div class="stories">
+    <div class="story"><span class="e" aria-hidden="true">🦯</span>A blind teenager waits for a parent to read his messages to him.</div>
+    <div class="story"><span class="e" aria-hidden="true">🧏</span>A deaf customer writes on paper at the counter, because nobody there signs.</div>
+    <div class="story"><span class="e" aria-hidden="true">👵</span>A grandmother whose eyes and ears are fading stops reading the family group.</div>
+  </div>
+  <h3>How many people this is</h3>
+  <div class="stats">
+    <div class="stat"><div class="n r">430 million</div><div class="l">people live with disabling hearing loss</div><div class="s">WHO, Deafness and hearing loss</div></div>
+    <div class="stat"><div class="n">~70 million</div><div class="l">deaf people, using more than 300 sign languages</div><div class="s">World Federation of the Deaf, via the UN</div></div>
+    <div class="stat"><div class="n r">2.2 billion</div><div class="l">people have a near or distance vision impairment</div><div class="s">WHO, Blindness and vision impairment</div></div>
+    <div class="stat"><div class="n">97 million</div><div class="l">people could use picture and voice aids (AAC) because speech alone doesn’t work for them</div><div class="s">Beukelman &amp; Light (2020), via ASHA</div></div>
+    <div class="stat"><div class="n r sm">149M → 347M</div><div class="l">people over 60 in India today, and by 2050</div><div class="s">UNFPA India Ageing Report 2023</div></div>
+    <div class="stat"><div class="n">~250</div><div class="l">certified sign language interpreters for about 18 million deaf people in India</div><div class="s">GSMA (an older estimate)</div></div>
+  </div>
+  <p class="note">These groups overlap, so we never add the numbers together.</p>
+  <div class="two">
+    <div class="box red">
+      <h3>It grows with age</h3>
+      <p>Over 25% of people over 60 have disabling hearing loss, and most people with a vision impairment are over 50 (WHO). As India ages, more people struggle to read a chat or hear a call, often without calling it a disability. AnyWay works for them with nothing new to learn.</p>
+    </div>
+    <div class="box navy">
+      <h3>Why now</h3>
+      <ul class="dots">
+        <li>India’s Supreme Court has held that digital access is part of the right to life (<i>Pragya Prasun v. Union of India</i>, 2025) and that accessibility rules must be mandatory (<i>Rajive Raturi v. Union of India</i>, 2024).</li>
+        <li>AI is now small and fast enough to read signs and speech inside a phone’s browser, with nothing uploaded.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span><b>AnyWay Chat</b> · The problem</span><span>2 / 8</span></div>
+</section>
+
+<!-- ================= 3. THE SOLUTION ================= -->
+<section class="page" aria-label="The solution">
+  <p class="kicker">The solution</p>
+  <h2>Every message arrives the way the reader understands it</h2>
+  <ol class="four">
+    <li>One chat app, where everyone talks their own way.</li>
+    <li>Send it your way: <span>sign, speak, tap a picture or type.</span></li>
+    <li>They get it their way: <span>as text, a voice or sign language, in their own language.</span></li>
+    <li>It works everywhere: <span>chats, voice calls, video calls, and face to face.</span></li>
+  </ol>
+  <div class="flow" role="img" aria-label="You send by signing, speaking, tapping a picture or typing. AnyWay sends the message with how it was made through Nexconn. They get it as text, a voice, sign language, in their own language.">
+    <div class="col">
+      <p class="colh">You send it your way</p>
+      <div class="chip"><span class="e">🤟</span>Sign to the camera</div>
+      <div class="chip"><span class="e">🗣️</span>Speak</div>
+      <div class="chip"><span class="e">👆</span>Tap a picture</div>
+      <div class="chip"><span class="e">⌨️</span>Type</div>
+    </div>
+    <div class="hub">
+      <img src="../.github/assets/logo.svg" alt="" />
+      <div class="t">AnyWay + Nexconn</div>
+      <div class="t2">Each message carries how it was made: signed, spoken, tapped or typed</div>
+    </div>
+    <div class="col">
+      <p class="colh">They get it their way</p>
+      <div class="chip out"><span class="e">📖</span>Text</div>
+      <div class="chip out"><span class="e">🔊</span>A voice</div>
+      <div class="chip out"><span class="e">🤟</span>Sign language videos</div>
+      <div class="chip out"><span class="e">🌐</span>Their own language</div>
+    </div>
+  </div>
+  <h3>Three friends, one conversation</h3>
+  <p class="muted" style="margin-bottom:4mm">The demo friends in the app, and in our video, show it best. Each one talks in their own way, and each one is understood.</p>
+  <div class="friends">
+    <div class="friend">
+      <div class="who"><span class="e" aria-hidden="true">🤟</span><span><b>Priya</b><small>Deaf · signs</small></span></div>
+      <p class="said">Signs <q>Hello, how are you?</q> to her camera.</p>
+      <ul><li><b>Arjun</b> hears it spoken.</li><li><b>Meera</b> reads it as text.</li></ul>
+    </div>
+    <div class="friend">
+      <div class="who"><span class="e" aria-hidden="true">🦯</span><span><b>Arjun</b><small>Blind · talks</small></span></div>
+      <p class="said">Says <q>I’m good, thank you!</q> out loud.</p>
+      <ul><li><b>Priya</b> reads it and watches it in sign language.</li><li><b>Meera</b> reads it as text.</li></ul>
+    </div>
+    <div class="friend">
+      <div class="who"><span class="e" aria-hidden="true">👆</span><span><b>Meera</b><small>Can’t speak · taps</small></span></div>
+      <p class="said">Taps <q>See you at school today!</q> on her picture board.</p>
+      <ul><li><b>Arjun</b> hears it said aloud.</li><li><b>Priya</b> sees it signed.</li></ul>
+    </div>
+  </div>
+  <figure class="signed">
+    <div class="shot"><img src="img/priya-signed.png" alt="Priya's message in the chat: Hello! I'm Priya. I'm deaf and I sign. I signed this to my camera, and AnyWay turned my signs into this text. Labelled: Signed in ISL, HELLO, I, DEAF." /></div>
+    <figcaption class="cap">What a friend who reads sees: Priya’s signs written out, labelled <b>“Signed in ISL · HELLO · I · DEAF”</b>.</figcaption>
+  </figure>
+  <div class="foot"><span><b>AnyWay Chat</b> · The solution</span><span>3 / 8</span></div>
+</section>
+
+<!-- ================= 4. WHO IT'S FOR ================= -->
+<section class="page" aria-label="Who it is for">
+  <p class="kicker">Who it’s for</p>
+  <h2>Pick how you talk. AnyWay does the rest.</h2>
+  <p class="lead">AnyWay translates between ways of communicating inside one conversation. The other person just chats normally.</p>
+  <table>
+    <thead><tr><th scope="col">You are</th><th scope="col">You send by</th><th scope="col">You receive as</th></tr></thead>
+    <tbody>
+      <tr><td>Deaf</td><td>Signing to the camera (Indian Sign Language, read on the device), typing, picking signs, video messages</td><td>Text, plus every message played as ISL sign videos; voice notes written out; live captions on calls; screen flashes and vibration</td></tr>
+      <tr><td>Blind</td><td>Talking. <q>Hey Chat, tell Priya I’m on my way</q> works on every screen</td><td>Every message read aloud, with who sent it and how (<q>Priya signed…</q>); photos described</td></tr>
+      <tr><td>Can’t speak</td><td>Tapping a picture phrase board (AAC), typing, or sending typed words as a voice message</td><td>Text, read aloud if they like; spoken quick replies on calls</td></tr>
+      <tr class="older"><td>Older people</td><td>Whatever is easiest: talking, tapping or typing</td><td>Text up to <i>Huge</i> and high contrast in every mode, messages read aloud, live captions on calls. Nothing new to learn</td></tr>
+      <tr><td>Talk &amp; type</td><td>Typing or talking, as in any chat</td><td>Messages labelled with how they were made, such as <q>Signed in ISL · HELLO · HOW ARE YOU</q></td></tr>
+    </tbody>
+  </table>
+  <p class="small" style="margin-top:3mm">Every message can also be translated into the reader’s language, with the original underneath: English, Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi and Urdu.</p>
+  <div class="crop2">
+    <figure><div class="shot"><img src="img/blind-card.png" alt="Blind mode: a dark screen with the Welcome, here's what to try card (hear a message, send by talking, call yourself from your phone) and the Say Hey Chat button." /></div><figcaption class="cap"><b>Blind:</b> a dark, spoken screen. Every step can be done by saying “Hey Chat”.</figcaption></figure>
+    <figure><div class="shot"><img src="img/speech-board.png" alt="Non-speaking mode: Priya's message above, and a picture phrase board below with Yes, No, Thank you, Please wait, I need help, Please repeat, I am coming, See you soon." /></div><figcaption class="cap"><b>Can’t speak:</b> tap a picture, and AnyWay sends it and says it out loud.</figcaption></figure>
+  </div>
+  <div class="foot"><span><b>AnyWay Chat</b> · Who it’s for</span><span>4 / 8</span></div>
+</section>
+
+<!-- ================= 5. FEATURES ================= -->
+<section class="page" aria-label="Features">
+  <p class="kicker">What you can do</p>
+  <h2>Chats, calls and face to face, for every way of talking</h2>
+  <div class="shots2">
+    <figure><div class="shot"><img src="../.github/assets/call-laptop.png" alt="A video call. The laptop user signed hello, and the caption You (signed): Hello shows, with quick tap replies below." /></div><figcaption class="cap"><b>Video call with live captions.</b> The laptop user signed hello; the caption shows on both screens and is read aloud on the other side.</figcaption></figure>
+    <figure><div class="phoneframe"><img src="../.github/assets/phone-home.png" alt="The chat list on a phone with the things-to-try card on top." /></div><figcaption class="cap" style="text-align:center">On a phone: chats, plus things to try.</figcaption></figure>
+  </div>
+  <div class="feats">
+    <div class="feat"><span class="e" aria-hidden="true">📞</span><div><b>Voice and video calls, captioned both ways</b><p>Speech becomes captions and signs for a deaf person. A deaf person can sign on camera, even on a voice call, and it is read aloud. Non-speaking people answer with spoken quick taps. Captions are translated between languages.</p></div></div>
+    <div class="feat"><span class="e" aria-hidden="true">🤝</span><div><b>Face to face (Go mode)</b><p>Out in the world, one phone between two people interprets both ways, at a pharmacy, bank or shop counter. The other person needs no app.</p></div></div>
+    <div class="feat"><span class="e" aria-hidden="true">🎙️</span><div><b>“Hey Chat” for blind users</b><p>Read messages, reply, call, switch chats, add contacts and change settings by voice, on every screen.</p></div></div>
+    <div class="feat"><span class="e" aria-hidden="true">💬</span><div><b>Everything a chat app needs</b><p>Direct and group chats, photos, files, voice notes, video messages, replies, edits, delete for everyone, reactions, read ticks, typing, online status, search, block and report.</p></div></div>
+    <div class="feat"><span class="e" aria-hidden="true">🌐</span><div><b>Your language</b><p>Messages, voice notes and call captions follow the language you pick, with the original underneath.</p></div></div>
+    <div class="feat"><span class="e" aria-hidden="true">🔔</span><div><b>Never miss a call</b><p>“… is calling you” notifications even when the app is closed, a weak-connection warning, vibration patterns and flash alerts.</p></div></div>
+    <div class="feat"><span class="e" aria-hidden="true">⚡</span><div><b>Try it now, in one tap</b><p>A guest account with three demo friends, things to try for each way of talking, and a QR code to call yourself from your phone. Keep the account later.</p></div></div>
+    <div class="feat"><span class="e" aria-hidden="true">♿</span><div><b>Accessible everywhere</b><p>Text size up to Huge, high contrast, light and dark, screen reader labels and focus, and an installable app (PWA).</p></div></div>
+  </div>
+  <div class="foot"><span><b>AnyWay Chat</b> · Features</span><span>5 / 8</span></div>
+</section>
+
+<!-- ================= 6. NEXCONN ================= -->
+<section class="page" aria-label="Built on Nexconn">
+  <p class="kicker">Built on Nexconn</p>
+  <h2>Every message, call and caption goes through Nexconn</h2>
+  <div class="keyline"><div><div class="lbl">Nexconn App Key</div><div class="k">qf3d5gbjqvm4h</div></div><div class="why">Public by design. The App Secret is used only on our server, to issue access tokens.</div></div>
+  <div class="idea"><b>The key idea:</b> each message carries <i>how it was made</i> (signed, spoken, tapped or typed, and the signs used) in Nexconn’s message <code>extra</code> field. So every reader’s app can turn the same message into their own form: signs, speech, text or captions.</div>
+  <table>
+    <thead><tr><th scope="col">Nexconn feature</th><th scope="col">What AnyWay does with it</th></tr></thead>
+    <tbody>
+      <tr><td>Chat SDK <code>NCEngine</code> initialize, connect</td><td>One live connection for each signed-in person</td></tr>
+      <tr><td><code>DirectChannel</code>, <code>GroupChannel</code></td><td>Text, photos, files, HD voice notes and video messages (<code>sendMessage</code>, <code>sendMediaMessage</code>)</td></tr>
+      <tr><td>Message <code>extra</code></td><td>How a message was made and the signs used, so each reader gets it their own way</td></tr>
+      <tr><td>Custom message <code>anyway:caption</code></td><td>A non-stored message type that carries live call captions, signs and translations between the two screens</td></tr>
+      <tr><td>References, edits, metadata</td><td>Replies, edits, delete for everyone (<code>deleteMessageForAll</code>) and reactions</td></tr>
+      <tr><td>Receipts, typing, events</td><td>Read ticks, “typing…”, and live online dots (<code>userModule.subscribeEvent</code>)</td></tr>
+      <tr><td>Channel and message queries</td><td>Chat list with unread counts, and history</td></tr>
+      <tr><td>Call SDK <code>NCCallEngine</code></td><td>One-to-one voice and video calls</td></tr>
+      <tr><td>Platform Chat API (server)</td><td>Access tokens, groups, blocklist, and the demo friends’ replies</td></tr>
+    </tbody>
+  </table>
+  <div class="arch" role="img" aria-label="On the device, the sign reader, speech to text and phrase board turn each way of talking into a message plus how it was made. Nexconn's Chat and Call SDKs carry it. Each reader receives it as signs, speech, text or captions. A Node API on Vercel issues tokens.">
+    <div class="b"><h5>On the device</h5>Sign reader (MediaPipe + our ISL model), speech to text, picture phrase board, voices. Camera and microphone never leave the phone.</div>
+    <div class="ar" aria-hidden="true">→</div>
+    <div class="b nx"><h5>Nexconn</h5>Chat SDK and Call SDK carry the message plus how it was made</div>
+    <div class="ar" aria-hidden="true">→</div>
+    <div class="b"><h5>Each reader’s way</h5>Signs, speech, text or captions, in their language</div>
+  </div>
+  <p class="server">Node API on Vercel: accounts, Nexconn tokens, groups, translation. Data in Upstash Redis, encrypted at rest when <code>DATA_KEY</code> is set.</p>
+  <div class="foot"><span><b>AnyWay Chat</b> · Built on Nexconn</span><span>6 / 8</span></div>
+</section>
+
+<!-- ================= 7. ON-DEVICE AI ================= -->
+<section class="page" aria-label="On-device AI, privacy and quality">
+  <p class="kicker">What’s new here</p>
+  <h2>An Indian Sign Language reader that runs on the phone</h2>
+  <p class="lead">India has very few sign language interpreters. So AnyWay reads signs itself, in the browser, on the person’s own device, with no video uploaded.</p>
+  <div class="pipe">
+    <div class="p"><span class="e" aria-hidden="true">📷</span><b>Camera</b>Laptop or phone, in the browser</div>
+    <div class="p"><span class="e" aria-hidden="true">✋</span><b>Hand and body tracking</b>MediaPipe, 67 points a frame</div>
+    <div class="p"><span class="e" aria-hidden="true">🧠</span><b>Our sign model</b>1D convolution + transformer, 3 models, ONNX, about 20 MB</div>
+    <div class="p"><span class="e" aria-hidden="true">🔤</span><b>Top 3 words</b>Shown before sending, so the signer can correct it</div>
+  </div>
+  <div class="nums">
+    <div class="stat"><div class="n r">97.8%</div><div class="l">held-out clips, laptop-style view</div></div>
+    <div class="stat"><div class="n r">97.9%</div><div class="l">held-out clips, phone-style view</div></div>
+    <div class="stat"><div class="n">93–96%</div><div class="l">live phone camera, 44 chat words (84–89% on a laptop)</div></div>
+    <div class="stat"><div class="n">263</div><div class="l">everyday words, from all 4,257 clips of AI4Bharat’s INCLUDE dataset</div></div>
+  </div>
+  <div class="two">
+    <div>
+      <h3>Honest by design</h3>
+      <ul class="dots">
+        <li>When it isn’t sure, it asks <q>Did you sign…?</q> with its top 3 guesses instead of guessing.</li>
+        <li><b>It learns your signs.</b> Sign a word a few times in the Sign lab; your examples stay on your device.</li>
+        <li>One sign at a time for now: no full ISL grammar or fingerspelling yet. Not a replacement for a qualified interpreter in medical, legal or emergency settings.</li>
+      </ul>
+      <h3 style="margin-top:4mm">More AI, also on the device</h3>
+      <ul class="dots">
+        <li><b>Whisper</b> writes out voice notes.</li>
+        <li><b>Florence-2</b> describes photos for blind users.</li>
+        <li><b>Kokoro</b> gives an optional natural voice.</li>
+        <li>Each runs in a background worker, so the app never freezes.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Privacy and security</h3>
+      <ul class="dots">
+        <li>Camera and microphone data is never uploaded.</li>
+        <li>With <code>DATA_KEY</code> set, everything the server stores is encrypted at rest (AES-256-GCM).</li>
+        <li>Passwords are scrypt hashes, and logins are stored only as SHA-256 hashes.</li>
+        <li>Guest accounts are limited per network address and removed after 14 days unless kept.</li>
+      </ul>
+      <h3 style="margin-top:4mm">Tested</h3>
+      <ul class="dots">
+        <li><b>92 automated tests</b> run on every push, with the type check, lint and build.</li>
+        <li>An end-to-end run in real Chrome (laptop and phone as two people, the camera playing a real HELLO sign) checks the whole judge path: one tap in, the sign read, QR pairing and a video call on both screens.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span><b>AnyWay Chat</b> · On-device AI, privacy and quality</span><span>7 / 8</span></div>
+</section>
+
+<!-- ================= 8. TRY IT, GROWTH ================= -->
+<section class="page" aria-label="Try it, growth, limitations and credits">
+  <p class="kicker">For the judges</p>
+  <h2>Try it in 2 minutes, alone</h2>
+  <div class="two" style="grid-template-columns: 1.05fr 1fr; align-items:start">
+    <ol class="steps">
+      <li>Open <a href="https://anywaychat.vercel.app/try"><b>anywaychat.vercel.app/try</b></a> and pick a way of talking: <b>I’m deaf</b>, <b>I’m blind</b>, <b>I don’t speak</b> or <b>I talk and type</b>. One tap makes a guest account.</li>
+      <li>Three demo friends are already waiting: <b>Priya</b> signs, <b>Arjun</b> talks, <b>Meera</b> taps.</li>
+      <li>Follow the <b>Things to try</b> card. Deaf: sign HELLO to the camera. Blind: say <q>Hey Chat, read my messages</q>. Can’t speak: tap a picture phrase.</li>
+      <li><b>Call yourself from your phone:</b> scan the QR code, pick a way of talking there, and press Video call on the laptop.</li>
+      <li>Switch ways of talking any time, and keep the account with a username and password.</li>
+    </ol>
+    <figure class="trycrop"><div class="shot"><img src="img/try-card.png" alt="The Try AnyWay in one tap page, with four choices: I'm deaf, I'm blind or low-vision, I don't speak, I talk and type." /></div><figcaption class="cap">The one-tap start page.</figcaption></figure>
+  </div>
+  <div class="two" style="margin-top:7mm">
+    <div class="box navy">
+      <h3>How AnyWay grows</h3>
+      <ul class="dots">
+        <li><b>Each user brings their circle.</b> A deaf student’s classmates, a blind father’s family and a non-speaking colleague’s team join to talk with them. For them it’s just a normal chat app.</li>
+        <li><b>No sign-up to start.</b> One link in a forum, school group or NGO newsletter becomes a first conversation in seconds.</li>
+        <li><b>Real numbers, in public.</b> The live dashboard counts real sign-ups apart from guests and demo friends.</li>
+        <li><b>Next:</b> free for people who need it; plans for organisations that must be accessible, such as hospitals, banks, schools and workplaces.</li>
+      </ul>
+    </div>
+    <div class="box red">
+      <h3>Limits we know about</h3>
+      <ul class="dots">
+        <li>The sign reader knows 263 everyday words, one sign at a time.</li>
+        <li>Demo friends can’t take calls. Use <b>Call yourself from your phone</b> to try calls alone.</li>
+        <li><q>Hey Chat</q> works best in Chrome and Edge.</li>
+      </ul>
+    </div>
+  </div>
+  <h3 style="margin-top:7mm">Credits and licences</h3>
+  <p class="credit">AnyWay Chat’s code is MIT licensed. ISL sign videos and training data: the INCLUDE dataset by AI4Bharat (CC BY 4.0); the signer in the screenshots is from INCLUDE. Built with MediaPipe (Apache 2.0), ONNX Runtime Web (MIT), Whisper via Transformers.js (MIT, Apache 2.0), Florence-2 (MIT), Kokoro (Apache 2.0), React and Vite (MIT), and the Nexconn Chat and Call SDKs.</p>
+  <p class="sign-off">Made in India. <span class="red">Built for everyone.</span></p>
+  <div class="foot"><span><b>AnyWay Chat</b> · anywaychat.vercel.app</span><span>8 / 8</span></div>
+</section>
+
+</body>
+</html>

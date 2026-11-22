@@ -553,7 +553,8 @@ function watchMic() {
 let awakeUntil = 0
 
 /* ---------- Phones: always-on listening with our own microphone and Whisper (no restart gaps) ---------- */
-let PHONE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+// The browser's own listener recognises "Hey Chat" reliably on phones; the Whisper listener missed it on real devices.
+let PHONE = false
 let phoneStop: (() => void) | null = null
 let phoneStarting = false
 let phoneAwakeUntil = 0

@@ -22,6 +22,8 @@ type AdminReport = { from: string; about: string; reason: string; time: number; 
 
 const MODES: Record<string, string> = { blind: 'Blind or low-vision', deaf: 'Deaf · signs', speech: "Can't speak", standard: 'Talks and types' }
 const when = (t: number | null) => (t ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—')
+/** Shows only the first two letters, so the list doesn't expose who people are. */
+const mask = (t?: string) => (t ? t.slice(0, 2) + '•'.repeat(Math.min(5, Math.max(2, t.length - 2))) : '')
 const stars = (n: number) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n)
 
 /** Usage dashboard and people management, open to everyone (no key). */
@@ -172,11 +174,11 @@ function Manage({ onChange }: { onChange: () => void }) {
               <tbody>
                 {shown.map((u) => (
                   <tr key={u.id} className={u.suspended ? 'off' : ''}>
-                    <td>{u.name}{u.guest ? ' (guest)' : ''}</td><td>@{u.id}</td><td>{MODES[u.mode] ?? u.mode}</td><td>{when(u.createdAt)}</td><td>{when(u.lastSeen)}</td><td>{u.contacts}</td>
+                    <td>{u.guest ? u.name : mask(u.name)}{u.guest ? ' (guest)' : ''}</td><td>@{mask(u.id)}</td><td>{MODES[u.mode] ?? u.mode}</td><td>{when(u.createdAt)}</td><td>{when(u.lastSeen)}</td><td>{u.contacts}</td>
                     <td>{u.reviewed ? '✓' : ''}</td><td>{u.suspended ? 'Turned off' : 'Active'}</td>
                     <td className="actions">
-                      <button className="btn" onClick={() => void act(`/users/${u.id}/suspend`, { suspended: !u.suspended }, u.suspended ? undefined : `Turn off @${u.id}? They won't be able to log in.`)}>{u.suspended ? 'Turn on' : 'Turn off'}</button>
-                      <button className="btn danger-btn" onClick={() => void act(`/users/${u.id}/delete`, {}, `Delete @${u.id} for good? This removes their account, contacts and review. It can't be undone.`)}>Delete</button>
+                      <button className="btn" onClick={() => void act(`/users/${u.id}/suspend`, { suspended: !u.suspended }, u.suspended ? undefined : `Turn off @${mask(u.id)}? They won't be able to log in.`)}>{u.suspended ? 'Turn on' : 'Turn off'}</button>
+                      <button className="btn danger-btn" onClick={() => void act(`/users/${u.id}/delete`, {}, `Delete @${mask(u.id)} for good? This removes their account, contacts and review. It can't be undone.`)}>Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -193,7 +195,7 @@ function Manage({ onChange }: { onChange: () => void }) {
               <article key={r.id} className={`review-card${r.hidden ? ' off' : ''}`}>
                 <div className="row-between"><span className="review-stars">{stars(r.rating)}</span><small className="muted">{when(r.time)}</small></div>
                 <p dir="auto">{r.text}</p>
-                <small className="muted">{r.name} (@{r.user}) · {MODES[r.mode ?? ''] ?? r.mode} · {r.lang} · {r.showName ? 'name shown' : 'anonymous'}{r.hidden ? ' · hidden' : ''}</small>
+                <small className="muted">{mask(r.name)} (@{mask(r.user)}) · {MODES[r.mode ?? ''] ?? r.mode} · {r.lang} · {r.showName ? 'name shown' : 'anonymous'}{r.hidden ? ' · hidden' : ''}</small>
                 <div className="actions" style={{ marginTop: 8 }}>
                   <button className="btn" onClick={() => void act(`/reviews/${r.id}/hide`, { hidden: !r.hidden })}>{r.hidden ? 'Show' : 'Hide'}</button>
                   <button className="btn danger-btn" onClick={() => void act(`/reviews/${r.id}/delete`, {}, 'Delete this review for good?')}>Delete</button>
@@ -209,7 +211,7 @@ function Manage({ onChange }: { onChange: () => void }) {
           <div className="review-list">
             {reports.map((r, i) => (
               <article key={i} className="review-card">
-                <small className="muted">{when(r.time)} · {r.fromName ?? r.from} (@{r.from}) reported {r.aboutName ?? r.about} (@{r.about})</small>
+                <small className="muted">{when(r.time)} · {mask(r.fromName ?? r.from)} (@{mask(r.from)}) reported {mask(r.aboutName ?? r.about)} (@{mask(r.about)})</small>
                 <p dir="auto">{r.reason}</p>
               </article>
             ))}

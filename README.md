@@ -32,7 +32,7 @@ A person who can't speak taps pictures and AnyWay says it out loud. The other pe
 | --- | --- |
 | Live app | https://anywaychat.vercel.app |
 | Judge it in 2 minutes | https://anywaychat.vercel.app/try (one tap, no sign-up) |
-| Real usage | https://anywaychat.vercel.app/admin (numbers only, no personal data; guests and demo friends counted apart) |
+| Real usage | https://anywaychat.vercel.app/admin (open to anyone, no key; guests and demo friends counted apart) |
 | Code | https://github.com/sakthilildih/AnyWay-Chat |
 | Nexconn App Key | `qf3d5gbjqvm4h` (public by design; the App Secret stays on the server) |
 | Built for | Nexconn Build Challenge 2026 · Humanitarian & Social Good |
@@ -214,7 +214,6 @@ Open http://localhost:5173. Accounts are saved in `data/db.json` locally, or in 
 | `VITE_NEXCONN_APP_KEY`, `NEXCONN_APP_SECRET` | Nexconn app (the secret stays on the server) |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Upstash Redis storage (added by Vercel) |
 | `DATA_KEY` | Encrypts stored data. Keep it safe: without it, stored data can't be read |
-| `ADMIN_KEY` | Unlocks user management on `/admin` (locked on the live site without it) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Push notifications |
 
 ## Limitations

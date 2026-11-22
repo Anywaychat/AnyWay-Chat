@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Lock, MessageCircle, RefreshCw } from 'lucide-react'
+import { MessageCircle, RefreshCw } from 'lucide-react'
 
 type PublicReview = { rating: number; text: string; lang: string; time: number; mode: string; name: string | null }
 type Stats = {
@@ -23,9 +23,8 @@ type AdminReport = { from: string; about: string; reason: string; time: number; 
 const MODES: Record<string, string> = { blind: 'Blind or low-vision', deaf: 'Deaf · signs', speech: "Can't speak", standard: 'Talks and types' }
 const when = (t: number | null) => (t ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—')
 const stars = (n: number) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n)
-const KEY = 'anyway.adminKey'
 
-/** Usage dashboard: open numbers and reviews for everyone; managing people needs the admin key. */
+/** Usage dashboard and people management, open to everyone (no key). */
 export default function Admin() {
   const [s, setS] = useState<Stats | null>(null)
   const [err, setErr] = useState('')
@@ -120,10 +119,8 @@ export default function Admin() {
   )
 }
 
-/** Managing people and reviews: only with the admin key (ADMIN_KEY on the server). */
+/** Managing people and reviews: open to anyone, no key. */
 function Manage({ onChange }: { onChange: () => void }) {
-  const [key, setKey] = useState(() => { try { return sessionStorage.getItem(KEY) ?? 'open' } catch { return 'open' } })
-  const [draft, setDraft] = useState('')
   const [tab, setTab] = useState<'users' | 'reviews' | 'reports'>('users')
   const [users, setUsers] = useState<AdminUser[]>([])
   const [reviews, setReviews] = useState<AdminReview[]>([])
@@ -132,23 +129,20 @@ function Manage({ onChange }: { onChange: () => void }) {
   const [msg, setMsg] = useState('')
 
   const call = useCallback(async <T,>(path: string, body?: unknown): Promise<T> => {
-    const r = await fetch(`/api/admin${path}`, { method: body ? 'POST' : 'GET', headers: { 'x-admin-key': key, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+    const r = await fetch(`/api/admin${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
     const j = await r.json()
     if (!r.ok) throw new Error(j.error ?? `Error ${r.status}`)
     return j as T
-  }, [key])
+  }, [])
 
   const refresh = useCallback(async () => {
-    if (!key) return
     try {
       const [u, rv, rp] = await Promise.all([call<{ users: AdminUser[] }>('/users'), call<{ reviews: AdminReview[] }>('/reviews'), call<{ reports: AdminReport[] }>('/reports')])
       setUsers(u.users); setReviews(rv.reviews); setReports(rp.reports); setMsg('')
     } catch (e) {
       setMsg((e as Error).message)
-      // The server has a key set: ask for it.
-      if ((e as Error).message === 'Wrong admin key.') { setKey(''); try { sessionStorage.removeItem(KEY) } catch { /* ignore */ } }
     }
-  }, [key, call])
+  }, [call])
   useEffect(() => { void refresh() }, [refresh])
 
   const act = async (path: string, body: unknown, confirmText?: string) => {
@@ -156,26 +150,10 @@ function Manage({ onChange }: { onChange: () => void }) {
     try { await call(path, body); await refresh(); onChange() } catch (e) { setMsg((e as Error).message) }
   }
 
-  if (!key) {
-    return (
-      <section className="admin-panel">
-        <h2><Lock size={15} aria-hidden="true" /> Manage</h2>
-        <form className="name-edit" onSubmit={(e) => { e.preventDefault(); setKey(draft); try { sessionStorage.setItem(KEY, draft) } catch { /* ignore */ } }}>
-          <input className="input" type="password" aria-label="Admin key" placeholder="Admin key" value={draft} onChange={(e) => setDraft(e.target.value)} />
-          <button className="btn primary" style={{ height: 40 }}>Unlock</button>
-        </form>
-        {msg && <p className="form-error" role="alert">{msg}</p>}
-      </section>
-    )
-  }
-
   const shown = users.filter((u) => `${u.name} ${u.id}`.toLowerCase().includes(q.toLowerCase()))
   return (
     <section className="admin-panel">
-      <div className="row-between">
-        <h2 style={{ margin: 0 }}>Manage</h2>
-        {key !== 'open' && <button className="btn" style={{ height: 34 }} onClick={() => { setKey(''); try { sessionStorage.removeItem(KEY) } catch { /* ignore */ } }}>Lock</button>}
-      </div>
+      <h2 style={{ margin: 0 }}>Manage</h2>
       <div className="filters" style={{ margin: '12px 0' }} role="group" aria-label="Sections">
         {(['users', 'reviews', 'reports'] as const).map((t) => (
           <button key={t} className="chip-btn" aria-pressed={tab === t} onClick={() => setTab(t)}>

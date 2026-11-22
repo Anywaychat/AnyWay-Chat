@@ -84,7 +84,7 @@ describe('Try it now (guest accounts)', () => {
 
   it('the admin list marks guests', async () => {
     const g = await api.guest('deaf')
-    const r = await api.call('GET', '/admin/users') // open on a computer without the live database
+    const r = await api.call('GET', '/admin/users') // the admin panel is open: no key
     const row = r.body.users.find((u: { id: string }) => u.id === g.user.id)
     expect(row).toMatchObject({ guest: true, mode: 'deaf' })
     expect(r.body.users.some((u: { id: string }) => DEMO.includes(u.id))).toBe(false)

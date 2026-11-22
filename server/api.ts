@@ -640,15 +640,10 @@ export function createApi(env: Record<string, string | undefined>) {
         return send(res, 200, { from: { name: owner.name, mode: modeOf(owner.mode) } })
       }
 
-      // ---------- Admin (needs the ADMIN_KEY secret in the x-admin-key header) ----------
+      // ---------- Admin: open to anyone, no key. ----------
+      // On purpose: the dashboard's Manage section needs no sign-in or secret. Anyone who opens /admin can
+      // see the people, reviews and reports, turn people off, and delete accounts and reviews.
       if (path.startsWith('/admin/')) {
-        // Needs ADMIN_KEY on the live site. Without one it is locked there (anyone could delete accounts);
-        // on your own computer (no Redis) it stays open for testing.
-        const key = String(req.headers['x-admin-key'] ?? '')
-        const realKey = env.ADMIN_KEY ?? ''
-        const okKey = realKey ? key.length === realKey.length && timingSafeEqual(Buffer.from(key), Buffer.from(realKey)) : !redis
-        if (!okKey) return send(res, 401, { error: 'Wrong admin key.' })
-        if (path === '/admin/check') return send(res, 200, { ok: true })
         if (path === '/admin/users' && req.method === 'GET') {
           const seen = await allSeen(db)
           return send(res, 200, {

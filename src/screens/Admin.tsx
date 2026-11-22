@@ -70,7 +70,6 @@ export default function Admin() {
               ['Contacts made', s.contacts],
               ['Groups', s.groups.total],
               ['Calls logged', s.calls.logged],
-              ...(s.guests ? [['Tried it as a guest (no sign-up, not counted above)', s.guests.total]] : []),
             ].map(([label, n]) => (
               <div key={label} className="admin-card"><b>{n}</b><span>{label}</span></div>
             ))}

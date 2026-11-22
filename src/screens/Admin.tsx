@@ -23,9 +23,9 @@ type AdminReport = { from: string; about: string; reason: string; time: number; 
 const MODES: Record<string, string> = { blind: 'Blind or low-vision', deaf: 'Deaf · signs', speech: "Can't speak", standard: 'Talks and types' }
 const when = (t: number | null) => (t ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—')
 /** Shows only the first two letters, so the list doesn't expose who people are. */
-/** A real-looking name that still keeps people private: first name in full, last name as an initial ("Prasad K."). */
-const nameOf = (t?: string) => { const w = (t ?? '').trim().split(/\s+/).filter(Boolean); return w.length > 1 ? `${w[0]} ${w[w.length - 1][0].toUpperCase()}.` : (w[0] ?? '') }
-const mask = (t?: string) => (t ? t.slice(0, 2) + '•'.repeat(Math.min(5, Math.max(2, t.length - 2))) : '')
+/** Names and usernames are never shown here: the dashboard is open to anyone. */
+const nameOf = (_t?: string) => 'Hidden'
+const mask = (t?: string) => (t ? '••••••' : '')
 const stars = (n: number) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n)
 
 /** Usage dashboard and people management, open to everyone (no key). */

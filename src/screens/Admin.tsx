@@ -24,7 +24,8 @@ const MODES: Record<string, string> = { blind: 'Blind or low-vision', deaf: 'Dea
 const when = (t: number | null) => (t ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—')
 /** Shows only the first two letters, so the list doesn't expose who people are. */
 /** Names and usernames are never shown here: the dashboard is open to anyone. */
-const nameOf = (_t?: string) => 'Hidden'
+/** Like a guest's name ("Guest 1646"): a steady number from the account, never the real name. */
+const nameOf = (id?: string) => { let h = 0; for (const c of id ?? '') h = (h * 31 + c.charCodeAt(0)) >>> 0; return `User ${1000 + (h % 9000)}` }
 const mask = (t?: string) => (t ? '••••••' : '')
 const stars = (n: number) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n)
 
@@ -176,7 +177,7 @@ function Manage({ onChange }: { onChange: () => void }) {
               <tbody>
                 {shown.map((u) => (
                   <tr key={u.id} className={u.suspended ? 'off' : ''}>
-                    <td>{u.guest ? u.name : nameOf(u.name)}{u.guest ? ' (guest)' : ''}</td><td>@{mask(u.id)}</td><td>{MODES[u.mode] ?? u.mode}</td><td>{when(u.createdAt)}</td><td>{when(u.lastSeen)}</td><td>{u.contacts}</td>
+                    <td>{u.guest ? u.name : nameOf(u.id)}{u.guest ? ' (guest)' : ''}</td><td>@{mask(u.id)}</td><td>{MODES[u.mode] ?? u.mode}</td><td>{when(u.createdAt)}</td><td>{when(u.lastSeen)}</td><td>{u.contacts}</td>
                     <td>{u.reviewed ? '✓' : ''}</td><td>{u.suspended ? 'Turned off' : 'Active'}</td>
                     <td className="actions">
                       <button className="btn" onClick={() => void act(`/users/${u.id}/suspend`, { suspended: !u.suspended }, u.suspended ? undefined : `Turn off @${mask(u.id)}? They won't be able to log in.`)}>{u.suspended ? 'Turn on' : 'Turn off'}</button>
@@ -197,7 +198,7 @@ function Manage({ onChange }: { onChange: () => void }) {
               <article key={r.id} className={`review-card${r.hidden ? ' off' : ''}`}>
                 <div className="row-between"><span className="review-stars">{stars(r.rating)}</span><small className="muted">{when(r.time)}</small></div>
                 <p dir="auto">{r.text}</p>
-                <small className="muted">{nameOf(r.name)} (@{mask(r.user)}) · {MODES[r.mode ?? ''] ?? r.mode} · {r.lang} · {r.showName ? 'name shown' : 'anonymous'}{r.hidden ? ' · hidden' : ''}</small>
+                <small className="muted">{nameOf(r.user)} (@{mask(r.user)}) · {MODES[r.mode ?? ''] ?? r.mode} · {r.lang} · {r.showName ? 'name shown' : 'anonymous'}{r.hidden ? ' · hidden' : ''}</small>
                 <div className="actions" style={{ marginTop: 8 }}>
                   <button className="btn" onClick={() => void act(`/reviews/${r.id}/hide`, { hidden: !r.hidden })}>{r.hidden ? 'Show' : 'Hide'}</button>
                   <button className="btn danger-btn" onClick={() => void act(`/reviews/${r.id}/delete`, {}, 'Delete this review for good?')}>Delete</button>
@@ -213,7 +214,7 @@ function Manage({ onChange }: { onChange: () => void }) {
           <div className="review-list">
             {reports.map((r, i) => (
               <article key={i} className="review-card">
-                <small className="muted">{when(r.time)} · {nameOf(r.fromName ?? r.from)} (@{mask(r.from)}) reported {nameOf(r.aboutName ?? r.about)} (@{mask(r.about)})</small>
+                <small className="muted">{when(r.time)} · {nameOf(r.from)} (@{mask(r.from)}) reported {nameOf(r.about)} (@{mask(r.about)})</small>
                 <p dir="auto">{r.reason}</p>
               </article>
             ))}

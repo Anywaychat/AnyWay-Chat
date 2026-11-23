@@ -10,7 +10,7 @@ A deaf person signs to the camera and their friend reads it. A blind person spea
 A person who can't speak taps pictures and AnyWay says it out loud. The other person just chats normally.
 
 [![CI](https://github.com/Anywaychat/AnyWay-Chat/actions/workflows/ci.yml/badge.svg)](https://github.com/Anywaychat/AnyWay-Chat/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-92%20passing-157F3D)
+![Tests](https://img.shields.io/badge/tests-103%20passing-157F3D)
 ![Nexconn Chat SDK](https://img.shields.io/badge/Nexconn-Chat%20SDK-D7322A)
 ![Nexconn Call SDK](https://img.shields.io/badge/Nexconn-Call%20SDK-D7322A)
 ![On-device AI](https://img.shields.io/badge/AI-on%20the%20device-22305E)
@@ -171,14 +171,16 @@ flowchart LR
 
 ## Privacy and security
 
-- Sign reading, speech to text for voice notes, photo descriptions and the natural voice all run **on the device**. Camera and microphone data is never uploaded.
+- Sign reading, writing out voice notes, photo descriptions and the natural voice all run **on the device**: AnyWay's own server never receives camera or microphone data.
+- What you choose to send (messages, photos, voice notes, video messages) and calls go through Nexconn. "Hey Chat", dictation and live call captions use the browser's built-in speech recognition, which in Chrome and Edge may process audio on Google's or Microsoft's servers. Translation sends the message text to Google Cloud Translation (or, without an API key, Google's public endpoint and MyMemory).
+- Full details: [PRIVACY.md](PRIVACY.md).
 - With `DATA_KEY` set, everything the server stores is **encrypted at rest** (AES-256-GCM). Passwords are scrypt hashes; logins are stored only as SHA-256 hashes, so a copy of the database can't be used to sign in.
 - Every change to stored data runs under a lock, so a whole class signing up at once can't overwrite each other.
 - Guest accounts are limited per network address and removed after 14 days unless kept. The public dashboard shows numbers only, and counts guests and demo friends apart from real sign-ups.
 
 ## Tests
 
-92 automated tests run on every push ([CI workflow](.github/workflows/ci.yml)), together with the type check, lint and build.
+103 automated tests run on every push ([CI workflow](.github/workflows/ci.yml)), together with the type check, lint and build.
 
 ```bash
 npm test
@@ -193,6 +195,7 @@ npm test
 | [tests/voiceIntents.test.ts](tests/voiceIntents.test.ts) | "Hey Chat" commands, filler words, contractions, misheard words |
 | [tests/sign.test.ts](tests/sign.test.ts) | Sign reader guesses, "Did you sign…?", learning your signs, framing tips |
 | [tests/messages.test.ts](tests/messages.test.ts) | "Signed in ISL" labels, reading long text sentence by sentence, turning messages into sign videos |
+| [tests/api/safety.test.ts](tests/api/safety.test.ts) | Age question at sign-up, Delete my account, wrong-password limits |
 | [tests/demo.test.ts](tests/demo.test.ts) | Demo friends' replies, username rules, every "Things to try" step goes somewhere real |
 
 The API tests start the real server code on a temporary database. Separately, an end-to-end run in real Chrome (laptop and phone as two sessions, the camera playing an INCLUDE clip of HELLO) checks the whole judge path: one tap in, the sign reader reading HELLO, QR pairing, a video call connecting on both screens, blind and non-speaking modes, and keeping a guest account.
@@ -216,7 +219,10 @@ Open http://localhost:5173. Accounts are saved in `data/db.json` locally, or in 
 | `VITE_NEXCONN_APP_KEY`, `NEXCONN_APP_SECRET` | Nexconn app (the secret stays on the server) |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Upstash Redis storage (added by Vercel) |
 | `DATA_KEY` | Encrypts stored data. Keep it safe: without it, stored data can't be read |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Push notifications |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Push notifications (optional) |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Same as the `KV_` pair, under Upstash's own names (either works) |
+| `GOOGLE_TRANSLATE_API_KEY` | Official Google Cloud Translation API (recommended for the live app). Without it, free public endpoints are used |
+| `ANYWAY_DB_PATH` | Where the local database file goes (default `data/db.json`; the tests use a temporary one) |
 
 ## Limitations
 
@@ -231,7 +237,7 @@ AnyWay Chat is an open-source project, and we want help from developers, designe
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to set up the project and send a pull request
 - [ROADMAP.md](ROADMAP.md): what works today, and what we want to build next
 - [ACCESSIBILITY.md](ACCESSIBILITY.md): the accessibility rules every change must follow
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [GOVERNANCE.md](GOVERNANCE.md) · [SECURITY.md](SECURITY.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [GOVERNANCE.md](GOVERNANCE.md) · [SECURITY.md](SECURITY.md) · [PRIVACY.md](PRIVACY.md)
 
 Everything described above this section works in the app today. Planned work is listed only in the roadmap.
 

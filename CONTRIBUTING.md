@@ -33,6 +33,8 @@ npm run dev
 
 Open http://localhost:5173. Accounts are saved in `data/db.json` on your computer. Never commit `.env.local` or `data/`.
 
+If `npm install` warns that install scripts for `sharp` or `protobufjs` were not run, that's fine: the web app doesn't need them (`sharp` is only used by the AI library when it runs in Node, which AnyWay never does).
+
 The fastest way to try every mode is http://localhost:5173/try, which makes a guest account with three demo friends.
 
 ## Project layout

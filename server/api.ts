@@ -44,6 +44,9 @@ interface UserRecord {
   demo?: boolean
   /** Made by "Try it now" without signing up. Counted apart from accounts; removed after 14 days unless saved. */
   guest?: boolean
+  /** At sign-up: 18 or older, or under 18 with a parent's or guardian's agreement, and when. */
+  consent?: 'adult' | 'guardian'
+  consentAt?: number
   /** Settings that follow the person to any device: languages, voice, speed, text size, alerts. */
   prefs?: Record<string, unknown>
 }
@@ -136,11 +139,14 @@ function unseal(stored: string): string {
 
 /* ---------- Storage ---------- */
 let redis: { url: string; token: string } | null = null
+/** Google Cloud Translation API key (official). Without it, the free public endpoints are used. */
+let translateKey = ''
 export function connectStore(env: Record<string, string | undefined>) {
   const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL
   const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN
   redis = url && token ? { url, token } : null
   dataKey = env.DATA_KEY ? createHash('sha256').update(env.DATA_KEY).digest() : null
+  translateKey = env.GOOGLE_TRANSLATE_API_KEY ?? ''
   // Tests keep their own database file.
   DB_PATH = resolve(process.cwd(), env.ANYWAY_DB_PATH || 'data/db.json')
 }
@@ -516,6 +522,15 @@ function allowGuest(ip: string, now = Date.now()) {
   if (guestHits.size > 5000) guestHits.clear()
   return true
 }
+/** Wrong-password limits (per server instance): 10 wrong tries per username or 30 per network in 15 minutes. */
+const loginFails = new Map<string, number[]>()
+function loginBlocked(keys: string[], now = Date.now()) {
+  return keys.some((k, i) => (loginFails.get(k) ?? []).filter((t) => t > now - 900_000).length >= (i === 0 ? 10 : 30))
+}
+function loginFailed(keys: string[], now = Date.now()) {
+  for (const k of keys) loginFails.set(k, [...(loginFails.get(k) ?? []).filter((t) => t > now - 900_000), now])
+  if (loginFails.size > 10000) loginFails.clear()
+}
 const clientIp = (req: IncomingMessage) => String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? '').split(',')[0].trim()
 
 /** Usernames people pick themselves. "demo" and "guest" names are kept for the app's own accounts. */
@@ -586,11 +601,13 @@ export function createApi(env: Record<string, string | undefined>) {
         if (bad) return send(res, id.length < 3 ? 400 : 409, { error: bad })
         if (!name) return send(res, 400, { error: 'Enter your name.' })
         if (password.length < 6) return send(res, 400, { error: 'Password must be at least 6 characters.' })
+        const consent = b.consent === 'adult' || b.consent === 'guardian' ? b.consent : null
+        if (!consent) return send(res, 400, { error: 'Please confirm you are 18 or older, or that a parent or guardian agrees.' })
         const salt = randomBytes(16).toString('hex')
         const hash = hashPw(password, salt)
         const token = await mutate((d) => {
           if (d.users[id]) throw new Stop(409, { error: 'That username is taken. Try another.' })
-          d.users[id] = { id, name, mode, salt, hash, contacts: [], createdAt: Date.now() }
+          d.users[id] = { id, name, mode, salt, hash, contacts: [], createdAt: Date.now(), consent, consentAt: Date.now() }
           return newSession(d, id)
         })
         return send(res, 200, { session: token, user: { id, name, mode } })
@@ -598,9 +615,15 @@ export function createApi(env: Record<string, string | undefined>) {
 
       if (path === '/login' && req.method === 'POST') {
         const b = await readBody(req)
+        const keys = [`u:${cleanId(b.username)}`, `ip:${clientIp(req)}`]
+        if (loginBlocked(keys)) return send(res, 429, { error: 'Too many wrong tries. Wait 15 minutes and try again.' })
         const u = db.users[cleanId(b.username)]
         const ok = u && !u.demo && !u.guest && timingSafeEqual(Buffer.from(hashPw(String(b.password ?? ''), u.salt), 'hex'), Buffer.from(u.hash, 'hex'))
-        if (!u || !ok) return send(res, 401, { error: 'Wrong username or password.' })
+        if (!u || !ok) {
+          loginFailed(keys)
+          return send(res, 401, { error: 'Wrong username or password.' })
+        }
+        loginFails.delete(keys[0])
         if (u.suspended) return send(res, 403, { error: 'This account has been turned off. Contact the AnyWay team.' })
         const token = await mutate((d) => newSession(d, u.id))
         return send(res, 200, { session: token, user: pub(u) })
@@ -756,6 +779,17 @@ export function createApi(env: Record<string, string | undefined>) {
       }
 
       if (path === '/me' && req.method === 'GET') return send(res, 200, { user: pub(me), blocked: me.blocked ?? [] })
+
+      // Delete my account: everything the server keeps about this person. Accounts with a password must confirm it.
+      if (path === '/me/delete' && req.method === 'POST') {
+        const b = await readBody(req)
+        if (!me.guest) {
+          const ok = timingSafeEqual(Buffer.from(hashPw(String(b.password ?? ''), me.salt), 'hex'), Buffer.from(me.hash, 'hex'))
+          if (!ok) return send(res, 401, { error: 'That password is not right.' })
+        }
+        await mutate((d) => removeUser(d, me.id))
+        return send(res, 200, { ok: true })
+      }
 
       // Sign lab (testing only): each attempt's points, readings and a short video, saved on this computer.
       // Never on the live site: there is no local disk there, and camera video shouldn't leave the person's computer.
@@ -1191,6 +1225,18 @@ async function getJson(u: string, ms: number) {
   if (!r.ok) throw new Error(String(r.status))
   return r.json()
 }
+/** Google Cloud Translation API (v2), used when GOOGLE_TRANSLATE_API_KEY is set. */
+async function officialTranslate(text: string, to: string, from?: string): Promise<{ text: string; from: string }> {
+  const r = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(translateKey)}`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(5000),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: text, target: to, format: 'text', ...(from && from !== 'auto' ? { source: from } : {}) }),
+  })
+  if (!r.ok) throw new Error(String(r.status))
+  const t = ((await r.json()) as { data: { translations: { translatedText: string; detectedSourceLanguage?: string }[] } }).data.translations[0]
+  return { text: t.translatedText, from: t.detectedSourceLanguage ?? from ?? '' }
+}
 async function translate(text: string, from: string, to: string): Promise<string> {
   if (from === to) return text
   const k = `${from}|${to}|${text}`
@@ -1198,6 +1244,7 @@ async function translate(text: string, from: string, to: string): Promise<string
   if (hit) return hit
   const q = encodeURIComponent(text)
   const tries: (() => Promise<string>)[] = [
+    ...(translateKey ? [async () => (await officialTranslate(text, to, from)).text] : []),
     async () => ((await getJson(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=${from}&tl=${to}&q=${q}`, 3500)) as [[string][]])[0].map((x) => x[0]).join(''),
     async () => { const j = await getJson(`https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${from}&tl=${to}&q=${q}`, 3500); const jj = j as { sentences?: { trans: string }[] } | string[]; const v = Array.isArray(jj) ? jj[0] : jj?.sentences?.map((x: { trans: string }) => x.trans).join(''); return String(Array.isArray(v) ? v[0] : v ?? '') },
     async () => ((await getJson(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=${to}&q=${q}`, 3500)) as [[string][]])[0].map((x) => x[0]).join(''),
@@ -1222,6 +1269,16 @@ async function translateAuto(text: string, to: string): Promise<{ text: string; 
   const k = `${to}|${text}`
   const hit = acache.get(k)
   if (hit) return hit
+  if (translateKey) {
+    try {
+      const out = await officialTranslate(text, to)
+      if (out.text) {
+        if (acache.size > 3000) acache.clear()
+        acache.set(k, out)
+        return out
+      }
+    } catch { /* fall back to the public endpoints */ }
+  }
   for (let i = 0; i < 2; i++) {
     try {
       const j = (await getJson(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=${to}&q=${encodeURIComponent(text)}`, 3500)) as [[string][], unknown, string]

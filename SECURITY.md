@@ -25,7 +25,7 @@ We will reply within 7 days, keep you updated, and credit you when the fix is re
 
 ## How the app protects people
 
-- Sign reading, speech to text, photo descriptions and the natural voice run on the device; camera and microphone data is not uploaded.
+- Sign reading, writing out voice notes, photo descriptions and the natural voice run on the device; AnyWay's own server never receives camera or microphone data. Calls and sent media go through Nexconn, and the browser's speech recognition may use its maker's servers (see [PRIVACY.md](PRIVACY.md)).
 - The Nexconn App Secret stays on the server; the browser only gets short-lived access tokens.
 - With `DATA_KEY` set, stored data is encrypted at rest (AES-256-GCM). Passwords are scrypt hashes, and logins are stored only as SHA-256 hashes.
 - Guest accounts are rate-limited per network address and removed after 14 days unless kept.

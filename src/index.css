@@ -864,3 +864,12 @@ main h1[tabindex="-1"]:focus, main h2[tabindex="-1"]:focus { outline: none; }
 .call-overlay .cap-trans { background: none; padding: 0; margin: 0; justify-content: center; gap: 5px; font-size: 12px; opacity: .7; }
 .call-overlay .cap-trans span { flex: 0 1 auto; font-weight: 500; }
 .call-overlay .cap-trans svg { width: 13px; height: 13px; }
+
+/* Sign-up: age question */
+.age-q { border: 1px solid var(--line, #e5e0dd); border-radius: 14px; padding: 12px 14px; margin: 12px 0; display: grid; gap: 10px; }
+.age-q legend { font-weight: 700; padding: 0 6px; }
+.age-opt { display: flex; gap: 10px; align-items: center; min-height: 44px; cursor: pointer; }
+.age-opt input { width: 22px; height: 22px; accent-color: var(--red, #D7322A); }
+/* Profile: delete my account */
+.delete-account { margin-top: 12px; padding: 14px; border: 2px solid var(--red, #D7322A); border-radius: 14px; display: grid; gap: 10px; }
+.delete-account h2 { font-size: 18px; margin: 0; }

@@ -46,7 +46,7 @@ export async function startApi(env: Record<string, string> = {}) {
     writeDb: (db: Json) => writeFileSync(dbPath, JSON.stringify(db)),
     /** Makes an account and returns its login. */
     async signup(username: string, mode = 'standard', password = 'secret1', name = username): Promise<string> {
-      const r = await call('POST', '/signup', { body: { username, name, password, mode } })
+      const r = await call('POST', '/signup', { body: { username, name, password, mode, consent: 'adult' } })
       if (r.status !== 200) throw new Error(`signup ${username}: ${r.status} ${JSON.stringify(r.body)}`)
       return r.body.session as string
     },

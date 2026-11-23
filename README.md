@@ -9,12 +9,13 @@
 A deaf person signs to the camera and their friend reads it. A blind person speaks and hears every reply.
 A person who can't speak taps pictures and AnyWay says it out loud. The other person just chats normally.
 
-[![CI](https://github.com/sakthilildih/AnyWay-Chat/actions/workflows/ci.yml/badge.svg)](https://github.com/sakthilildih/AnyWay-Chat/actions/workflows/ci.yml)
+[![CI](https://github.com/Anywaychat/AnyWay-Chat/actions/workflows/ci.yml/badge.svg)](https://github.com/Anywaychat/AnyWay-Chat/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/badge/tests-92%20passing-157F3D)
 ![Nexconn Chat SDK](https://img.shields.io/badge/Nexconn-Chat%20SDK-D7322A)
 ![Nexconn Call SDK](https://img.shields.io/badge/Nexconn-Call%20SDK-D7322A)
 ![On-device AI](https://img.shields.io/badge/AI-on%20the%20device-22305E)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-157F3D)](CONTRIBUTING.md)
 
 [**Live app**](https://anywaychat.vercel.app) ·
 [**Try it now, no sign-up**](https://anywaychat.vercel.app/try) ·
@@ -33,7 +34,7 @@ A person who can't speak taps pictures and AnyWay says it out loud. The other pe
 | Live app | https://anywaychat.vercel.app |
 | Judge it in 2 minutes | https://anywaychat.vercel.app/try (one tap, no sign-up) |
 | Real usage | https://anywaychat.vercel.app/admin (open to anyone, no key; guests and demo friends counted apart) |
-| Code | https://github.com/sakthilildih/AnyWay-Chat |
+| Code | https://github.com/Anywaychat/AnyWay-Chat |
 | Nexconn App Key | `qf3d5gbjqvm4h` (public by design; the App Secret stays on the server) |
 | Built for | Nexconn Build Challenge 2026 · Humanitarian & Social Good |
 
@@ -51,6 +52,7 @@ A person who can't speak taps pictures and AnyWay says it out loud. The other pe
 - [Tests](#tests)
 - [Run locally](#run-locally)
 - [Limitations](#limitations)
+- [Contributing](#contributing)
 - [Credits](#credits)
 - [Licenses](#licenses)
 
@@ -200,7 +202,7 @@ The API tests start the real server code on a temporary database. Separately, an
 Needs Node 20+ and a Nexconn app (free plan).
 
 ```bash
-git clone https://github.com/sakthilildih/AnyWay-Chat.git
+git clone https://github.com/Anywaychat/AnyWay-Chat.git
 cd AnyWay-Chat
 npm install
 cp .env.example .env.local   # add your Nexconn App Key and App Secret
@@ -222,6 +224,17 @@ Open http://localhost:5173. Accounts are saved in `data/db.json` locally, or in 
 - Demo friends can't take calls; use **Call yourself from your phone** to try calls alone.
 - Hey Chat uses the browser's speech recognition, which works best in Chrome and Edge.
 
+## Contributing
+
+AnyWay Chat is an open-source project, and we want help from developers, designers, sign language users, blind and deaf testers, translators and researchers.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to set up the project and send a pull request
+- [ROADMAP.md](ROADMAP.md): what works today, and what we want to build next
+- [ACCESSIBILITY.md](ACCESSIBILITY.md): the accessibility rules every change must follow
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [GOVERNANCE.md](GOVERNANCE.md) · [SECURITY.md](SECURITY.md)
+
+Everything described above this section works in the app today. Planned work is listed only in the roadmap.
+
 ## Credits
 
 Built for the Nexconn Build Challenge 2026, starting Nov 15, 2026. ISL sign videos and training data: the INCLUDE dataset by AI4Bharat (CC BY 4.0); the signer in the screenshots is from INCLUDE.
@@ -230,7 +243,7 @@ Made in India. Built for everyone.
 
 ## Licenses
 
-AnyWay Chat's code is released under the [MIT License](LICENSE).
+AnyWay Chat is free and open source under the [GNU General Public License v3.0](LICENSE) (GPL-3.0). You may use, study, change and share it; if you share a changed version, it must stay open under the same licence.
 
 It builds on open data, models and libraries, each under its own license:
 

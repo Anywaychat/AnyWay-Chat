@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",
-    "@mediapipe/tasks-vision": "^0.10.21",
+    "@mediapipe/tasks-vision": "^1.2.3",
     "@nexconn/call": "26.2.1",
     "@nexconn/chat": "26.2.0",
     "@nexconn/engine": "26.2.0",

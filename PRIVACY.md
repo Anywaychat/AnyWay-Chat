@@ -32,7 +32,7 @@ Login sessions are stored only as SHA-256 hashes. The server can encrypt everyth
 | --- | --- | --- |
 | **Nexconn** | Your messages, photos, files, voice notes and video messages; the sound and picture of calls while a call is on; your username and name | Delivering messages and calls |
 | **Your browser's speech recognition** (Chrome and Edge may use Google's or Microsoft's servers) | What you say while "Hey Chat", dictation or live call captions are listening | Turning speech into text |
-| **Google Translate**, with **MyMemory** as a fallback | The text of a message or caption that needs translating | Showing it in your language |
+| **Google Cloud Translation** (if it is down, Google's public translator or MyMemory) | The text of a message or caption that needs translating | Showing it in your language |
 | **Your browser's push service** (Google, Mozilla or Apple) | An encrypted notification it can't read | Telling you about messages and calls when the app is closed |
 | **Google Fonts, jsDelivr and Hugging Face** | Your device's network address, when fonts and AI model files are downloaded | Fonts, and the on-device AI |
 
@@ -41,7 +41,7 @@ We don't use advertising, tracking or analytics services, and we don't sell or s
 ## What others can see
 
 - **People in the app** can find you by username or name. They see your name, username, how you talk and your photo.
-- **The public dashboard** (`/admin`) shows usage numbers and an anonymous list of accounts (how each one talks, when it joined and was last active, how many contacts it has). It never shows names or usernames.
+- **The dashboard** (`/admin`) is open to anyone for now, while the app is being reviewed, and will be locked soon. Until then, the list behind it includes each account's name, username, how they talk, and when they joined and were last active.
 - **Reviews** you write are public. Your name is shown only if you choose.
 
 ## Camera and microphone
@@ -56,12 +56,12 @@ Your browser shows when the camera or microphone is on. You can take the permiss
 ## How long we keep it
 
 - **Guest accounts** ("Try it now") are deleted after 14 days unless you keep them.
-- **Accounts** are kept until they are deleted. To delete your account and everything the server stores about you, contact us (below). A delete button in the app is planned.
+- **Accounts** are kept until you delete them: **Profile → Delete my account** removes everything the server stores about you, straight away.
 - **Messages** are kept by Nexconn as your chat history. "Delete for everyone" removes a message for both people.
 
 ## Children
 
-If you are under 18, please use AnyWay only with your parent's or guardian's permission.
+When you create an account, we ask whether you are 18 or older, or under 18 with a parent's or guardian's agreement, and keep your answer and its date. If you are under 18, please use AnyWay only with your parent's or guardian's permission. A parent or guardian can ask us to delete a child's account at any time.
 
 ## Your choices and questions
 

@@ -165,10 +165,50 @@ export default function Profile() {
           >
             <LogOut size={16} aria-hidden="true" />Log out
           </button>
+          <DeleteAccount guest={!!user.guest} onDone={() => nav('/')} />
         </div>
       </div>
       <TabBar />
     </div>
+  )
+}
+
+/** Delete my account: removes everything the server keeps about this person, after they confirm. */
+function DeleteAccount({ guest, onDone }: { guest: boolean; onDone: () => void }) {
+  const { deleteAccount } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  if (!open)
+    return (
+      <button className="btn block danger-btn" style={{ marginTop: 12 }} onClick={() => setOpen(true)}>
+        Delete my account
+      </button>
+    )
+  return (
+    <form
+      className="delete-account"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        setBusy(true)
+        const err = await deleteAccount(guest ? undefined : password)
+        setBusy(false)
+        if (err) setError(err)
+        else onDone()
+      }}
+    >
+      <h2>Delete my account?</h2>
+      <p>This removes your account, contacts, groups, settings, photo and review for good. It can’t be undone. Messages you already sent stay in the other person’s chat.</p>
+      {!guest && (
+        <label className="field-label">Your password
+          <input className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </label>
+      )}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <button className="btn block danger-btn" disabled={busy}>{busy ? 'Deleting…' : 'Delete for good'}</button>
+      <button type="button" className="btn block" onClick={() => setOpen(false)}>Cancel</button>
+    </form>
   )
 }
 

@@ -22,6 +22,7 @@ Want to help with something? Comment on its issue, or open one, before you start
 **Getting started**
 - One-tap guest accounts with three demo friends, "Things to try" for each mode, and a QR code to call yourself from your phone
 - Installable web app (PWA) with call notifications
+- Delete my account, an age question at sign-up, and limits on wrong-password attempts
 
 ## Next (help wanted)
 

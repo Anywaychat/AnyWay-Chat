@@ -128,8 +128,10 @@ interface AuthCtx {
   createGroup: (name: string, members: string[]) => Promise<string | null>
   api: <T>(path: string, init?: { method?: string; body?: unknown }) => Promise<T>
   login: (username: string, password: string) => Promise<string | null>
-  signup: (p: { username: string; name: string; password: string; mode: Mode }) => Promise<string | null>
+  signup: (p: { username: string; name: string; password: string; mode: Mode; consent: 'adult' | 'guardian' }) => Promise<string | null>
   logout: () => Promise<void>
+  /** Deletes the account and everything the server keeps about it (a password is needed unless it's a guest). */
+  deleteAccount: (password?: string) => Promise<string | null>
   setMode: (m: Mode) => Promise<void>
   setName: (name: string) => Promise<string | null>
   setNickname: (username: string, nickname: string) => Promise<string | null>
@@ -303,6 +305,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           return (e as Error).message
         }
+      },
+      async deleteAccount(password) {
+        try {
+          await api('/me/delete', { method: 'POST', body: { password } })
+        } catch (e) {
+          return (e as Error).message
+        }
+        await disconnect().catch(() => {})
+        writeSession(null)
+        setSession(null)
+        setUser(null)
+        setContacts([])
+        setGroups([])
+        return null
       },
       async logout() {
         await api('/logout', { method: 'POST' }).catch(() => {})

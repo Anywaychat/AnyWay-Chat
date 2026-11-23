@@ -10,7 +10,7 @@ afterAll(() => api.close())
 
 describe('sign up', () => {
   it('makes an account and logs it in', async () => {
-    const r = await api.call('POST', '/signup', { body: { username: 'Asha_01', name: '  Asha  ', password: 'secret1', mode: 'deaf' } })
+    const r = await api.call('POST', '/signup', { body: { consent: 'adult', username: 'Asha_01', name: '  Asha  ', password: 'secret1', mode: 'deaf' } })
     expect(r.status).toBe(200)
     // Usernames keep only lowercase letters and numbers.
     expect(r.body.user).toEqual({ id: 'asha01', name: 'Asha', mode: 'deaf' })
@@ -20,7 +20,7 @@ describe('sign up', () => {
 
   it('refuses a username that is taken', async () => {
     await api.signup('ravi')
-    const r = await api.call('POST', '/signup', { body: { username: 'RAVI', name: 'Ravi 2', password: 'secret1' } })
+    const r = await api.call('POST', '/signup', { body: { consent: 'adult', username: 'RAVI', name: 'Ravi 2', password: 'secret1' } })
     expect(r.status).toBe(409)
     expect(r.body.error).toMatch(/taken/)
   })
@@ -30,20 +30,20 @@ describe('sign up', () => {
     ['validname', '12345', 'Name', /at least 6/],
     ['validname', 'secret1', '   ', /Enter your name/],
   ])('checks the details (%s / %s / %s)', async (username, password, name, error) => {
-    const r = await api.call('POST', '/signup', { body: { username, password, name } })
+    const r = await api.call('POST', '/signup', { body: { consent: 'adult', username, password, name } })
     expect(r.status).toBe(400)
     expect(r.body.error).toMatch(error)
   })
 
   it('keeps "demo" and "guest" names for the app’s own accounts', async () => {
     for (const username of ['demopriya', 'demoanything', 'guest123', 'guestbook']) {
-      const r = await api.call('POST', '/signup', { body: { username, name: 'X', password: 'secret1' } })
+      const r = await api.call('POST', '/signup', { body: { consent: 'adult', username, name: 'X', password: 'secret1' } })
       expect(r.status, username).toBe(409)
     }
   })
 
   it('falls back to talk-and-type for an unknown way of talking', async () => {
-    const r = await api.call('POST', '/signup', { body: { username: 'kiran', name: 'Kiran', password: 'secret1', mode: 'telepathy' } })
+    const r = await api.call('POST', '/signup', { body: { consent: 'adult', username: 'kiran', name: 'Kiran', password: 'secret1', mode: 'telepathy' } })
     expect(r.body.user.mode).toBe('standard')
   })
 })

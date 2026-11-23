@@ -82,6 +82,7 @@ export function Signup() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<Mode>('standard')
+  const [consent, setConsent] = useState<'' | 'adult' | 'guardian'>('')
   // Start from the phone's language when we support it.
   const [lang, setLangPick] = useState(() => LANGS.find((l) => base(l.code) === base(navigator.language ?? ''))?.code ?? 'en-IN')
   const [und, setUnd] = useState<string[]>([])
@@ -142,15 +143,22 @@ export function Signup() {
       </div>
       <h2 className="lang-q" style={{ fontSize: 20 }}>Your languages</h2>
       <LangPicker speak={lang} understand={und} onSpeak={setLangPick} onUnderstand={setUnd} />
+      <fieldset className="age-q">
+        <legend>Your age</legend>
+        <label className="age-opt"><input type="radio" name="age" checked={consent === 'adult'} onChange={() => setConsent('adult')} /> I’m 18 or older</label>
+        <label className="age-opt"><input type="radio" name="age" checked={consent === 'guardian'} onChange={() => setConsent('guardian')} /> I’m under 18, and my parent or guardian agrees</label>
+        <span className="field-hint">See how we handle your information in our <a className="link" href="https://github.com/Anywaychat/AnyWay-Chat/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">privacy page</a>.</span>
+      </fieldset>
       {error && <p className="form-error" role="alert">{error}</p>}
       <button
         className="btn primary block"
-        disabled={busy}
+        disabled={busy || !consent}
         onClick={async () => {
           setBusy(true)
           setLang(lang)
           setUnderstood(und)
-          const err = await signup({ username, name, password, mode })
+          if (!consent) return
+          const err = await signup({ username, name, password, mode, consent })
           setBusy(false)
           if (err) {
             setError(err)

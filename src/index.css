@@ -766,6 +766,9 @@ main h1:focus-visible, main h2:focus-visible { outline: 3px solid var(--accent);
 
 /* Language picker: the optional second list opens from a link */
 .lang-more { align-self: flex-start; margin-top: 4px; font-weight: 700; color: var(--blue); background: none; border: 0; padding: 6px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+/* Log in and sign up: big, easy buttons on every screen */
+.auth .btn.primary.block { height: 60px; font-size: 19px; border-radius: 14px; }
+.auth .btn.block { min-height: 52px; font-size: 17px; }
 /* Phones: the main button on log in and sign up is big and easy to hit */
 @media (max-width: 600px) {
   .auth .btn.primary.block { height: 58px; font-size: 18px; border-radius: 14px; }

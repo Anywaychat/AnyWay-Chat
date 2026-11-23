@@ -331,19 +331,21 @@ section{padding:72px 0}
 .num-age a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 @media (max-width:620px){.band-row{flex-wrap:wrap;justify-content:center;gap:8px 14px;white-space:normal}.phone{justify-self:center;max-width:100%}.band .dots{display:none}}
 nav .btn,.logo{white-space:nowrap}
+.navbtns{display:flex;gap:12px}nav .btn{height:60px;padding:0 30px;font-size:20px}
+@media (max-width:600px){.navbtns{gap:8px}nav .btn{height:52px;padding:0 18px;font-size:17px}}
 /* Try it now: one tap per way of talking */
 .try-as{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:18px 0 0}
 .try-as-l{flex-basis:100%;font-size:13px;color:var(--g);font-weight:700;letter-spacing:.02em}
 .try-as a{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 11px;border-radius:999px;background:#fff;border:1.5px solid var(--line);font-weight:700;font-size:14px;text-decoration:none;transition:border-color .12s,color .12s}
 .try-as a:hover,.try-as a:focus-visible{border-color:var(--y);color:var(--y)}
-@media (max-width:380px){.logo{font-size:16px;gap:8px}nav .btn{height:42px;padding:0 14px;font-size:14px}}
+@media (max-width:380px){.logo{font-size:16px;gap:8px}nav .btn{height:48px;padding:0 14px;font-size:16px}}
 </style>
 
 <div class="first">
 <div class="wrap">
   <nav aria-label="Main">
     <a class="logo" href="#"><span class="cell" aria-hidden="true"><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i></span>AnyWay Chat</a>
-    <a class="btn y" href="/try">Open the app</a>
+    <span class="navbtns"><a class="btn o" href="/login">Log in</a><a class="btn y" href="/signup">Sign up</a></span>
   </nav>
   <header class="hero hero5">
     <div class="h5-text">
